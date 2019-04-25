@@ -5,6 +5,9 @@
   },
   "devDependencies": {
     "@pika/web": "^0.4.2",
+    "husky": "^2.1.0",
+    "prettier": "^1.17.0",
+    "pretty-quick": "^1.10.0",
     "typescript": "^3.4.5"
   },
   "scripts": {
@@ -15,5 +18,10 @@
       "preact",
       "preact/hooks"
     ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "pretty-quick --staged"
+    }
   }
 }
