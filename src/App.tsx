@@ -11,7 +11,7 @@ export function App() {
   const [state, setState] = Hooks.useState<AppState>({
     routerState: { route: "Starting" },
     isFetching: false,
-    apiError: null
+    apiError: null,
   });
 
   Hooks.useEffect(() => {
@@ -21,7 +21,7 @@ export function App() {
   const narratives = getNarratives(setState);
   const { apiError, isFetching, ...pageProps } = {
     ...state,
-    ...narratives
+    ...narratives,
   };
 
   return (
@@ -36,7 +36,7 @@ export function App() {
 function Router(
   props: {
     routerState: RouterState;
-  } & AppNarratives
+  } & AppNarratives,
 ) {
   const routerState = props.routerState;
 
@@ -167,7 +167,7 @@ function Solution(props: {
     solution,
     onEdit: goToEdit,
     onOk: setOk,
-    onFailed: setFailed
+    onFailed: setFailed,
   } = props;
 
   return (

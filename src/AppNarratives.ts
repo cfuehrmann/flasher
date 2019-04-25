@@ -7,7 +7,7 @@ import {
   Card,
   GroomState,
   RouterState,
-  SolutionState
+  SolutionState,
 } from "./types";
 
 export function initialize(setState: Hooks.StateUpdater<AppState>) {
@@ -15,7 +15,7 @@ export function initialize(setState: Hooks.StateUpdater<AppState>) {
 }
 
 export const getNarratives = (
-  setState: Hooks.StateUpdater<AppState>
+  setState: Hooks.StateUpdater<AppState>,
 ): AppNarratives => {
   return {
     showSolution,
@@ -27,7 +27,7 @@ export const getNarratives = (
     goToGroom,
     goToPrompt,
     setCards,
-    editGroomItem
+    editGroomItem,
   };
 
   function showSolution(card: Card) {
@@ -55,7 +55,7 @@ export const getNarratives = (
       onDelete: deleteAndNext,
       onSaveAsNew: saveAsNewAndNext,
       onCancel: () => setRouterState(prevRouterState),
-      onSave: saveAndShowSolution
+      onSave: saveAndShowSolution,
     });
   }
 
@@ -68,7 +68,7 @@ export const getNarratives = (
           await api.createCard(prompt, solution);
           setRouterState(prevRouterState);
         });
-      }
+      },
     });
   }
 
@@ -82,7 +82,7 @@ export const getNarratives = (
           const cards = await api.findCards(prevRouterState.searchText);
           setRouterState({ ...prevRouterState, cards });
         });
-      }
+      },
     });
   }
 
@@ -114,7 +114,7 @@ export const getNarratives = (
           onDelete: deleteAndGroom(prevRouterState.searchText),
           onSaveAsNew: saveAndGroom(prevRouterState.searchText, false),
           onCancel: () => setRouterState(prevRouterState),
-          onSave: saveAndGroom(prevRouterState.searchText, true)
+          onSave: saveAndGroom(prevRouterState.searchText, true),
         });
       });
   }
@@ -167,7 +167,7 @@ export const getNarratives = (
 
 async function withApi(
   setState: Hooks.StateUpdater<AppState>,
-  apiMethod: () => Promise<void>
+  apiMethod: () => Promise<void>,
 ) {
   setState(prevState => ({ ...prevState, isFetching: true }));
   try {
@@ -177,7 +177,7 @@ async function withApi(
     setState(prevState => ({
       ...prevState,
       apiError: e.message,
-      isFetching: false
+      isFetching: false,
     }));
   }
 }
@@ -186,6 +186,6 @@ async function promptNext(setState: Hooks.StateUpdater<AppState>) {
   const card = await api.findNextCard();
   setState(prevState => ({
     ...prevState,
-    routerState: card ? { route: "Prompt", card } : { route: "Done" }
+    routerState: card ? { route: "Prompt", card } : { route: "Done" },
   }));
 }

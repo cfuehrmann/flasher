@@ -9,7 +9,7 @@ type Props = {
 export function CreateView(props: Props) {
   const [card, setCard] = Hooks.useState({
     prompt: "",
-    solution: ""
+    solution: "",
   });
 
   return (

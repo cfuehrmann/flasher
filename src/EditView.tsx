@@ -14,7 +14,7 @@ export function EditView(props: Props) {
   const [card, setCard] = Hooks.useState({
     id: props.id,
     prompt: props.prompt,
-    solution: props.solution
+    solution: props.solution,
   });
 
   return (

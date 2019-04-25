@@ -1,5 +1,5 @@
-import { apiUrl } from './ApiConfig.js';
-import { Api, Card } from './types';
+import { apiUrl } from "./ApiConfig.js";
+import { Api, Card } from "./types";
 
 export const api: Api = {
   findNextCard: async () => {
@@ -112,10 +112,10 @@ async function postAsJson(body: {
   variables?: {};
 }): Promise<{}> {
   const fetchResponse = await fetch(apiUrl, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
     body: JSON.stringify(body),
   });
@@ -126,7 +126,7 @@ async function postAsJson(body: {
   } = await fetchResponse.json();
 
   if (responseObject.errors) {
-    throw new Error(responseObject.errors.map(e => e.message).join('\n'));
+    throw new Error(responseObject.errors.map(e => e.message).join("\n"));
   }
 
   return responseObject.data;
