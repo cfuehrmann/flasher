@@ -6,16 +6,16 @@ function Greetings(props: { name: string }) {
   const [count, setCount] = Hooks.useState(0);
 
   Hooks.useEffect(() => {
-    document.title = count + ""; 
+    document.title = count + "";
   });
-  return React.h(
+  return React.createElement(
     "button",
     { onClick: () => setCount(count + 1) },
     "Greetings, " + count + "!"
   );
 }
 React.render(
-  React.h(Greetings, { name: "Chris" }),
+  React.createElement(Greetings, { name: "Chris" }),
   document.getElementById("root")!
 );
 // };
