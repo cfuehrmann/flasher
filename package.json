@@ -1,11 +1,11 @@
 {
   "dependencies": {
     "preact": "10.0.0-beta.0",
-    "typescript": "^3.4.5",
     "w3-css": "^4.1.0"
   },
   "devDependencies": {
-    "@pika/web": "^0.4.2"
+    "@pika/web": "^0.4.2",
+    "typescript": "^3.4.5"
   },
   "scripts": {
     "on-npm-update": "cp node_modules/w3-css/3/w3.css . && npx @pika/web"
