@@ -1,12 +1,12 @@
-import * as React from "./web_modules/preact.js";
-import * as Hooks from "./web_modules/preact/hooks.js";
+import * as React from "/web_modules/preact.js";
+import * as Hooks from "/web_modules/preact/hooks.js";
 
 // window.onload = function() {
 function Greetings(props: { name: string }) {
   const [count, setCount] = Hooks.useState(0);
 
   Hooks.useEffect(() => {
-    document.title = count + "";
+    document.title = count + ""; 
   });
   return React.h(
     "button",
