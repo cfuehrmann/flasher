@@ -1,6 +1,7 @@
 node_modules/
-web_modules/
 
 dist/
+web_modules/
+w3.css
 
 yarn-error.log
