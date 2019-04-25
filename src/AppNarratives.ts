@@ -1,5 +1,4 @@
-type SetStateAction<S> = S | ((prevState: S) => S);
-type Dispatch<A> = (value: A) => void;
+import * as Hooks from "/web_modules/preact/hooks.js";
 
 import { api } from "./Api.js";
 import {
@@ -11,12 +10,12 @@ import {
   SolutionState
 } from "./types";
 
-export function initialize(setState: Dispatch<SetStateAction<AppState>>) {
+export function initialize(setState: Hooks.StateUpdater<AppState>) {
   return withApi(setState, () => promptNext(setState));
 }
 
 export const getNarratives = (
-  setState: Dispatch<SetStateAction<AppState>>
+  setState: Hooks.StateUpdater<AppState>
 ): AppNarratives => {
   return {
     showSolution,
@@ -167,7 +166,7 @@ export const getNarratives = (
 };
 
 async function withApi(
-  setState: Dispatch<SetStateAction<AppState>>,
+  setState: Hooks.StateUpdater<AppState>,
   apiMethod: () => Promise<void>
 ) {
   setState(prevState => ({ ...prevState, isFetching: true }));
@@ -183,7 +182,7 @@ async function withApi(
   }
 }
 
-async function promptNext(setState: Dispatch<SetStateAction<AppState>>) {
+async function promptNext(setState: Hooks.StateUpdater<AppState>) {
   const card = await api.findNextCard();
   setState(prevState => ({
     ...prevState,

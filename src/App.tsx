@@ -1,5 +1,6 @@
 import * as React from "/web_modules/preact.js";
 import * as Hooks from "/web_modules/preact/hooks.js";
+
 import { getNarratives, initialize } from "./AppNarratives.js";
 import { CreateView } from "./CreateView.js";
 import { EditView } from "./EditView.js";

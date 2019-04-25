@@ -1,6 +1,5 @@
 import * as React from "/web_modules/preact.js";
 import * as Hooks from "/web_modules/preact/hooks.js";
-// import 'w3-css/w3.css';
 
 import { Card } from "./types";
 
