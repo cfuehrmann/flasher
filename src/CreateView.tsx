@@ -1,6 +1,5 @@
 import * as React from "/web_modules/preact.js";
 import * as Hooks from "/web_modules/preact/hooks.js";
-// import 'w3-css/w3.css';
 
 type Props = {
   onCancel: () => void;
@@ -9,25 +8,29 @@ type Props = {
 
 export function CreateView(props: Props) {
   const [card, setCard] = Hooks.useState({
-    prompt: '',
-    solution: '',
+    prompt: "",
+    solution: ""
   });
 
   return (
-    <div className="w3-container" style={{ whiteSpace: 'pre-wrap' }}>
+    <div className="w3-container" style={{ whiteSpace: "pre-wrap" }}>
       <br />
       <div className="w3-card">
         <input
           className="w3-input"
           type="text"
-          onChange={event => setPrompt((event.target as any).value)}
+          onChange={event =>
+            setPrompt((event.target as HTMLInputElement).value)
+          }
           value={card.prompt}
         />
         <br />
         <textarea
           className="w3-input"
           rows={17}
-          onChange={event => setSolution((event.target as any).value)}
+          onChange={event =>
+            setSolution((event.target as HTMLTextAreaElement).value)
+          }
           value={card.solution}
         />
         <br />
@@ -36,14 +39,14 @@ export function CreateView(props: Props) {
           <div className="w3-bar">
             <button
               className="w3-bar-item w3-button w3-red"
-              style={{ width: '30%' }}
+              style={{ width: "30%" }}
               onClick={props.onCancel}
             >
               Cancel
             </button>
             <button
               className="w3-bar-item w3-button w3-green"
-              style={{ width: '40%' }}
+              style={{ width: "40%" }}
               onClick={event => props.onCreate(card.prompt, card.solution)}
             >
               Create

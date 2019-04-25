@@ -21,7 +21,9 @@ export function GroomView(props: {
         <input
           className="w3-bar-item w3-input"
           type="text"
-          onChange={event => props.onChangeInput((event.target as any).value)}
+          onChange={event =>
+            props.onChangeInput((event.target as HTMLInputElement).value)
+          }
           value={props.searchText}
           placeholder="Search.."
         />
