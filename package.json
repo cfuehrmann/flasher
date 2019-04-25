@@ -1,0 +1,15 @@
+{
+  "dependencies": {
+    "preact": "^10.0.0-alpha.0",
+    "typescript": "^3.4.5"
+  },
+  "devDependencies": {
+    "@pika/web": "^0.4.2"
+  },
+  "@pika/web": {
+    "webDependencies": [
+      "preact",
+      "preact/hooks"
+    ]
+  }
+}
