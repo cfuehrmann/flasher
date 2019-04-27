@@ -5,13 +5,22 @@
   },
   "devDependencies": {
     "@pika/web": "^0.4.2",
+    "chokidar-cli": "^1.2.2",
     "husky": "^2.1.0",
     "prettier": "^1.17.0",
     "pretty-quick": "^1.10.0",
+    "tslint": "^5.16.0",
+    "tslint-config-prettier": "^1.18.0",
+    "tslint-react": "^4.0.0",
     "typescript": "^3.4.5"
   },
   "scripts": {
-    "on-npm-update": "cp node_modules/w3-css/3/w3.css . && npx @pika/web"
+    "on-npm-update": "cp node_modules/w3-css/3/w3.css . && npx @pika/web",
+    "build": "tsc",
+    "watch-build": "tsc -w",
+    "lint": "tslint src/*.ts src/*.tsx -p \"tsconfig.json\" -t verbose",
+    "watch-lint": "chokidar src/*.ts src/*.tsx -c \"yarn lint\" --initial --verbose",
+    "prettier": "prettier --write src/*.{ts,tsx} *.json"
   },
   "@pika/web": {
     "webDependencies": [
