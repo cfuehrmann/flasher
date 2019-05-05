@@ -15,7 +15,7 @@
     "typescript": "^3.4.5"
   },
   "scripts": {
-    "on-npm-update": "cp node_modules/w3-css/3/w3.css . && npx @pika/web",
+    "on-npm-update": "cp node_modules/w3-css/3/w3.css website && npx @pika/web",
     "build": "tsc",
     "watch-build": "tsc -w",
     "lint": "tslint src/*.ts src/*.tsx -p \"tsconfig.json\" -t verbose",

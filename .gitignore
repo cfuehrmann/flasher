@@ -1,9 +1,9 @@
 node_modules/
 web_modules/
 
-w3.css
+website/w3.css
 src/ApiConfig.ts
 
-dist/
+website/js/
 
 yarn-error.log
