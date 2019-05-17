@@ -1,5 +1,5 @@
-import * as React from "/web_modules/preact.js";
-import * as Hooks from "/web_modules/preact/hooks.js";
+import * as React from "preact";
+import * as Hooks from "preact/hooks";
 
 type Props = {
   onCancel: () => void;

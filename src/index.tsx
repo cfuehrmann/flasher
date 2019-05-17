@@ -1,5 +1,8 @@
-import * as React from "/web_modules/preact.js";
+import * as React from "preact";
+import "w3-css";
 
-import { App } from "./App.js";
+import { App } from "./App";
 
-React.render(<App />, document.getElementById("root")!);
+window.onload = () => {
+  React.render(<App />, document.getElementById("root")!);
+};

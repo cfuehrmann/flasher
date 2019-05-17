@@ -1,4 +1,4 @@
-import { apiUrl } from "./ApiConfig.js";
+import { apiUrl } from "./ApiConfig";
 import { Api, Card } from "./types";
 
 export const api: Api = {

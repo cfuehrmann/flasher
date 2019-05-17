@@ -1,4 +1,4 @@
-import * as React from "/web_modules/preact.js";
+import * as React from "preact";
 
 import { Card } from "./types";
 

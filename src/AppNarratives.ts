@@ -1,6 +1,6 @@
-import * as Hooks from "/web_modules/preact/hooks.js";
+import * as Hooks from "preact/hooks";
 
-import { api } from "./Api.js";
+import { api } from "./Api";
 import {
   AppNarratives,
   AppState,

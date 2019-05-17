@@ -1,10 +1,11 @@
-import * as React from "/web_modules/preact.js";
-import * as Hooks from "/web_modules/preact/hooks.js";
+import MarkDownIt = require("markdown-it");
+import * as React from "preact";
+import * as Hooks from "preact/hooks";
 
-import { getNarratives, initialize } from "./AppNarratives.js";
-import { CreateView } from "./CreateView.js";
-import { EditView } from "./EditView.js";
-import { GroomView } from "./GroomView.js";
+import { getNarratives, initialize } from "./AppNarratives";
+import { CreateView } from "./CreateView";
+import { EditView } from "./EditView";
+import { GroomView } from "./GroomView";
 import { AppNarratives, AppState, RouterState } from "./types";
 
 export function App() {
@@ -141,7 +142,7 @@ function Menu(props: { onGoToCreate: () => void; onGoToGroom: () => void }) {
 
 function CardView(props: { children: React.ComponentChildren }) {
   return (
-    <div className="w3-container" style={{ whiteSpace: "pre-wrap" }}>
+    <div className="w3-container">
       <br />
       <div className="w3-card">{props.children}</div>
       <br />
@@ -172,7 +173,10 @@ function Solution(props: {
 
   return (
     <>
-      <div className="w3-container">{solution}</div>
+      <div
+        className="w3-container"
+        dangerouslySetInnerHTML={{ __html: new MarkDownIt().render(solution) }}
+      />
       <br />
       <br />
       <div className="w3-container">

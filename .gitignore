@@ -1,5 +1,7 @@
 node_modules/
 web_modules/
+.cache/
+dist/
 
 website/w3.css
 src/ApiConfig.ts
