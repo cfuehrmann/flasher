@@ -1,4 +1,4 @@
-import MarkDownIt = require("markdown-it");
+import * as MarkDownIt from "markdown-it";
 import * as React from "preact";
 import * as Hooks from "preact/hooks";
 
