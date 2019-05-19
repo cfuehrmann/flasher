@@ -24,6 +24,12 @@ export type CreateState = {
   onSave: (prompt: string, solution: string) => void;
 };
 export type GroomState = { route: "Groom"; searchText: string; cards: Card[] };
+export type GroomItemState = {
+  route: "GroomItem";
+  card: Card;
+  onBack: () => void;
+  onEdit: () => void;
+};
 
 export type RouterState =
   | PromptState
@@ -32,7 +38,8 @@ export type RouterState =
   | StartingState
   | DoneState
   | CreateState
-  | GroomState;
+  | GroomState
+  | GroomItemState;
 
 export type AppState = {
   routerState: RouterState;
@@ -61,5 +68,5 @@ export type AppNarratives = Readonly<{
   goToGroom: () => void;
   goToPrompt: () => void;
   setCards: (searchText: string) => void;
-  editGroomItem: (prevRouterState: GroomState) => (id: string) => void;
+  groomItem: (prevRouterState: GroomState) => (id: string) => void;
 }>;

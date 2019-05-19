@@ -1,10 +1,11 @@
-import * as MarkDownIt from "markdown-it";
+import MarkDownIt = require("markdown-it");
 import * as React from "preact";
 import * as Hooks from "preact/hooks";
 
 import { getNarratives, initialize } from "./AppNarratives";
 import { CreateView } from "./CreateView";
 import { EditView } from "./EditView";
+import { GroomItemView } from "./GroomItemView";
 import { GroomView } from "./GroomView";
 import { AppNarratives, AppState, RouterState } from "./types";
 
@@ -83,6 +84,14 @@ function Router(
         </>
       );
     }
+    case "GroomItem":
+      return (
+        <GroomItemView
+          {...routerState.card}
+          onBack={routerState.onBack}
+          onEdit={routerState.onEdit}
+        />
+      );
     case "Edit":
       return (
         <EditView
@@ -106,7 +115,7 @@ function Router(
           onGoToPrompt={props.goToPrompt}
           onGoToCreate={() => props.createFromGroom(routerState)}
           onChangeInput={props.setCards}
-          onEdit={props.editGroomItem(routerState)}
+          onGroomItem={props.groomItem(routerState)}
           searchText={routerState.searchText}
           cards={routerState.cards}
         />

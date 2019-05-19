@@ -5,6 +5,7 @@ import {
   AppNarratives,
   AppState,
   Card,
+  GroomItemState,
   GroomState,
   RouterState,
   SolutionState,
@@ -27,7 +28,7 @@ export const getNarratives = (
     goToGroom,
     goToPrompt,
     setCards,
-    editGroomItem,
+    groomItem,
   };
 
   function showSolution(card: Card) {
@@ -101,21 +102,14 @@ export const getNarratives = (
     });
   }
 
-  function editGroomItem(prevRouterState: GroomState) {
+  function groomItem(prevRouterState: GroomState) {
     return (id: string) =>
       withApi(setState, async () => {
         const card = await api.readCard(id);
         if (card === undefined) {
           return;
         }
-        setRouterState({
-          route: "Edit",
-          card,
-          onDelete: deleteAndGroom(prevRouterState.searchText),
-          onSaveAsNew: saveAndGroom(prevRouterState.searchText, false),
-          onCancel: () => setRouterState(prevRouterState),
-          onSave: saveAndGroom(prevRouterState.searchText, true),
-        });
+        setRouterState(getGroomItemState(card, prevRouterState));
       });
   }
 
@@ -150,14 +144,31 @@ export const getNarratives = (
     };
   }
 
-  function saveAndGroom(searchText: string, isMinor: boolean) {
-    return (card: Card) => {
-      withApi(setState, async () => {
-        await api.updateCard(card, isMinor);
-        const cards = await api.findCards(searchText);
-        setRouterState({ route: "Groom", cards, searchText });
-      });
+  function getGroomItemState(card: Card, prevRouterState: GroomState) {
+    const groomItemState: GroomItemState = {
+      route: "GroomItem",
+      card,
+      onEdit: () =>
+        setRouterState({
+          route: "Edit",
+          card,
+          onDelete: deleteAndGroom(prevRouterState.searchText),
+          onSaveAsNew: saveGroomItem(false),
+          onCancel: () => setRouterState(groomItemState),
+          onSave: saveGroomItem(true),
+        }),
+      onBack: () => setRouterState(prevRouterState),
     };
+    return groomItemState;
+
+    function saveGroomItem(isMinor: boolean) {
+      return (cardToSave: Card) => {
+        withApi(setState, async () => {
+          await api.updateCard(cardToSave, isMinor);
+          setRouterState(getGroomItemState(cardToSave, prevRouterState));
+        });
+      };
+    }
   }
 
   function setRouterState(routerState: RouterState) {

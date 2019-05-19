@@ -5,7 +5,7 @@ import { Card } from "./types";
 export function GroomView(props: {
   onGoToPrompt: () => void;
   onChangeInput: (searchText: string) => void;
-  onEdit: (id: string) => void;
+  onGroomItem: (id: string) => void;
   onGoToCreate: () => void;
   searchText: string;
   cards: Card[];
@@ -37,7 +37,7 @@ export function GroomView(props: {
     return (
       <>
         {props.cards.map(c => (
-          <button key={c.id} onClick={() => props.onEdit(c.id)}>
+          <button key={c.id} onClick={() => props.onGroomItem(c.id)}>
             {c.prompt}
           </button>
         ))}
