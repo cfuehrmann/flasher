@@ -1,5 +1,7 @@
-import * as React from "preact";
+import "github-markdown-css";
 import "w3-css";
+
+import * as React from "preact";
 
 import { App } from "./App";
 

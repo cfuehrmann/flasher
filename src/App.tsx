@@ -183,7 +183,7 @@ function Solution(props: {
   return (
     <>
       <div
-        className="w3-container"
+        className="w3-container markdown-body"
         dangerouslySetInnerHTML={{ __html: new MarkDownIt().render(solution) }}
       />
       <br />
