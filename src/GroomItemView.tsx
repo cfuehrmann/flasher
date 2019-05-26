@@ -1,4 +1,5 @@
 import MarkDownIt = require("markdown-it");
+import KaTeX = require("markdown-it-katex");
 import * as React from "preact";
 
 import { Card } from "./types";
@@ -47,11 +48,14 @@ function Solution(props: {
 }) {
   const { solution, onEdit, onBack } = props;
 
+  const md = new MarkDownIt();
+  md.use(KaTeX);
+
   return (
     <>
       <div
         className="w3-container markdown-body"
-        dangerouslySetInnerHTML={{ __html: new MarkDownIt().render(solution) }}
+        dangerouslySetInnerHTML={{ __html: md.render(solution) }}
       />
       <br />
       <br />
