@@ -4,7 +4,7 @@ web_modules/
 dist/
 
 website/w3.css
-src/ApiConfig.ts
+src/ApiConfig*.ts
 
 website/js/
 
