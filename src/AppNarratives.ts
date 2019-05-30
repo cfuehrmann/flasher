@@ -23,7 +23,7 @@ export const getNarratives = (
     setOk,
     setFailed,
     editSolution,
-    goToCreate,
+    createFromPrompt,
     createFromGroom,
     goToGroom,
     goToPrompt,
@@ -60,30 +60,79 @@ export const getNarratives = (
     });
   }
 
-  function goToCreate(prevRouterState: RouterState) {
+  function createFromPrompt(prevRouterState: RouterState) {
+    createFromPromptLoop(prevRouterState, "", "");
+  }
+
+  function createFromPromptLoop(
+    prevRouterState: RouterState,
+    prompt: string,
+    solution: string,
+  ) {
     setRouterState({
       route: "Create",
+      prompt,
+      solution,
       onCancel: () => setRouterState(prevRouterState),
-      onSave: (prompt: string, solution: string) => {
-        withApi(setState, async () => {
-          await api.createCard(prompt, solution);
-          setRouterState(prevRouterState);
-        });
-      },
+      onSave: (p: string, s: string) =>
+        checkCreatedFromPrompt(p, s, prevRouterState),
     });
   }
 
-  function createFromGroom(prevRouterState: GroomState) {
+  function checkCreatedFromPrompt(
+    prompt: string,
+    solution: string,
+    prevRouterState: RouterState,
+  ) {
     setRouterState({
-      route: "Create",
+      route: "CheckCreated",
+      prompt,
+      solution,
       onCancel: () => setRouterState(prevRouterState),
-      onSave: (prompt: string, solution: string) => {
+      onEdit: () => createFromPromptLoop(prevRouterState, prompt, solution),
+      onSave: () =>
         withApi(setState, async () => {
           await api.createCard(prompt, solution);
-          const cards = await api.findCards(prevRouterState.searchText);
-          setRouterState({ ...prevRouterState, cards });
-        });
-      },
+          setRouterState(prevRouterState);
+        }),
+    });
+  }
+
+  function createFromGroom(groomState: GroomState) {
+    createFromGroomLoop(groomState, "", "");
+  }
+
+  function createFromGroomLoop(
+    groomState: GroomState,
+    prompt: string,
+    solution: string,
+  ) {
+    setRouterState({
+      route: "Create",
+      prompt,
+      solution,
+      onCancel: () => setRouterState(groomState),
+      onSave: (p: string, s: string) => checkCreatedFromGroom(p, s, groomState),
+    });
+  }
+
+  function checkCreatedFromGroom(
+    prompt: string,
+    solution: string,
+    groomState: GroomState,
+  ) {
+    setRouterState({
+      route: "CheckCreated",
+      prompt,
+      solution,
+      onCancel: () => setRouterState(groomState),
+      onEdit: () => createFromGroomLoop(groomState, prompt, solution),
+      onSave: () =>
+        withApi(setState, async () => {
+          await api.createCard(prompt, solution);
+          const cards = await api.findCards(groomState.searchText);
+          setRouterState({ ...groomState, cards });
+        }),
     });
   }
 

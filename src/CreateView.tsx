@@ -2,14 +2,16 @@ import * as React from "preact";
 import * as Hooks from "preact/hooks";
 
 type Props = {
+  prompt: string;
+  solution: string;
   onCancel: () => void;
   onCreate: (prompt: string, solution: string) => void;
 };
 
 export function CreateView(props: Props) {
   const [card, setCard] = Hooks.useState({
-    prompt: "",
-    solution: "",
+    prompt: props.prompt,
+    solution: props.solution,
   });
 
   return (

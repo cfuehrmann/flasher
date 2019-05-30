@@ -3,6 +3,7 @@ import * as Hooks from "preact/hooks";
 
 import { getNarratives, initialize } from "./AppNarratives";
 import { CardView } from "./CardView";
+import { CheckCreatedView } from "./CheckCreatedView";
 import { CreateView } from "./CreateView";
 import { EditView } from "./EditView";
 import { GroomItemView } from "./GroomItemView";
@@ -52,7 +53,7 @@ function Router(
       return (
         <>
           <Menu
-            onGoToCreate={() => props.goToCreate(routerState)}
+            onGoToCreate={() => props.createFromPrompt(routerState)}
             onGoToGroom={props.goToGroom}
           />
           <CardView>
@@ -70,7 +71,7 @@ function Router(
       return (
         <>
           <Menu
-            onGoToCreate={() => props.goToCreate(routerState)}
+            onGoToCreate={() => props.createFromPrompt(routerState)}
             onGoToGroom={props.goToGroom}
           />
           <CardView>
@@ -110,8 +111,20 @@ function Router(
     case "Create":
       return (
         <CreateView
+          prompt={routerState.prompt}
+          solution={routerState.solution}
           onCreate={routerState.onSave}
           onCancel={routerState.onCancel}
+        />
+      );
+    case "CheckCreated":
+      return (
+        <CheckCreatedView
+          prompt={routerState.prompt}
+          solution={routerState.solution}
+          onCancel={routerState.onCancel}
+          onCreate={routerState.onSave}
+          onEdit={routerState.onEdit}
         />
       );
     case "Groom":
@@ -129,7 +142,7 @@ function Router(
       return (
         <>
           <Menu
-            onGoToCreate={() => props.goToCreate(routerState)}
+            onGoToCreate={() => props.createFromPrompt(routerState)}
             onGoToGroom={props.goToGroom}
           />
           <CardView>Congrats, there are no due cards!</CardView>
