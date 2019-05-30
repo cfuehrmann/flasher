@@ -1,13 +1,15 @@
-import MarkDownIt = require("markdown-it");
-import KaTeX = require("markdown-it-katex");
 import * as React from "preact";
 import * as Hooks from "preact/hooks";
 
 import { getNarratives, initialize } from "./AppNarratives";
+import { CardView } from "./CardView";
 import { CreateView } from "./CreateView";
 import { EditView } from "./EditView";
 import { GroomItemView } from "./GroomItemView";
 import { GroomView } from "./GroomView";
+import { PromptView } from "./PromptView";
+import { SolutionView } from "./SolutionView";
+
 import { AppNarratives, AppState, RouterState } from "./types";
 
 export function App() {
@@ -54,7 +56,7 @@ function Router(
             onGoToGroom={props.goToGroom}
           />
           <CardView>
-            <Prompt value={routerState.card.prompt} />
+            <PromptView value={routerState.card.prompt} />
             <br />
             <ShowButton onClick={() => props.showSolution(routerState.card)} />
             <br />
@@ -72,10 +74,12 @@ function Router(
             onGoToGroom={props.goToGroom}
           />
           <CardView>
-            <Prompt value={prompt} />
+            <PromptView value={prompt} />
             <br />
-            <Solution
-              solution={solution}
+            <SolutionView solution={solution} />
+            <br />
+            <br />
+            <OkFailedEditButtons
               onEdit={() => props.editSolution(routerState)}
               onOk={() => props.setOk(id)}
               onFailed={() => props.setFailed(id)}
@@ -150,74 +154,37 @@ function Menu(props: { onGoToCreate: () => void; onGoToGroom: () => void }) {
   );
 }
 
-function CardView(props: { children: React.ComponentChildren }) {
-  return (
-    <div className="w3-container">
-      <br />
-      <div className="w3-card">{props.children}</div>
-      <br />
-    </div>
-  );
-}
-
-function Prompt(props: { value: string }) {
-  return (
-    <header className="w3-container">
-      <h3>{props.value}</h3>
-    </header>
-  );
-}
-
-function Solution(props: {
-  solution: string;
+function OkFailedEditButtons(props: {
   onEdit: () => void;
   onOk: () => void;
   onFailed: () => void;
 }) {
-  const {
-    solution,
-    onEdit: goToEdit,
-    onOk: setOk,
-    onFailed: setFailed,
-  } = props;
-
-  const md = new MarkDownIt();
-  md.use(KaTeX);
-
   return (
-    <>
-      <div
-        className="w3-container markdown-body"
-        dangerouslySetInnerHTML={{ __html: md.render(solution) }}
-      />
-      <br />
-      <br />
-      <div className="w3-container">
-        <div className="w3-bar">
-          <button
-            className="w3-bar-item w3-button w3-dark-grey"
-            style={{ width: "33%" }}
-            onClick={goToEdit}
-          >
-            Edit
-          </button>
-          <button
-            className="w3-bar-item w3-button w3-green"
-            style={{ width: "34%" }}
-            onClick={setOk}
-          >
-            Ok
-          </button>
-          <button
-            className="w3-bar-item w3-button w3-red"
-            style={{ width: "33%" }}
-            onClick={setFailed}
-          >
-            Failed
-          </button>
-        </div>
+    <div className="w3-container">
+      <div className="w3-bar">
+        <button
+          className="w3-bar-item w3-button w3-dark-grey"
+          style={{ width: "33%" }}
+          onClick={props.onEdit}
+        >
+          Edit
+        </button>
+        <button
+          className="w3-bar-item w3-button w3-green"
+          style={{ width: "34%" }}
+          onClick={props.onOk}
+        >
+          Ok
+        </button>
+        <button
+          className="w3-bar-item w3-button w3-red"
+          style={{ width: "33%" }}
+          onClick={props.onFailed}
+        >
+          Failed
+        </button>
       </div>
-    </>
+    </div>
   );
 }
 
