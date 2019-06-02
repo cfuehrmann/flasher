@@ -24,16 +24,14 @@ export function EditView(props: Props) {
         <input
           className="w3-input"
           type="text"
-          onChange={event =>
-            setPrompt((event.target as HTMLInputElement).value)
-          }
+          onInput={event => setPrompt((event.target as HTMLInputElement).value)}
           value={card.prompt}
         />
         <br />
         <textarea
           className="w3-input"
           rows={17}
-          onChange={event =>
+          onInput={event =>
             setSolution((event.target as HTMLTextAreaElement).value)
           }
           value={card.solution}
@@ -45,28 +43,28 @@ export function EditView(props: Props) {
             <button
               className="w3-bar-item w3-button w3-red"
               style={{ width: "26%" }}
-              onClick={event => props.onDelete(card.id)}
+              onMouseDown={event => props.onDelete(card.id)}
             >
               Delete
             </button>
             <button
               className="w3-bar-item w3-button w3-green"
               style={{ width: "26%" }}
-              onClick={event => props.onSaveAsNew(card)}
+              onMouseDown={event => props.onSaveAsNew(card)}
             >
               As&nbsp;new
             </button>
             <button
               className="w3-bar-item w3-button w3-red"
               style={{ width: "26%" }}
-              onClick={props.onCancel}
+              onMouseDown={props.onCancel}
             >
               Cancel
             </button>
             <button
               className="w3-bar-item w3-button w3-green"
               style={{ width: "22%" }}
-              onClick={event => props.onSave(card)}
+              onMouseDown={event => props.onSave(card)}
             >
               Save
             </button>

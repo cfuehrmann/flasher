@@ -21,16 +21,14 @@ export function CreateView(props: Props) {
         <input
           className="w3-input"
           type="text"
-          onChange={event =>
-            setPrompt((event.target as HTMLInputElement).value)
-          }
+          onInput={event => setPrompt((event.target as HTMLInputElement).value)}
           value={card.prompt}
         />
         <br />
         <textarea
           className="w3-input"
           rows={17}
-          onChange={event =>
+          onInput={event =>
             setSolution((event.target as HTMLTextAreaElement).value)
           }
           value={card.solution}
@@ -42,14 +40,14 @@ export function CreateView(props: Props) {
             <button
               className="w3-bar-item w3-button w3-red"
               style={{ width: "30%" }}
-              onClick={props.onCancel}
+              onMouseDown={props.onCancel}
             >
               Cancel
             </button>
             <button
               className="w3-bar-item w3-button w3-green"
               style={{ width: "40%" }}
-              onClick={event => props.onCreate(card.prompt, card.solution)}
+              onMouseDown={event => props.onCreate(card.prompt, card.solution)}
             >
               Create
             </button>
