@@ -9,16 +9,16 @@
   },
   "devDependencies": {
     "chokidar-cli": "^1.2.2",
-    "husky": "^2.1.0",
+    "husky": "^2.3.0",
     "ncp": "^2.0.0",
     "parcel-bundler": "^1.12.3",
-    "prettier": "^1.17.0",
-    "pretty-quick": "^1.10.0",
+    "prettier": "^1.17.1",
+    "pretty-quick": "^1.11.0",
     "rimraf": "^2.6.3",
-    "tslint": "^5.16.0",
+    "tslint": "^5.17.0",
     "tslint-config-prettier": "^1.18.0",
     "tslint-react": "^4.0.0",
-    "typescript": "^3.4.5"
+    "typescript": "^3.5.1"
   },
   "scripts": {
     "dev": "ncp src/ApiConfigDev.ts src/ApiConfig.ts && parcel index.html",
