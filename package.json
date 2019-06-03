@@ -14,6 +14,7 @@
     "parcel-bundler": "^1.12.3",
     "prettier": "^1.17.0",
     "pretty-quick": "^1.10.0",
+    "rimraf": "^2.6.3",
     "tslint": "^5.16.0",
     "tslint-config-prettier": "^1.18.0",
     "tslint-react": "^4.0.0",
@@ -21,7 +22,7 @@
   },
   "scripts": {
     "dev": "ncp src/ApiConfigDev.ts src/ApiConfig.ts && parcel index.html",
-    "build": "ncp src/ApiConfigProduction.ts src/ApiConfig.ts && parcel build index.html",
+    "build": "rimraf dist/* && ncp src/ApiConfigProduction.ts src/ApiConfig.ts && parcel build index.html",
     "lint": "tslint src/*.ts src/*.tsx -p \"tsconfig.json\" -t verbose",
     "watch-lint": "chokidar src/*.ts src/*.tsx -c \"yarn lint\" --initial --verbose",
     "prettier": "prettier --write src/*.{ts,tsx} *.json"
