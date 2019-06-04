@@ -23,7 +23,7 @@ export type CreateState = {
   prompt: string;
   solution: string;
   onCancel: () => void;
-  onSave: (prompt: string, solution: string) => void;
+  onCreate: (prompt: string, solution: string) => void;
 };
 export type CheckCreatedState = {
   route: "CheckCreated";
@@ -31,7 +31,7 @@ export type CheckCreatedState = {
   solution: string;
   onCancel: () => void;
   onEdit: () => void;
-  onSave: () => void;
+  onCreate: () => void;
 };
 export type GroomState = { route: "Groom"; searchText: string; cards: Card[] };
 export type GroomItemState = {

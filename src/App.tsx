@@ -113,7 +113,7 @@ function Router(
         <CreateView
           prompt={routerState.prompt}
           solution={routerState.solution}
-          onCreate={routerState.onSave}
+          onCreate={routerState.onCreate}
           onCancel={routerState.onCancel}
         />
       );
@@ -123,7 +123,7 @@ function Router(
           prompt={routerState.prompt}
           solution={routerState.solution}
           onCancel={routerState.onCancel}
-          onCreate={routerState.onSave}
+          onCreate={routerState.onCreate}
           onEdit={routerState.onEdit}
         />
       );

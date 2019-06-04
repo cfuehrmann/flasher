@@ -74,7 +74,7 @@ export const getNarratives = (
       prompt,
       solution,
       onCancel: () => setRouterState(prevRouterState),
-      onSave: (p: string, s: string) =>
+      onCreate: (p: string, s: string) =>
         checkCreatedFromPrompt(p, s, prevRouterState),
     });
   }
@@ -90,7 +90,7 @@ export const getNarratives = (
       solution,
       onCancel: () => setRouterState(prevRouterState),
       onEdit: () => createFromPromptLoop(prevRouterState, prompt, solution),
-      onSave: () =>
+      onCreate: () =>
         withApi(setState, async () => {
           await api.createCard(prompt, solution);
           setRouterState(prevRouterState);
@@ -112,7 +112,8 @@ export const getNarratives = (
       prompt,
       solution,
       onCancel: () => setRouterState(groomState),
-      onSave: (p: string, s: string) => checkCreatedFromGroom(p, s, groomState),
+      onCreate: (p: string, s: string) =>
+        checkCreatedFromGroom(p, s, groomState),
     });
   }
 
@@ -127,7 +128,7 @@ export const getNarratives = (
       solution,
       onCancel: () => setRouterState(groomState),
       onEdit: () => createFromGroomLoop(groomState, prompt, solution),
-      onSave: () =>
+      onCreate: () =>
         withApi(setState, async () => {
           await api.createCard(prompt, solution);
           const cards = await api.findCards(groomState.searchText);
@@ -193,7 +194,7 @@ export const getNarratives = (
     };
   }
 
-  function getGroomItemState(card: Card, prevRouterState: GroomState) {
+  function getGroomItemState(card: Card, groomState: GroomState) {
     const groomItemState: GroomItemState = {
       route: "GroomItem",
       card,
@@ -201,12 +202,16 @@ export const getNarratives = (
         setRouterState({
           route: "Edit",
           card,
-          onDelete: deleteAndGroom(prevRouterState.searchText),
+          onDelete: deleteAndGroom(groomState.searchText),
           onSaveAsNew: saveGroomItem(false),
           onCancel: () => setRouterState(groomItemState),
           onSave: saveGroomItem(true),
         }),
-      onBack: () => setRouterState(prevRouterState),
+      onBack: () =>
+        withApi(setState, async () => {
+          const cards = await api.findCards(groomState.searchText);
+          setRouterState({ ...groomState, cards });
+        }),
     };
     return groomItemState;
 
@@ -214,7 +219,7 @@ export const getNarratives = (
       return (cardToSave: Card) => {
         withApi(setState, async () => {
           await api.updateCard(cardToSave, isMinor);
-          setRouterState(getGroomItemState(cardToSave, prevRouterState));
+          setRouterState(getGroomItemState(cardToSave, groomState));
         });
       };
     }
