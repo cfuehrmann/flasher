@@ -2,6 +2,13 @@ import * as React from "preact";
 import * as Hooks from "preact/hooks";
 
 import { getNarratives, initialize } from "./AppNarratives";
+import {
+  ButtonBar,
+  EditButton,
+  FailedButton,
+  OkButton,
+  ShowButton,
+} from "./Buttons";
 import { CardView } from "./CardView";
 import { CheckCreatedView } from "./CheckCreatedView";
 import { CreateView } from "./CreateView";
@@ -10,7 +17,6 @@ import { GroomItemView } from "./GroomItemView";
 import { GroomView } from "./GroomView";
 import { PromptView } from "./PromptView";
 import { SolutionView } from "./SolutionView";
-
 import { AppNarratives, AppState, RouterState } from "./types";
 
 export function App() {
@@ -59,7 +65,12 @@ function Router(
           <CardView>
             <PromptView value={routerState.card.prompt} />
             <br />
-            <ShowButton onClick={() => props.showSolution(routerState.card)} />
+            <ButtonBar>
+              <ShowButton
+                width="100%"
+                onClick={() => props.showSolution(routerState.card)}
+              />
+            </ButtonBar>
             <br />
           </CardView>
         </>
@@ -80,11 +91,14 @@ function Router(
             <SolutionView solution={solution} />
             <br />
             <br />
-            <OkFailedEditButtons
-              onEdit={() => props.editSolution(routerState)}
-              onOk={() => props.setOk(id)}
-              onFailed={() => props.setFailed(id)}
-            />
+            <ButtonBar>
+              <EditButton
+                width="33%"
+                onClick={() => props.editSolution(routerState)}
+              />
+              <OkButton width="34%" onClick={() => props.setOk(id)} />
+              <FailedButton width="33%" onClick={() => props.setFailed(id)} />
+            </ButtonBar>
             <br />
           </CardView>
         </>
@@ -162,53 +176,6 @@ function Menu(props: { onGoToCreate: () => void; onGoToGroom: () => void }) {
       </button>
       <button className="w3-bar-item w3-button" onClick={props.onGoToGroom}>
         Groom
-      </button>
-    </div>
-  );
-}
-
-function OkFailedEditButtons(props: {
-  onEdit: () => void;
-  onOk: () => void;
-  onFailed: () => void;
-}) {
-  return (
-    <div className="w3-container">
-      <div className="w3-bar">
-        <button
-          className="w3-bar-item w3-button w3-dark-grey"
-          style={{ width: "33%" }}
-          onClick={props.onEdit}
-        >
-          Edit
-        </button>
-        <button
-          className="w3-bar-item w3-button w3-green"
-          style={{ width: "34%" }}
-          onClick={props.onOk}
-        >
-          Ok
-        </button>
-        <button
-          className="w3-bar-item w3-button w3-red"
-          style={{ width: "33%" }}
-          onClick={props.onFailed}
-        >
-          Failed
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ShowButton(props: { onClick: () => void }) {
-  return (
-    <div className="w3-container">
-      <button
-        className="w3-button w3-block w3-dark-grey"
-        onClick={props.onClick}
-      >
-        Show
       </button>
     </div>
   );

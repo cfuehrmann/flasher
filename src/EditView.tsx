@@ -1,6 +1,13 @@
 import * as React from "preact";
 import * as Hooks from "preact/hooks";
 
+import {
+  AsNewButton,
+  ButtonBar,
+  CancelButton,
+  DeleteButton,
+  SaveButton,
+} from "./Buttons";
 import { Card } from "./types";
 
 type Props = Card & {
@@ -38,38 +45,12 @@ export function EditView(props: Props) {
         />
         <br />
         <br />
-        <div className="w3-container">
-          <div className="w3-bar">
-            <button
-              className="w3-bar-item w3-button w3-red"
-              style={{ width: "26%" }}
-              onMouseDown={event => props.onDelete(card.id)}
-            >
-              Delete
-            </button>
-            <button
-              className="w3-bar-item w3-button w3-green"
-              style={{ width: "26%" }}
-              onMouseDown={event => props.onSaveAsNew(card)}
-            >
-              As&nbsp;new
-            </button>
-            <button
-              className="w3-bar-item w3-button w3-red"
-              style={{ width: "26%" }}
-              onMouseDown={props.onCancel}
-            >
-              Cancel
-            </button>
-            <button
-              className="w3-bar-item w3-button w3-green"
-              style={{ width: "22%" }}
-              onMouseDown={event => props.onSave(card)}
-            >
-              Save
-            </button>
-          </div>
-        </div>
+        <ButtonBar>
+          <DeleteButton width="26%" onClick={() => props.onDelete(card.id)} />
+          <AsNewButton width="26%" onClick={() => props.onSaveAsNew(card)} />
+          <CancelButton width="26%" onClick={props.onCancel} />
+          <SaveButton width="22%" onClick={() => props.onSave(card)} />
+        </ButtonBar>
         <br />
       </div>
       <br />

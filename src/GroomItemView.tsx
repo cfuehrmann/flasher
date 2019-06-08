@@ -1,9 +1,9 @@
 import * as React from "preact";
 
+import { BackButton, ButtonBar, EditButton } from "./Buttons";
 import { CardView } from "./CardView";
 import { PromptView } from "./PromptView";
 import { SolutionView } from "./SolutionView";
-
 import { Card } from "./types";
 
 type Props = Card & { onEdit: () => void; onBack: () => void };
@@ -17,32 +17,12 @@ export function GroomItemView(props: Props) {
         <SolutionView solution={props.solution} />
         <br />
         <br />
-        <Buttons onEdit={props.onEdit} onBack={props.onBack} />
+        <ButtonBar>
+          <EditButton width="50%" onClick={props.onEdit} />
+          <BackButton width="50%" onClick={props.onBack} />
+        </ButtonBar>
         <br />
       </CardView>
     </>
-  );
-}
-
-function Buttons(props: { onEdit: () => void; onBack: () => void }) {
-  return (
-    <div className="w3-container">
-      <div className="w3-bar">
-        <button
-          className="w3-bar-item w3-button w3-dark-grey"
-          style={{ width: "50%" }}
-          onClick={props.onEdit}
-        >
-          Edit
-        </button>
-        <button
-          className="w3-bar-item w3-button w3-red"
-          style={{ width: "50%" }}
-          onClick={props.onBack}
-        >
-          Back
-        </button>
-      </div>
-    </div>
   );
 }

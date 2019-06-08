@@ -1,5 +1,6 @@
 import * as React from "preact";
 
+import { TextButton } from "./Buttons";
 import { Card } from "./types";
 
 export function GroomView(props: {
@@ -37,9 +38,11 @@ export function GroomView(props: {
     return (
       <>
         {props.cards.map(c => (
-          <button key={c.id} onClick={() => props.onGroomItem(c.id)}>
-            {c.prompt}
-          </button>
+          <TextButton
+            key={c.id}
+            text={c.prompt}
+            onClick={() => props.onGroomItem(c.id)}
+          />
         ))}
       </>
     );

@@ -1,4 +1,6 @@
 import * as React from "preact";
+
+import { ButtonBar, CancelButton, CreateButton, EditButton } from "./Buttons";
 import { CardView } from "./CardView";
 import { PromptView } from "./PromptView";
 import { SolutionView } from "./SolutionView";
@@ -22,47 +24,16 @@ export function CheckCreatedView(props: Props) {
         <SolutionView solution={solution} />
         <br />
         <br />
-        <Buttons
-          onCancel={onCancel}
-          onCreate={() => onCreate(prompt, solution)}
-          onEdit={onEdit}
-        />
+        <ButtonBar>
+          <CancelButton width="30%" onClick={props.onCancel} />
+          <CreateButton
+            width="30%"
+            onClick={() => onCreate(prompt, solution)}
+          />
+          <EditButton width="40%" onClick={props.onEdit} />
+        </ButtonBar>
         <br />
       </CardView>
     </>
-  );
-}
-
-function Buttons(props: {
-  onCancel: () => void;
-  onCreate: () => void;
-  onEdit: () => void;
-}) {
-  return (
-    <div className="w3-container">
-      <div className="w3-bar">
-        <button
-          className="w3-bar-item w3-button w3-red"
-          style={{ width: "30%" }}
-          onClick={props.onCancel}
-        >
-          Cancel
-        </button>
-        <button
-          className="w3-bar-item w3-button w3-green"
-          style={{ width: "30%" }}
-          onClick={props.onCreate}
-        >
-          Create
-        </button>
-        <button
-          className="w3-bar-item w3-button w3-dark-grey"
-          style={{ width: "40%" }}
-          onClick={props.onEdit}
-        >
-          Edit
-        </button>
-      </div>
-    </div>
   );
 }

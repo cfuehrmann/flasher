@@ -1,6 +1,8 @@
 import * as React from "preact";
 import * as Hooks from "preact/hooks";
 
+import { ButtonBar, CancelButton, CreateButton } from "./Buttons";
+
 type Props = {
   prompt: string;
   solution: string;
@@ -35,24 +37,13 @@ export function CreateView(props: Props) {
         />
         <br />
         <br />
-        <div className="w3-container">
-          <div className="w3-bar">
-            <button
-              className="w3-bar-item w3-button w3-red"
-              style={{ width: "30%" }}
-              onMouseDown={props.onCancel}
-            >
-              Cancel
-            </button>
-            <button
-              className="w3-bar-item w3-button w3-green"
-              style={{ width: "40%" }}
-              onMouseDown={event => props.onCreate(card.prompt, card.solution)}
-            >
-              Create
-            </button>
-          </div>
-        </div>
+        <ButtonBar>
+          <CancelButton width="50%" onClick={props.onCancel} />
+          <CreateButton
+            width="50%"
+            onClick={() => props.onCreate(card.prompt, card.solution)}
+          />
+        </ButtonBar>
         <br />
       </div>
       <br />
