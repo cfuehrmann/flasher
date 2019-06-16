@@ -1,12 +1,23 @@
 import * as React from "preact";
 
-import { BackButton, ButtonBar, EditButton } from "./Buttons";
+import {
+  BackButton,
+  ButtonBar,
+  DisableButton,
+  EditButton,
+  EnableButton,
+} from "./Buttons";
 import { CardView } from "./CardView";
 import { PromptView } from "./PromptView";
 import { SolutionView } from "./SolutionView";
 import { Card } from "./types";
 
-type Props = Card & { onEdit: () => void; onBack: () => void };
+type Props = Card & {
+  onEnable: (id: string) => void;
+  onDisable: (id: string) => void;
+  onEdit: () => void;
+  onBack: () => void;
+};
 
 export function GroomItemView(props: Props) {
   return (
@@ -18,8 +29,19 @@ export function GroomItemView(props: Props) {
         <br />
         <br />
         <ButtonBar>
-          <EditButton width="50%" onClick={props.onEdit} />
-          <BackButton width="50%" onClick={props.onBack} />
+          {props.disabled ? (
+            <EnableButton
+              width="33%"
+              onClick={() => props.onEnable(props.id)}
+            />
+          ) : (
+            <DisableButton
+              width="33%"
+              onClick={() => props.onDisable(props.id)}
+            />
+          )}
+          <EditButton width="33%" onClick={props.onEdit} />
+          <BackButton width="34%" onClick={props.onBack} />
         </ButtonBar>
         <br />
       </CardView>

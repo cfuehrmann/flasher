@@ -9,6 +9,7 @@ export const api: Api = {
             id
             prompt
             solution
+            disabled
         }
       }`,
     });
@@ -53,6 +54,7 @@ export const api: Api = {
           id
           prompt
           solution
+          disabled
         }
       }`,
       variables: {
@@ -97,6 +99,7 @@ export const api: Api = {
         cards(substring: $substring) {
           id
           prompt
+          disabled
         }
       }`,
       variables: {
@@ -104,6 +107,24 @@ export const api: Api = {
       },
     });
     return (data as { cards: Card[] }).cards;
+  },
+
+  enable: async (id: string) => {
+    await postAsJson({
+      query: `mutation enable($id: ID!) {
+        enable(id: $id)
+      }`,
+      variables: { id: id },
+    });
+  },
+
+  disable: async (id: string) => {
+    await postAsJson({
+      query: `mutation disable($id: ID!) {
+        disable(id: $id)
+      }`,
+      variables: { id: id },
+    });
   },
 };
 

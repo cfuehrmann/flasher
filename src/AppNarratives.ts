@@ -198,6 +198,20 @@ export const getNarratives = (
     const groomItemState: GroomItemState = {
       route: "GroomItem",
       card,
+      onEnable: (id: string) => {
+        withApi(setState, async () => {
+          await api.enable(id);
+          const cards = await api.findCards(groomState.searchText);
+          setRouterState({ ...groomState, cards });
+        });
+      },
+      onDisable: (id: string) => {
+        withApi(setState, async () => {
+          await api.disable(id);
+          const cards = await api.findCards(groomState.searchText);
+          setRouterState({ ...groomState, cards });
+        });
+      },
       onEdit: () =>
         setRouterState({
           route: "Edit",

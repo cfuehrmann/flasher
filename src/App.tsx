@@ -108,6 +108,8 @@ function Router(
       return (
         <GroomItemView
           {...routerState.card}
+          onEnable={routerState.onEnable}
+          onDisable={routerState.onDisable}
           onBack={routerState.onBack}
           onEdit={routerState.onEdit}
         />

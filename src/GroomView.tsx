@@ -30,21 +30,36 @@ export function GroomView(props: {
           placeholder="Search.."
         />
       </div>
-      <List />
+      {List()}
     </>
   );
 
   function List() {
-    return (
+    const disabledCards = props.cards.filter(c => c.disabled);
+
+    const enabledCardButtons = props.cards
+      .filter(c => !c.disabled)
+      .map(getCardButton);
+
+    return disabledCards.length === 0 ? (
+      enabledCardButtons
+    ) : (
       <>
-        {props.cards.map(c => (
-          <TextButton
-            key={c.id}
-            text={c.prompt}
-            onClick={() => props.onGroomItem(c.id)}
-          />
-        ))}
+        <p>Disabled</p>
+        {disabledCards.map(getCardButton)}
+        <p>Enabled</p>
+        {enabledCardButtons}
       </>
+    );
+  }
+
+  function getCardButton(c: Card) {
+    return (
+      <TextButton
+        key={c.id}
+        text={c.prompt}
+        onClick={() => props.onGroomItem(c.id)}
+      />
     );
   }
 }

@@ -54,6 +54,14 @@ export function TextButton(props: ButtonProps & { text: string }) {
   return <W3CssButton {...props} w3CssColor={"w3-dark-grey"} />;
 }
 
+export function EnableButton(props: ButtonProps) {
+  return <W3CssButton {...props} w3CssColor={"w3-green"} text="Enable" />;
+}
+
+export function DisableButton(props: ButtonProps) {
+  return <W3CssButton {...props} w3CssColor={"w3-red"} text="Disable" />;
+}
+
 function W3CssButton(
   props: ButtonProps & { w3CssColor?: string; text: string },
 ) {
