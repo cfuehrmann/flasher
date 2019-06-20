@@ -10,8 +10,6 @@ import {
   ShowButton,
 } from "./Buttons";
 import { CardView } from "./CardView";
-import { CheckCreatedView } from "./CheckCreatedView";
-import { CreateView } from "./CreateView";
 import { EditView } from "./EditView";
 import { GroomItemView } from "./GroomItemView";
 import { GroomView } from "./GroomView";
@@ -116,25 +114,6 @@ function Router(
           onSaveAsNew={routerState.onSaveAsNew}
           onSave={routerState.onSave}
           onCancel={routerState.onCancel}
-        />
-      );
-    case "Create":
-      return (
-        <CreateView
-          prompt={routerState.prompt}
-          solution={routerState.solution}
-          onCreate={routerState.onCreate}
-          onCancel={routerState.onCancel}
-        />
-      );
-    case "CheckCreated":
-      return (
-        <CheckCreatedView
-          prompt={routerState.prompt}
-          solution={routerState.solution}
-          onCancel={routerState.onCancel}
-          onCreate={routerState.onCreate}
-          onEdit={routerState.onEdit}
         />
       );
     case "Groom":

@@ -60,41 +60,10 @@ export const getNarratives = (
   }
 
   function create(groomState: GroomState) {
-    createLoop(groomState, "", "");
-  }
-
-  function createLoop(
-    groomState: GroomState,
-    prompt: string,
-    solution: string,
-  ) {
-    setRouterState({
-      route: "Create",
-      prompt,
-      solution,
-      onCancel: () => setRouterState(groomState),
-      onCreate: (p: string, s: string) =>
-        checkCreatedFromGroom(p, s, groomState),
-    });
-  }
-
-  function checkCreatedFromGroom(
-    prompt: string,
-    solution: string,
-    groomState: GroomState,
-  ) {
-    setRouterState({
-      route: "CheckCreated",
-      prompt,
-      solution,
-      onCancel: () => setRouterState(groomState),
-      onEdit: () => createLoop(groomState, prompt, solution),
-      onCreate: () =>
-        withApi(setState, async () => {
-          await api.createCard(prompt, solution);
-          const cards = await api.findCards(groomState.searchText);
-          setRouterState({ ...groomState, cards });
-        }),
+    withApi(setState, async () => {
+      await api.createCard("New card", "");
+      const cards = await api.findCards(groomState.searchText);
+      setRouterState({ ...groomState, cards });
     });
   }
 
