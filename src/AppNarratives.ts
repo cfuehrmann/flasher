@@ -23,8 +23,7 @@ export const getNarratives = (
     setOk,
     setFailed,
     editSolution,
-    createFromPrompt,
-    createFromGroom,
+    create,
     goToGroom,
     goToPrompt,
     setCards,
@@ -60,80 +59,11 @@ export const getNarratives = (
     });
   }
 
-  function createFromPrompt(prevRouterState: RouterState) {
-    createFromPromptLoop(prevRouterState, "", "");
-  }
-
-  function createFromPromptLoop(
-    prevRouterState: RouterState,
-    prompt: string,
-    solution: string,
-  ) {
-    setRouterState({
-      route: "Create",
-      prompt,
-      solution,
-      onCancel: () => setRouterState(prevRouterState),
-      onCreate: (p: string, s: string) =>
-        checkCreatedFromPrompt(p, s, prevRouterState),
-    });
-  }
-
-  function checkCreatedFromPrompt(
-    prompt: string,
-    solution: string,
-    prevRouterState: RouterState,
-  ) {
-    setRouterState({
-      route: "CheckCreated",
-      prompt,
-      solution,
-      onCancel: () => setRouterState(prevRouterState),
-      onEdit: () => createFromPromptLoop(prevRouterState, prompt, solution),
-      onCreate: () =>
-        withApi(setState, async () => {
-          await api.createCard(prompt, solution);
-          setRouterState(prevRouterState);
-        }),
-    });
-  }
-
-  function createFromGroom(groomState: GroomState) {
-    createFromGroomLoop(groomState, "", "");
-  }
-
-  function createFromGroomLoop(
-    groomState: GroomState,
-    prompt: string,
-    solution: string,
-  ) {
-    setRouterState({
-      route: "Create",
-      prompt,
-      solution,
-      onCancel: () => setRouterState(groomState),
-      onCreate: (p: string, s: string) =>
-        checkCreatedFromGroom(p, s, groomState),
-    });
-  }
-
-  function checkCreatedFromGroom(
-    prompt: string,
-    solution: string,
-    groomState: GroomState,
-  ) {
-    setRouterState({
-      route: "CheckCreated",
-      prompt,
-      solution,
-      onCancel: () => setRouterState(groomState),
-      onEdit: () => createFromGroomLoop(groomState, prompt, solution),
-      onCreate: () =>
-        withApi(setState, async () => {
-          await api.createCard(prompt, solution);
-          const cards = await api.findCards(groomState.searchText);
-          setRouterState({ ...groomState, cards });
-        }),
+  function create(groomState: GroomState) {
+    withApi(setState, async () => {
+      await api.createCard("New card", "");
+      const cards = await api.findCards(groomState.searchText);
+      setRouterState({ ...groomState, cards });
     });
   }
 

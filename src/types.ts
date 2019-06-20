@@ -23,21 +23,6 @@ export type EditState = {
 };
 export type StartingState = { route: "Starting" };
 export type DoneState = { route: "Done" };
-export type CreateState = {
-  route: "Create";
-  prompt: string;
-  solution: string;
-  onCancel: () => void;
-  onCreate: (prompt: string, solution: string) => void;
-};
-export type CheckCreatedState = {
-  route: "CheckCreated";
-  prompt: string;
-  solution: string;
-  onCancel: () => void;
-  onEdit: () => void;
-  onCreate: () => void;
-};
 export type GroomState = { route: "Groom"; searchText: string; cards: Card[] };
 export type GroomItemState = {
   route: "GroomItem";
@@ -54,10 +39,8 @@ export type RouterState =
   | EditState
   | StartingState
   | DoneState
-  | CreateState
   | GroomState
-  | GroomItemState
-  | CheckCreatedState;
+  | GroomItemState;
 
 export type AppState = {
   routerState: RouterState;
@@ -83,8 +66,7 @@ export type AppNarratives = Readonly<{
   setOk: (id: string) => void;
   setFailed: (id: string) => void;
   editSolution: (prevRouterState: SolutionState) => void;
-  createFromPrompt: (prevRouterState: RouterState) => void;
-  createFromGroom: (prevRouterState: GroomState) => void;
+  create: (prevRouterState: GroomState) => void;
   goToGroom: () => void;
   goToPrompt: () => void;
   setCards: (searchText: string) => void;
