@@ -58,10 +58,7 @@ function Router(
     case "Prompt": {
       return (
         <>
-          <Menu
-            onGoToCreate={() => props.createFromPrompt(routerState)}
-            onGoToGroom={props.goToGroom}
-          />
+          <Menu onGoToGroom={props.goToGroom} />
           <CardView>
             <PromptView value={routerState.card.prompt} />
             <br />
@@ -81,10 +78,7 @@ function Router(
 
       return (
         <>
-          <Menu
-            onGoToCreate={() => props.createFromPrompt(routerState)}
-            onGoToGroom={props.goToGroom}
-          />
+          <Menu onGoToGroom={props.goToGroom} />
           <CardView>
             <PromptView value={prompt} />
             <br />
@@ -147,7 +141,7 @@ function Router(
       return (
         <GroomView
           onGoToPrompt={props.goToPrompt}
-          onGoToCreate={() => props.createFromGroom(routerState)}
+          onGoToCreate={() => props.create(routerState)}
           onChangeInput={props.setCards}
           onGroomItem={props.groomItem(routerState)}
           searchText={routerState.searchText}
@@ -157,10 +151,7 @@ function Router(
     case "Done":
       return (
         <>
-          <Menu
-            onGoToCreate={() => props.createFromPrompt(routerState)}
-            onGoToGroom={props.goToGroom}
-          />
+          <Menu onGoToGroom={props.goToGroom} />
           <CardView>Congrats, there are no due cards!</CardView>
         </>
       );
@@ -170,12 +161,9 @@ function Router(
   }
 }
 
-function Menu(props: { onGoToCreate: () => void; onGoToGroom: () => void }) {
+function Menu(props: { onGoToGroom: () => void }) {
   return (
     <div className="w3-bar">
-      <button className="w3-bar-item w3-button" onClick={props.onGoToCreate}>
-        Create
-      </button>
       <button className="w3-bar-item w3-button" onClick={props.onGoToGroom}>
         Groom
       </button>

@@ -23,8 +23,7 @@ export const getNarratives = (
     setOk,
     setFailed,
     editSolution,
-    createFromPrompt,
-    createFromGroom,
+    create,
     goToGroom,
     goToPrompt,
     setCards,
@@ -60,49 +59,11 @@ export const getNarratives = (
     });
   }
 
-  function createFromPrompt(prevRouterState: RouterState) {
-    createFromPromptLoop(prevRouterState, "", "");
+  function create(groomState: GroomState) {
+    createLoop(groomState, "", "");
   }
 
-  function createFromPromptLoop(
-    prevRouterState: RouterState,
-    prompt: string,
-    solution: string,
-  ) {
-    setRouterState({
-      route: "Create",
-      prompt,
-      solution,
-      onCancel: () => setRouterState(prevRouterState),
-      onCreate: (p: string, s: string) =>
-        checkCreatedFromPrompt(p, s, prevRouterState),
-    });
-  }
-
-  function checkCreatedFromPrompt(
-    prompt: string,
-    solution: string,
-    prevRouterState: RouterState,
-  ) {
-    setRouterState({
-      route: "CheckCreated",
-      prompt,
-      solution,
-      onCancel: () => setRouterState(prevRouterState),
-      onEdit: () => createFromPromptLoop(prevRouterState, prompt, solution),
-      onCreate: () =>
-        withApi(setState, async () => {
-          await api.createCard(prompt, solution);
-          setRouterState(prevRouterState);
-        }),
-    });
-  }
-
-  function createFromGroom(groomState: GroomState) {
-    createFromGroomLoop(groomState, "", "");
-  }
-
-  function createFromGroomLoop(
+  function createLoop(
     groomState: GroomState,
     prompt: string,
     solution: string,
@@ -127,7 +88,7 @@ export const getNarratives = (
       prompt,
       solution,
       onCancel: () => setRouterState(groomState),
-      onEdit: () => createFromGroomLoop(groomState, prompt, solution),
+      onEdit: () => createLoop(groomState, prompt, solution),
       onCreate: () =>
         withApi(setState, async () => {
           await api.createCard(prompt, solution);
