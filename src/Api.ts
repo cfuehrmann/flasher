@@ -1,5 +1,5 @@
 import { apiUrl } from "./ApiConfig";
-import { Api, Card } from "./types";
+import { Api, Card, GroomCard } from "./types";
 
 export const api: Api = {
   findNextCard: async () => {
@@ -9,7 +9,6 @@ export const api: Api = {
             id
             prompt
             solution
-            disabled
         }
       }`,
     });
@@ -62,7 +61,7 @@ export const api: Api = {
       },
     });
 
-    return (data as { readCard: Card | undefined }).readCard;
+    return (data as { readCard: GroomCard | undefined }).readCard;
   },
 
   updateCard: async (card, isMinor) => {
@@ -106,7 +105,7 @@ export const api: Api = {
         substring,
       },
     });
-    return (data as { cards: Card[] }).cards;
+    return (data as { cards: GroomCard[] }).cards;
   },
 
   enable: async (id: string) => {

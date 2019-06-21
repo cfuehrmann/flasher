@@ -1,7 +1,7 @@
 import * as React from "preact";
 
 import { TextButton } from "./Buttons";
-import { Card } from "./types";
+import { GroomCard } from "./types";
 
 export function GroomView(props: {
   onGoToPrompt: () => void;
@@ -9,7 +9,7 @@ export function GroomView(props: {
   onGroomItem: (id: string) => void;
   onGoToCreate: () => void;
   searchText: string;
-  cards: Card[];
+  cards: GroomCard[];
 }) {
   return (
     <>
@@ -53,7 +53,7 @@ export function GroomView(props: {
     );
   }
 
-  function getCardButton(c: Card) {
+  function getCardButton(c: GroomCard) {
     return (
       <TextButton
         key={c.id}

@@ -10,9 +10,9 @@ import {
 import { CardView } from "./CardView";
 import { PromptView } from "./PromptView";
 import { SolutionView } from "./SolutionView";
-import { Card } from "./types";
+import { GroomCard } from "./types";
 
-type Props = Card & {
+type Props = GroomCard & {
   onEnable: (id: string) => void;
   onDisable: (id: string) => void;
   onEdit: () => void;

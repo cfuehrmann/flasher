@@ -5,6 +5,7 @@ import {
   AppNarratives,
   AppState,
   Card,
+  GroomCard,
   GroomItemState,
   GroomState,
   RouterState,
@@ -124,7 +125,7 @@ export const getNarratives = (
     };
   }
 
-  function getGroomItemState(card: Card, groomState: GroomState) {
+  function getGroomItemState(card: GroomCard, groomState: GroomState) {
     const groomItemState: GroomItemState = {
       route: "GroomItem",
       card,
@@ -147,9 +148,9 @@ export const getNarratives = (
           route: "Edit",
           card,
           onDelete: deleteAndGroom(groomState.searchText),
-          onSaveAsNew: saveGroomItem(false),
+          onSaveAsNew: saveGroomItem(false, card.disabled),
           onCancel: () => setRouterState(groomItemState),
-          onSave: saveGroomItem(true),
+          onSave: saveGroomItem(true, card.disabled),
         }),
       onBack: () =>
         withApi(setState, async () => {
@@ -159,11 +160,13 @@ export const getNarratives = (
     };
     return groomItemState;
 
-    function saveGroomItem(isMinor: boolean) {
+    function saveGroomItem(isMinor: boolean, disabled: boolean) {
       return (cardToSave: Card) => {
         withApi(setState, async () => {
           await api.updateCard(cardToSave, isMinor);
-          setRouterState(getGroomItemState(cardToSave, groomState));
+          setRouterState(
+            getGroomItemState({ ...cardToSave, disabled }, groomState),
+          );
         });
       };
     }

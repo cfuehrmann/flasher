@@ -2,6 +2,12 @@ export type Card = Readonly<{
   id: string;
   prompt: string;
   solution: string;
+}>;
+
+export type GroomCard = Readonly<{
+  id: string;
+  prompt: string;
+  solution: string;
   disabled: boolean;
 }>;
 
@@ -23,10 +29,14 @@ export type EditState = {
 };
 export type StartingState = { route: "Starting" };
 export type DoneState = { route: "Done" };
-export type GroomState = { route: "Groom"; searchText: string; cards: Card[] };
+export type GroomState = {
+  route: "Groom";
+  searchText: string;
+  cards: GroomCard[];
+};
 export type GroomItemState = {
   route: "GroomItem";
-  card: Card;
+  card: GroomCard;
   onEnable: (id: string) => void;
   onDisable: (id: string) => void;
   onBack: () => void;
@@ -50,13 +60,13 @@ export type AppState = {
 
 export type Api = Readonly<{
   createCard: (prompt: string, solution: string) => Promise<void>;
-  readCard: (id: string) => Promise<Card | undefined>;
+  readCard: (id: string) => Promise<GroomCard | undefined>;
   updateCard: (card: Card, isMinor: boolean) => Promise<Card>;
   deleteCard: (id: string) => Promise<void>;
   findNextCard: () => Promise<Card | undefined>;
   setOk: (id: string) => Promise<void>;
   setFailed: (id: string) => Promise<void>;
-  findCards: (substring: string) => Promise<Card[]>;
+  findCards: (substring: string) => Promise<GroomCard[]>;
   enable: (id: string) => Promise<void>;
   disable: (id: string) => Promise<void>;
 }>;
