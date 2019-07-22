@@ -23,3 +23,10 @@ steps:
 
   - script: yarn lint
     displayName: "Run the lint script"
+
+  - task: Docker@2
+    inputs:
+      containerRegistry: 'cfuehrmanns Docker connection'
+      repository: 'flasher'
+      command: 'buildAndPush'
+      Dockerfile: '**/Dockerfile'
