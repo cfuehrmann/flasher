@@ -1,4 +1,3 @@
-import { apiUrl } from "./ApiConfig";
 import { Api, Card, GroomCard } from "./types";
 
 export const api: Api = {
@@ -131,14 +130,17 @@ async function postAsJson(body: {
   query: string;
   variables?: {};
 }): Promise<{}> {
-  const fetchResponse = await fetch(apiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
+  const fetchResponse = await fetch(
+    location.protocol + "//" + location.hostname + ":4000/graphql",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+  );
 
   const responseObject: {
     data: {};
