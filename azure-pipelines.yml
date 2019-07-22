@@ -16,13 +16,13 @@ steps:
   displayName: 'Install Node.js'
 
 - script:
-    yarn install
+  yarn install
   displayName: 'Install the npm packages'
 
-  - script:
+- script:
     yarn build
   displayName: 'Run the build script'
 
-  - script:
-    yarn lint
+- script:
+  yarn lint
   displayName: 'Run the lint script'
