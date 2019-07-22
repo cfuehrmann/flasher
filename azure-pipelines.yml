@@ -20,7 +20,7 @@ steps:
   displayName: 'Install the npm packages'
 
 - script:
-    yarn build
+  yarn build
   displayName: 'Run the build script'
 
 - script:
