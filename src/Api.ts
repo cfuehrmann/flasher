@@ -131,7 +131,10 @@ async function postAsJson(body: {
   variables?: {};
 }): Promise<{}> {
   const fetchResponse = await fetch(
-    location.protocol + "//" + location.hostname + ":4000/graphql",
+    window.location.protocol +
+      "//" +
+      window.location.hostname +
+      ":4000/graphql",
     {
       method: "POST",
       headers: {

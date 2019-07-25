@@ -1,24 +1,20 @@
-import * as Hooks from "preact/hooks";
-
 import { api } from "./Api";
 import {
   AppNarratives,
-  AppState,
   Card,
   GroomCard,
   GroomItemState,
   GroomState,
   RouterState,
   SolutionState,
+  SetStateType,
 } from "./types";
 
-export function initialize(setState: Hooks.StateUpdater<AppState>) {
+export function initialize(setState: SetStateType) {
   return withApi(setState, () => promptNext(setState));
 }
 
-export const getNarratives = (
-  setState: Hooks.StateUpdater<AppState>,
-): AppNarratives => {
+export const getNarratives = (setState: SetStateType): AppNarratives => {
   return {
     showSolution,
     setOk,
@@ -177,10 +173,7 @@ export const getNarratives = (
   }
 };
 
-async function withApi(
-  setState: Hooks.StateUpdater<AppState>,
-  apiMethod: () => Promise<void>,
-) {
+async function withApi(setState: SetStateType, apiMethod: () => Promise<void>) {
   setState(prevState => ({ ...prevState, isFetching: true }));
   try {
     await apiMethod();
@@ -194,7 +187,7 @@ async function withApi(
   }
 }
 
-async function promptNext(setState: Hooks.StateUpdater<AppState>) {
+async function promptNext(setState: SetStateType) {
   const card = await api.findNextCard();
   setState(prevState => ({
     ...prevState,
