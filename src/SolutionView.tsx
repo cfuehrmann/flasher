@@ -1,6 +1,7 @@
-import MarkDownIt = require("markdown-it");
-import KaTeX = require("markdown-it-katex");
-import * as React from "preact";
+import * as React from "react";
+import MarkDownIt from "markdown-it";
+// @ts-ignore
+import KaTeX from "markdown-it-katex";
 
 export function SolutionView(props: { solution: string }) {
   const md = new MarkDownIt();

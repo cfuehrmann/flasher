@@ -1,34 +1,51 @@
 {
+  "name": "flasher",
+  "version": "0.1.0",
+  "private": true,
   "dependencies": {
+    "@types/jest": "^24.0.15",
     "@types/markdown-it": "^0.0.8",
+    "@types/node": "^12.6.8",
+    "@types/react": "^16.8.23",
+    "@types/react-dom": "^16.8.4",
     "github-markdown-css": "^3.0.1",
     "markdown-it": "^9.0.1",
     "markdown-it-katex": "^2.0.3",
-    "preact": "10.0.0-beta.0",
+    "react": "^16.8.6",
+    "react-dom": "^16.8.6",
+    "react-scripts": "3.0.1",
     "w3-css": "^4.1.0"
   },
   "devDependencies": {
-    "chokidar-cli": "^1.2.2",
     "husky": "^3.0.1",
-    "parcel-bundler": "^1.12.3",
     "prettier": "^1.18.2",
     "pretty-quick": "^1.11.1",
-    "rimraf": "^2.6.3",
-    "tslint": "^5.18.0",
-    "tslint-config-prettier": "^1.18.0",
-    "tslint-react": "^4.0.0",
-    "typescript": "^3.5.3"
+    "typescript": "<3.5.0"
   },
   "scripts": {
-    "dev": "parcel index.html",
-    "build": "rimraf dist/* && parcel build index.html",
-    "lint": "tslint src/*.ts src/*.tsx -p \"tsconfig.json\" -t verbose",
-    "watch-lint": "chokidar src/*.ts src/*.tsx -c \"yarn lint\" --initial --verbose",
-    "prettier": "prettier --write src/*.{ts,tsx} *.json"
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
   },
   "husky": {
     "hooks": {
       "pre-commit": "pretty-quick --staged"
     }
+  },
+  "eslintConfig": {
+    "extends": "react-app"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }

@@ -82,3 +82,5 @@ export type AppNarratives = Readonly<{
   setCards: (searchText: string) => void;
   groomItem: (prevRouterState: GroomState) => (id: string) => void;
 }>;
+
+export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;
