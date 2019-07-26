@@ -1,4 +1,4 @@
-import * as React from "preact";
+import * as React from "react";
 
 import { TextButton } from "./Buttons";
 import { GroomCard } from "./types";

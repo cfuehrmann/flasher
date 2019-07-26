@@ -1,6 +1,7 @@
-import * as React from "preact";
+import * as React from "react";
+import { ReactNode } from "react";
 
-export function CardView(props: { children: React.ComponentChildren }) {
+export function CardView(props: { children: ReactNode }) {
   return (
     <div className="w3-container">
       <br />

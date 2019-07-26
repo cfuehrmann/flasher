@@ -21,9 +21,6 @@ steps:
   - script: yarn build
     displayName: "Run the build script"
 
-  - script: yarn lint
-    displayName: "Run the lint script"
-
   - task: Docker@2
     inputs:
       containerRegistry: 'cfuehrmanns Docker connection'

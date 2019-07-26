@@ -1,5 +1,4 @@
-import * as React from "preact";
-import * as Hooks from "preact/hooks";
+import * as React from "react";
 
 import {
   AsNewButton,
@@ -9,6 +8,7 @@ import {
   SaveButton,
 } from "./Buttons";
 import { Card } from "./types";
+import { useState } from "react";
 
 type Props = Card & {
   onDelete: (id: string) => void;
@@ -18,7 +18,7 @@ type Props = Card & {
 };
 
 export function EditView(props: Props) {
-  const [card, setCard] = Hooks.useState({
+  const [card, setCard] = useState({
     id: props.id,
     prompt: props.prompt,
     solution: props.solution,

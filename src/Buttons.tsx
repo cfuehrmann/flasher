@@ -1,8 +1,9 @@
-import * as React from "preact";
+import * as React from "react";
+import { ReactNode } from "react";
 
 type ButtonProps = { key?: string; width?: string; onClick: () => void };
 
-export function ButtonBar(props: { children: React.ComponentChildren }) {
+export function ButtonBar(props: { children: ReactNode }) {
   return (
     <div className="w3-container">
       <div className="w3-bar">{props.children}</div>

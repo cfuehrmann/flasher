@@ -1,5 +1,4 @@
-import * as React from "preact";
-import * as Hooks from "preact/hooks";
+import * as React from "react";
 
 import { getNarratives, initialize } from "./AppNarratives";
 import {
@@ -16,15 +15,16 @@ import { GroomView } from "./GroomView";
 import { PromptView } from "./PromptView";
 import { SolutionView } from "./SolutionView";
 import { AppNarratives, AppState, RouterState } from "./types";
+import { useState, useEffect } from "react";
 
 export function App() {
-  const [state, setState] = Hooks.useState<AppState>({
+  const [state, setState] = useState<AppState>({
     routerState: { route: "Starting" },
     isFetching: false,
     apiError: null,
   });
 
-  Hooks.useEffect(() => {
+  useEffect(() => {
     initialize(setState);
   }, []);
 

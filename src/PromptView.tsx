@@ -1,4 +1,4 @@
-import * as React from "preact";
+import * as React from "react";
 
 export function PromptView(props: { value: string }) {
   return (
