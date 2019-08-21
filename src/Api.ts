@@ -134,7 +134,7 @@ async function postAsJson(body: {
     window.location.protocol +
       "//" +
       window.location.hostname +
-      ":4000/graphql",
+      "/flasher_api/graphql",
     {
       method: "POST",
       headers: {
