@@ -8,6 +8,7 @@ import {
   RouterState,
   SolutionState,
   SetStateType,
+  AppState,
 } from "./types";
 
 export function initialize(setState: SetStateType) {
@@ -202,8 +203,19 @@ async function withApi(setState: SetStateType, apiMethod: () => Promise<void>) {
 
 async function promptNext(setState: SetStateType) {
   const card = await api.findNextCard();
-  setState(prevState => ({
-    ...prevState,
-    routerState: card ? { route: "Prompt", card } : { route: "Done" },
-  }));
+
+  setState((prevState: AppState) =>
+    prevState.apiError === "unauthenticated"
+      ? {
+          ...prevState,
+          apiError: undefined,
+          ...{ routerState: { route: "Login" } },
+        }
+      : {
+          ...prevState,
+          ...{
+            routerState: card ? { route: "Prompt", card } : { route: "Done" },
+          },
+        },
+  );
 }
