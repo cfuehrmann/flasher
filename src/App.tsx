@@ -16,6 +16,7 @@ import { PromptView } from "./PromptView";
 import { SolutionView } from "./SolutionView";
 import { AppNarratives, AppState, RouterState } from "./types";
 import { useState, useEffect } from "react";
+import { LoginView } from "./LoginView";
 
 export function App() {
   const [state, setState] = useState<AppState>({
@@ -53,10 +54,12 @@ function Router(
   switch (routerState.route) {
     case "Starting":
       return <p>Starting...</p>;
+    case "Login":
+      return <LoginView userName="" password="" onOk={props.login} />;
     case "Prompt": {
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} />
+          <Menu onGoToGroom={props.goToGroom} onGoToLogin={props.goToLogin} />
           <CardView>
             <PromptView value={routerState.card.prompt} />
             <br />
@@ -76,7 +79,7 @@ function Router(
 
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} />
+          <Menu onGoToGroom={props.goToGroom} onGoToLogin={props.goToLogin} />
           <CardView>
             <PromptView value={prompt} />
             <br />
@@ -130,7 +133,7 @@ function Router(
     case "Done":
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} />
+          <Menu onGoToGroom={props.goToGroom} onGoToLogin={props.goToLogin} />
           <CardView>Congrats, there are no due cards!</CardView>
         </>
       );
@@ -140,11 +143,14 @@ function Router(
   }
 }
 
-function Menu(props: { onGoToGroom: () => void }) {
+function Menu(props: { onGoToGroom: () => void; onGoToLogin: () => void }) {
   return (
     <div className="w3-bar">
       <button className="w3-bar-item w3-button" onClick={props.onGoToGroom}>
         Groom
+      </button>
+      <button className="w3-bar-item w3-button" onClick={props.onGoToLogin}>
+        Login
       </button>
     </div>
   );

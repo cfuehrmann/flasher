@@ -11,6 +11,9 @@ export type GroomCard = Readonly<{
   disabled: boolean;
 }>;
 
+export type LoginState = {
+  route: "Login";
+};
 export type PromptState = {
   route: "Prompt";
   card: Card;
@@ -44,6 +47,7 @@ export type GroomItemState = {
 };
 
 export type RouterState =
+  | LoginState
   | PromptState
   | SolutionState
   | EditState
@@ -59,6 +63,7 @@ export type AppState = {
 };
 
 export type Api = Readonly<{
+  login: (userName: string, password: string) => Promise<void>;
   createCard: (prompt: string, solution: string) => Promise<void>;
   readCard: (id: string) => Promise<GroomCard | undefined>;
   updateCard: (card: Card, isMinor: boolean) => Promise<Card>;
@@ -72,6 +77,8 @@ export type Api = Readonly<{
 }>;
 
 export type AppNarratives = Readonly<{
+  goToLogin: () => void;
+  login: (userName: string, password: string) => void;
   showSolution: (card: Card) => void;
   setOk: (id: string) => void;
   setFailed: (id: string) => void;

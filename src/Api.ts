@@ -1,6 +1,17 @@
 import { Api, Card, GroomCard } from "./types";
 
 export const api: Api = {
+  login: async (userName: string, password: string) => {
+    await postAsJson({
+      query: `query login($userName: String!, $password: String!) {
+      login(userName: $userName, password: $password)
+    }`,
+      variables: {
+        userName,
+        password,
+      },
+    });
+  },
   findNextCard: async () => {
     const data = await postAsJson({
       query: `query findNextCard {
