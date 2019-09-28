@@ -193,29 +193,27 @@ async function withApi(setState: SetStateType, apiMethod: () => Promise<void>) {
     await apiMethod();
     setState(prevState => ({ ...prevState, isFetching: false }));
   } catch (e) {
-    setState(prevState => ({
-      ...prevState,
-      apiError: e.message,
-      isFetching: false,
-    }));
+    setState(prevState =>
+      e.message === "unauthenticated"
+        ? {
+            ...prevState,
+            routerState: { route: "Login" },
+            isFetching: false,
+          }
+        : {
+            ...prevState,
+            apiError: e.message,
+            isFetching: false,
+          },
+    );
   }
 }
 
 async function promptNext(setState: SetStateType) {
   const card = await api.findNextCard();
 
-  setState((prevState: AppState) =>
-    prevState.apiError === "unauthenticated"
-      ? {
-          ...prevState,
-          apiError: undefined,
-          ...{ routerState: { route: "Login" } },
-        }
-      : {
-          ...prevState,
-          ...{
-            routerState: card ? { route: "Prompt", card } : { route: "Done" },
-          },
-        },
-  );
+  setState((prevState: AppState) => ({
+    ...prevState,
+    routerState: card ? { route: "Prompt", card } : { route: "Done" },
+  }));
 }
