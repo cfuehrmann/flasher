@@ -16,7 +16,7 @@ export function LoginView(props: Props) {
   });
 
   return (
-    <div w3-card>
+    <div className="w3-card">
       <div className="w3-container w3-green">
         <h2>Login</h2>
       </div>
@@ -26,7 +26,7 @@ export function LoginView(props: Props) {
         <input
           className="w3-input"
           type="text"
-          onInput={event =>
+          onChange={event =>
             setUserName((event.target as HTMLInputElement).value)
           }
           value={credentials.userName}
@@ -36,12 +36,11 @@ export function LoginView(props: Props) {
         <input
           className="w3-input"
           type="password"
-          onInput={event =>
-            setPassword((event.target as HTMLTextAreaElement).value)
+          onChange={event =>
+            setPassword((event.target as HTMLInputElement).value)
           }
           value={credentials.password}
         />
-        <br />
         <br />
         <ButtonBar>
           <OkButton
@@ -51,7 +50,6 @@ export function LoginView(props: Props) {
             }
           />
         </ButtonBar>
-        <br />
       </div>
       <br />
     </div>

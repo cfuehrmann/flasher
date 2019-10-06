@@ -1,4 +1,6 @@
 import * as React from "react";
+import { ToastContainer, toast, ToastContent } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 import { getNarratives, initialize } from "./AppNarratives";
 import {
@@ -22,7 +24,7 @@ export function App() {
   const [state, setState] = useState<AppState>({
     routerState: { route: "Starting" },
     isFetching: false,
-    apiError: null,
+    apiError: undefined,
   });
 
   useEffect(() => {
@@ -39,9 +41,14 @@ export function App() {
     <>
       <Router {...pageProps} />
       {isFetching ? <p>Fetching data...</p> : ""}
-      {!isFetching && apiError ? <p>Api error: {apiError}</p> : ""}
+      {!isFetching && apiError ? showToast(apiError as ToastContent) : ""}
+      <ToastContainer />
     </>
   );
+}
+
+function showToast(content: ToastContent) {
+  toast(content, { type: toast.TYPE.ERROR });
 }
 
 function Router(

@@ -31,14 +31,16 @@ export function EditView(props: Props) {
         <input
           className="w3-input"
           type="text"
-          onInput={event => setPrompt((event.target as HTMLInputElement).value)}
+          onChange={event =>
+            setPrompt((event.target as HTMLInputElement).value)
+          }
           value={card.prompt}
         />
         <br />
         <textarea
           className="w3-input"
           rows={17}
-          onInput={event =>
+          onChange={event =>
             setSolution((event.target as HTMLTextAreaElement).value)
           }
           value={card.solution}
