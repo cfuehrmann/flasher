@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ToastContainer, toast, ToastContent } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import { getNarratives, initialize } from "./AppNarratives";
@@ -19,6 +19,7 @@ import { SolutionView } from "./SolutionView";
 import { AppNarratives, AppState, RouterState } from "./types";
 import { useState, useEffect } from "react";
 import { LoginView } from "./LoginView";
+import { translations } from "./Translations";
 
 export function App() {
   const [state, setState] = useState<AppState>({
@@ -41,14 +42,23 @@ export function App() {
     <>
       <Router {...pageProps} />
       {isFetching ? <p>Fetching data...</p> : ""}
-      {!isFetching && apiError ? showToast(apiError as ToastContent) : ""}
+      {!isFetching && apiError ? showApiError(apiError) : ""}
       <ToastContainer />
     </>
   );
 }
 
-function showToast(content: ToastContent) {
-  toast(content, { type: toast.TYPE.ERROR });
+function showApiError(apiError: unknown) {
+  if (typeof apiError === "string") {
+    const message = translations[apiError];
+
+    if (typeof message === "string") {
+      toast(message, {
+        type: toast.TYPE.ERROR,
+        position: toast.POSITION.BOTTOM_RIGHT,
+      });
+    }
+  }
 }
 
 function Router(
