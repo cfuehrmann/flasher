@@ -1,4 +1,6 @@
 import * as React from "react";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 import { getNarratives, initialize } from "./AppNarratives";
 import {
@@ -16,12 +18,14 @@ import { PromptView } from "./PromptView";
 import { SolutionView } from "./SolutionView";
 import { AppNarratives, AppState, RouterState } from "./types";
 import { useState, useEffect } from "react";
+import { LoginView } from "./LoginView";
+import { translations } from "./Translations";
 
 export function App() {
   const [state, setState] = useState<AppState>({
     routerState: { route: "Starting" },
     isFetching: false,
-    apiError: null,
+    apiError: undefined,
   });
 
   useEffect(() => {
@@ -38,9 +42,23 @@ export function App() {
     <>
       <Router {...pageProps} />
       {isFetching ? <p>Fetching data...</p> : ""}
-      {!isFetching && apiError ? <p>Api error: {apiError}</p> : ""}
+      {!isFetching && apiError ? showApiError(apiError) : ""}
+      <ToastContainer />
     </>
   );
+}
+
+function showApiError(apiError: unknown) {
+  if (typeof apiError === "string") {
+    const message = translations[apiError];
+
+    if (typeof message === "string") {
+      toast(message, {
+        type: toast.TYPE.ERROR,
+        position: toast.POSITION.BOTTOM_RIGHT,
+      });
+    }
+  }
 }
 
 function Router(
@@ -53,10 +71,12 @@ function Router(
   switch (routerState.route) {
     case "Starting":
       return <p>Starting...</p>;
+    case "Login":
+      return <LoginView userName="" password="" onOk={props.login} />;
     case "Prompt": {
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} />
+          <Menu onGoToGroom={props.goToGroom} onGoToLogin={props.goToLogin} />
           <CardView>
             <PromptView value={routerState.card.prompt} />
             <br />
@@ -76,7 +96,7 @@ function Router(
 
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} />
+          <Menu onGoToGroom={props.goToGroom} onGoToLogin={props.goToLogin} />
           <CardView>
             <PromptView value={prompt} />
             <br />
@@ -130,7 +150,7 @@ function Router(
     case "Done":
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} />
+          <Menu onGoToGroom={props.goToGroom} onGoToLogin={props.goToLogin} />
           <CardView>Congrats, there are no due cards!</CardView>
         </>
       );
@@ -140,11 +160,14 @@ function Router(
   }
 }
 
-function Menu(props: { onGoToGroom: () => void }) {
+function Menu(props: { onGoToGroom: () => void; onGoToLogin: () => void }) {
   return (
     <div className="w3-bar">
       <button className="w3-bar-item w3-button" onClick={props.onGoToGroom}>
         Groom
+      </button>
+      <button className="w3-bar-item w3-button" onClick={props.onGoToLogin}>
+        Login
       </button>
     </div>
   );
