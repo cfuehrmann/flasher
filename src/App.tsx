@@ -160,6 +160,7 @@ function Router(
             <br />
             <ButtonBar>
               <RefreshButton
+                width="100%"
                 onClick={() => {
                   props.goToPrompt();
                 }}
