@@ -17,7 +17,6 @@ export function initialize(setState: SetStateType) {
 
 export const getNarratives = (setState: SetStateType): AppNarratives => {
   return {
-    goToLogin,
     login,
     showSolution,
     setOk,
@@ -29,10 +28,6 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     setCards,
     groomItem,
   };
-
-  function goToLogin() {
-    setRouterState({ route: "Login" });
-  }
 
   function login(userName: string, password: string) {
     withApi(setState, async () => {

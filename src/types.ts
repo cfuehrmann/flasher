@@ -77,7 +77,6 @@ export type Api = Readonly<{
 }>;
 
 export type AppNarratives = Readonly<{
-  goToLogin: () => void;
   login: (userName: string, password: string) => void;
   showSolution: (card: Card) => void;
   setOk: (id: string) => void;
