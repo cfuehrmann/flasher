@@ -76,7 +76,7 @@ function Router(
     case "Prompt": {
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} onGoToLogin={props.goToLogin} />
+          <Menu onGoToGroom={props.goToGroom} />
           <CardView>
             <PromptView value={routerState.card.prompt} />
             <br />
@@ -96,7 +96,7 @@ function Router(
 
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} onGoToLogin={props.goToLogin} />
+          <Menu onGoToGroom={props.goToGroom} />
           <CardView>
             <PromptView value={prompt} />
             <br />
@@ -150,7 +150,7 @@ function Router(
     case "Done":
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} onGoToLogin={props.goToLogin} />
+          <Menu onGoToGroom={props.goToGroom} />
           <CardView>Congrats, there are no due cards!</CardView>
         </>
       );
@@ -160,14 +160,11 @@ function Router(
   }
 }
 
-function Menu(props: { onGoToGroom: () => void; onGoToLogin: () => void }) {
+function Menu(props: { onGoToGroom: () => void }) {
   return (
     <div className="w3-bar">
       <button className="w3-bar-item w3-button" onClick={props.onGoToGroom}>
         Groom
-      </button>
-      <button className="w3-bar-item w3-button" onClick={props.onGoToLogin}>
-        Login
       </button>
     </div>
   );
