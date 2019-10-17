@@ -9,6 +9,7 @@ import {
   FailedButton,
   OkButton,
   ShowButton,
+  RefreshButton,
 } from "./Buttons";
 import { CardView } from "./CardView";
 import { EditView } from "./EditView";
@@ -151,7 +152,22 @@ function Router(
       return (
         <>
           <Menu onGoToGroom={props.goToGroom} />
-          <CardView>Congrats, there are no due cards!</CardView>
+          <CardView>
+            <br />
+            <div className="w3-container">
+              Congrats, there are no due cards!
+            </div>
+            <br />
+            <ButtonBar>
+              <RefreshButton
+                width="100%"
+                onClick={() => {
+                  props.goToPrompt();
+                }}
+              />
+            </ButtonBar>
+            <br />
+          </CardView>
         </>
       );
     default: {
