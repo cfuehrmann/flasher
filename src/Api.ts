@@ -135,6 +135,15 @@ export const api: Api = {
       variables: { id: id },
     });
   },
+
+  saveSnapshot: async (card: Card) => {
+    await postAsJson({
+      query: `mutation saveSnapshot($card: CardInput!) {
+        saveSnapshot(card: $card)
+      }`,
+      variables: { card },
+    });
+  },
 };
 
 async function postAsJson(body: {

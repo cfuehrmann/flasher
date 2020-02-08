@@ -27,6 +27,7 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     goToPrompt,
     setCards,
     groomItem,
+    saveSnapshot,
   };
 
   function login(userName: string, password: string) {
@@ -60,7 +61,10 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       card: prevRouterState.card,
       onDelete: deleteAndNext,
       onSaveAsNew: saveAsNewAndNext,
-      onCancel: () => setRouterState(prevRouterState),
+      onCancel: () => {
+        setRouterState(prevRouterState);
+        console.log("onCancel");
+      },
       onSave: saveAndShowSolution,
     });
   }
@@ -99,6 +103,12 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
         }
         setRouterState(getGroomItemState(card, prevRouterState));
       });
+  }
+
+  function saveSnapshot(card: Card) {
+    withApi(setState, async () => {
+      api.saveSnapshot(card);
+    });
   }
 
   function deleteAndNext(id: string) {

@@ -135,6 +135,7 @@ function Router(
           onSaveAsNew={routerState.onSaveAsNew}
           onSave={routerState.onSave}
           onCancel={routerState.onCancel}
+          saveSnapshot={props.saveSnapshot}
         />
       );
     case "Groom":

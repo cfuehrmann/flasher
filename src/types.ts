@@ -74,6 +74,7 @@ export type Api = Readonly<{
   findCards: (substring: string) => Promise<GroomCard[]>;
   enable: (id: string) => Promise<void>;
   disable: (id: string) => Promise<void>;
+  saveSnapshot: (card: Card) => Promise<void>;
 }>;
 
 export type AppNarratives = Readonly<{
@@ -87,6 +88,7 @@ export type AppNarratives = Readonly<{
   goToPrompt: () => void;
   setCards: (searchText: string) => void;
   groomItem: (prevRouterState: GroomState) => (id: string) => void;
+  saveSnapshot: (card: Card) => void;
 }>;
 
 export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;

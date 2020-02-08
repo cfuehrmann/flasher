@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import {
   AsNewButton,
@@ -15,6 +15,7 @@ type Props = Card & {
   onSaveAsNew: (card: Card) => void;
   onCancel: () => void;
   onSave: (card: Card) => void;
+  saveSnapshot: (card: Card) => void;
 };
 
 export function EditView(props: Props) {
@@ -24,6 +25,24 @@ export function EditView(props: Props) {
     solution: props.solution,
   });
 
+  const cardRef = React.useRef(card);
+
+  useEffect(() => {
+    cardRef.current = card;
+  });
+
+  useEffect(() => {
+    console.log("start");
+    const interval = setInterval(() => {
+      props.saveSnapshot(cardRef.current);
+    }, 500);
+    return () => {
+      clearInterval(interval);
+      console.log("stop");
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="w3-container" style={{ whiteSpace: "pre-wrap" }}>
       <br />
@@ -31,18 +50,14 @@ export function EditView(props: Props) {
         <input
           className="w3-input"
           type="text"
-          onChange={event =>
-            setPrompt((event.target as HTMLInputElement).value)
-          }
+          onChange={event => setPrompt(event.target.value)}
           value={card.prompt}
         />
         <br />
         <textarea
           className="w3-input"
           rows={17}
-          onChange={event =>
-            setSolution((event.target as HTMLTextAreaElement).value)
-          }
+          onChange={event => setSolution(event.target.value)}
           value={card.solution}
         />
         <br />
