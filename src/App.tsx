@@ -34,7 +34,7 @@ export function App() {
   }, []);
 
   const narratives = getNarratives(setState);
-  const { apiError, isFetching, ...pageProps } = {
+  const { apiError, isFetching: isContactingServer, ...pageProps } = {
     ...state,
     ...narratives,
   };
@@ -42,8 +42,8 @@ export function App() {
   return (
     <>
       <Router {...pageProps} />
-      {isFetching ? <p>Fetching data...</p> : ""}
-      {!isFetching && apiError ? showApiError(apiError) : ""}
+      {isContactingServer ? <p>Contacting server...</p> : ""}
+      {!isContactingServer && apiError ? showApiError(apiError) : ""}
       <ToastContainer />
     </>
   );

@@ -88,7 +88,7 @@ export type AppNarratives = Readonly<{
   goToPrompt: () => void;
   setCards: (searchText: string) => void;
   groomItem: (prevRouterState: GroomState) => (id: string) => void;
-  saveSnapshot: (card: Card) => void;
+  saveSnapshot: (card: Card) => Promise<void>;
 }>;
 
 export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;

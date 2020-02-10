@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import {
   AsNewButton,
@@ -15,7 +15,7 @@ type Props = Card & {
   onSaveAsNew: (card: Card) => void;
   onCancel: () => void;
   onSave: (card: Card) => void;
-  saveSnapshot: (card: Card) => void;
+  saveSnapshot: (card: Card) => Promise<void>;
 };
 
 export function EditView(props: Props) {
@@ -25,7 +25,8 @@ export function EditView(props: Props) {
     solution: props.solution,
   });
 
-  const cardRef = React.useRef(card);
+  const isSaving = useRef(false);
+  const cardRef = useRef(card);
 
   useEffect(() => {
     cardRef.current = card;
@@ -33,8 +34,13 @@ export function EditView(props: Props) {
 
   useEffect(() => {
     console.log("start");
-    const interval = setInterval(() => {
-      props.saveSnapshot(cardRef.current);
+    const interval = setInterval(async () => {
+      if (isSaving.current) {
+        return;
+      }
+      isSaving.current = true;
+      await props.saveSnapshot(cardRef.current);
+      isSaving.current = false;
     }, 500);
     return () => {
       clearInterval(interval);

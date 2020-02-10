@@ -106,8 +106,8 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
   }
 
   function saveSnapshot(card: Card) {
-    withApi(setState, async () => {
-      api.saveSnapshot(card);
+    return withApi(setState, async () => {
+      await api.saveSnapshot(card);
     });
   }
 
