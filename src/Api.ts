@@ -144,6 +144,14 @@ export const api: Api = {
       variables: { card },
     });
   },
+
+  deleteSnapshot: async () => {
+    await postAsJson({
+      query: `mutation deleteSnapshot {
+        deleteSnapshot
+      }`,
+    });
+  },
 };
 
 async function postAsJson(body: {

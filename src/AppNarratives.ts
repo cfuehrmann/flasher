@@ -63,6 +63,9 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       onSaveAsNew: saveAsNewAndNext,
       onCancel: () => {
         setRouterState(prevRouterState);
+        withApi(setState, async () => {
+          await api.deleteSnapshot();
+        });
         console.log("onCancel");
       },
       onSave: saveAndShowSolution,

@@ -75,6 +75,7 @@ export type Api = Readonly<{
   enable: (id: string) => Promise<void>;
   disable: (id: string) => Promise<void>;
   saveSnapshot: (card: Card) => Promise<void>;
+  deleteSnapshot: () => Promise<void>;
 }>;
 
 export type AppNarratives = Readonly<{
