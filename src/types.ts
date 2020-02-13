@@ -58,8 +58,8 @@ export type RouterState =
 
 export type AppState = {
   routerState: RouterState;
-  isFetching: boolean;
-  apiError?: unknown;
+  isContactingServer: boolean;
+  serverError?: unknown;
 };
 
 export type Api = Readonly<{

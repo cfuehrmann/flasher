@@ -33,18 +33,15 @@ export function EditView(props: Props) {
   });
 
   useEffect(() => {
-    console.log("start");
     const interval = setInterval(async () => {
-      if (isSaving.current) {
-        return;
-      }
+      if (isSaving.current) return;
+
       isSaving.current = true;
       await props.saveSnapshot(cardRef.current);
       isSaving.current = false;
     }, 500);
     return () => {
       clearInterval(interval);
-      console.log("stop");
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

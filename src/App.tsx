@@ -25,8 +25,8 @@ import { translations } from "./Translations";
 export function App() {
   const [state, setState] = useState<AppState>({
     routerState: { route: "Starting" },
-    isFetching: false,
-    apiError: undefined,
+    isContactingServer: false,
+    serverError: undefined,
   });
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export function App() {
   }, []);
 
   const narratives = getNarratives(setState);
-  const { apiError, isFetching: isContactingServer, ...pageProps } = {
+  const { serverError, isContactingServer, ...pageProps } = {
     ...state,
     ...narratives,
   };
@@ -43,13 +43,13 @@ export function App() {
     <>
       <Router {...pageProps} />
       {isContactingServer ? <p>Contacting server...</p> : ""}
-      {!isContactingServer && apiError ? showApiError(apiError) : ""}
+      {!isContactingServer && serverError ? showServerError(serverError) : ""}
       <ToastContainer />
     </>
   );
 }
 
-function showApiError(apiError: unknown) {
+function showServerError(apiError: unknown) {
   if (typeof apiError === "string") {
     const message = translations[apiError];
 

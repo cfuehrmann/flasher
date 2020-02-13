@@ -66,7 +66,6 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
         withApi(setState, async () => {
           await api.deleteSnapshot();
         });
-        console.log("onCancel");
       },
       onSave: saveAndShowSolution,
     });
@@ -198,29 +197,29 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
 };
 
 async function withApi(setState: SetStateType, apiMethod: () => Promise<void>) {
-  setState(prevState => ({ ...prevState, isFetching: true }));
+  setState(prevState => ({ ...prevState, isContactingServer: true }));
 
   try {
     await apiMethod();
 
     setState(prevState => ({
       ...prevState,
-      apiError: undefined,
-      isFetching: false,
+      serverError: undefined,
+      isContactingServer: false,
     }));
   } catch (e) {
     setState(prevState =>
       e.message === "unauthenticated"
         ? {
             ...prevState,
-            apiError: e.message,
+            serverError: e.message,
             routerState: { route: "Login" },
-            isFetching: false,
+            isContactingServer: false,
           }
         : {
             ...prevState,
-            apiError: e.message,
-            isFetching: false,
+            serverError: e.message,
+            isContactingServer: false,
           },
     );
   }
