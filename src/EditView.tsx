@@ -15,7 +15,7 @@ type Props = Card & {
   onSaveAsNew: (card: Card) => void;
   onCancel: () => void;
   onSave: (card: Card) => void;
-  saveSnapshot: (card: Card) => Promise<void>;
+  writeAutoSave: (card: Card) => Promise<void>;
 };
 
 export function EditView(props: Props) {
@@ -37,7 +37,7 @@ export function EditView(props: Props) {
       if (isSaving.current) return;
 
       isSaving.current = true;
-      await props.saveSnapshot(cardRef.current);
+      await props.writeAutoSave(cardRef.current);
       isSaving.current = false;
     }, 500);
     return () => {

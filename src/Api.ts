@@ -4,7 +4,13 @@ export const api: Api = {
   login: async (userName: string, password: string) => {
     await postAsJson({
       query: `query login($userName: String!, $password: String!) {
-      login(userName: $userName, password: $password)
+      login(userName: $userName, password: $password) {
+        autoSave {
+          id
+          prompt
+          solution
+        }
+      }
     }`,
       variables: {
         userName,
@@ -136,19 +142,19 @@ export const api: Api = {
     });
   },
 
-  saveSnapshot: async (card: Card) => {
+  writeAutoSave: async (card: Card) => {
     await postAsJson({
-      query: `mutation saveSnapshot($card: CardInput!) {
-        saveSnapshot(card: $card)
+      query: `mutation writeAutoSave($card: CardInput!) {
+        writeAutoSave(card: $card)
       }`,
       variables: { card },
     });
   },
 
-  deleteSnapshot: async () => {
+  deleteAutoSave: async () => {
     await postAsJson({
-      query: `mutation deleteSnapshot {
-        deleteSnapshot
+      query: `mutation deleteAutoSave {
+        deleteAutoSave
       }`,
     });
   },
