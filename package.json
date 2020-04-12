@@ -6,7 +6,6 @@
   "dependencies": {
     "@types/jest": "^25.2.1",
     "@types/markdown-it": "^10.0.0",
-    "@types/node": "^12.12.22",
     "@types/react": "^16.9.34",
     "@types/react-dom": "^16.9.6",
     "github-markdown-css": "^4.0.0",
