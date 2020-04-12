@@ -27,12 +27,27 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     goToPrompt,
     setCards,
     groomItem,
+    writeAutoSave,
   };
 
   function login(userName: string, password: string) {
     withApi(setState, async () => {
-      await api.login(userName, password);
-      await promptNext(setState);
+      const { autoSave } = await api.login(userName, password);
+
+      if (autoSave) {
+        setRouterState({
+          route: "Recover",
+          card: autoSave,
+          onAbandon: async () => {
+            await api.deleteAutoSave();
+            await promptNext(setState);
+          },
+          onSave: async card => {
+            await api.updateCard(card, true);
+            await promptNext(setState);
+          },
+        });
+      } else await promptNext(setState);
     });
   }
 
@@ -60,7 +75,12 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       card: prevRouterState.card,
       onDelete: deleteAndNext,
       onSaveAsNew: saveAsNewAndNext,
-      onCancel: () => setRouterState(prevRouterState),
+      onCancel: () => {
+        setRouterState(prevRouterState);
+        withApi(setState, async () => {
+          await api.deleteAutoSave();
+        });
+      },
       onSave: saveAndShowSolution,
     });
   }
@@ -99,6 +119,12 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
         }
         setRouterState(getGroomItemState(card, prevRouterState));
       });
+  }
+
+  function writeAutoSave(card: Card) {
+    return withApi(setState, async () => {
+      await api.writeAutoSave(card);
+    });
   }
 
   function deleteAndNext(id: string) {
@@ -185,29 +211,29 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
 };
 
 async function withApi(setState: SetStateType, apiMethod: () => Promise<void>) {
-  setState(prevState => ({ ...prevState, isFetching: true }));
+  setState(prevState => ({ ...prevState, isContactingServer: true }));
 
   try {
     await apiMethod();
 
     setState(prevState => ({
       ...prevState,
-      apiError: undefined,
-      isFetching: false,
+      serverError: undefined,
+      isContactingServer: false,
     }));
   } catch (e) {
     setState(prevState =>
       e.message === "unauthenticated"
         ? {
             ...prevState,
-            apiError: e.message,
+            serverError: e.message,
             routerState: { route: "Login" },
-            isFetching: false,
+            isContactingServer: false,
           }
         : {
             ...prevState,
-            apiError: e.message,
-            isFetching: false,
+            serverError: e.message,
+            isContactingServer: false,
           },
     );
   }

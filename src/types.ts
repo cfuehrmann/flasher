@@ -30,6 +30,12 @@ export type EditState = {
   onCancel: () => void;
   onSave: (card: Card) => void;
 };
+export type RecoverState = {
+  route: "Recover";
+  card: Card;
+  onAbandon: () => void;
+  onSave: (card: Card) => void;
+};
 export type StartingState = { route: "Starting" };
 export type DoneState = { route: "Done" };
 export type GroomState = {
@@ -51,6 +57,7 @@ export type RouterState =
   | PromptState
   | SolutionState
   | EditState
+  | RecoverState
   | StartingState
   | DoneState
   | GroomState
@@ -58,12 +65,15 @@ export type RouterState =
 
 export type AppState = {
   routerState: RouterState;
-  isFetching: boolean;
-  apiError?: unknown;
+  isContactingServer: boolean;
+  serverError?: unknown;
 };
 
 export type Api = Readonly<{
-  login: (userName: string, password: string) => Promise<void>;
+  login: (
+    userName: string,
+    password: string,
+  ) => Promise<{ autoSave: Card | undefined }>;
   createCard: (prompt: string, solution: string) => Promise<void>;
   readCard: (id: string) => Promise<GroomCard | undefined>;
   updateCard: (card: Card, isMinor: boolean) => Promise<Card>;
@@ -74,6 +84,8 @@ export type Api = Readonly<{
   findCards: (substring: string) => Promise<GroomCard[]>;
   enable: (id: string) => Promise<void>;
   disable: (id: string) => Promise<void>;
+  writeAutoSave: (card: Card) => Promise<void>;
+  deleteAutoSave: () => Promise<void>;
 }>;
 
 export type AppNarratives = Readonly<{
@@ -87,6 +99,7 @@ export type AppNarratives = Readonly<{
   goToPrompt: () => void;
   setCards: (searchText: string) => void;
   groomItem: (prevRouterState: GroomState) => (id: string) => void;
+  writeAutoSave: (card: Card) => Promise<void>;
 }>;
 
 export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;

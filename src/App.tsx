@@ -21,12 +21,13 @@ import { AppNarratives, AppState, RouterState } from "./types";
 import { useState, useEffect } from "react";
 import { LoginView } from "./LoginView";
 import { translations } from "./Translations";
+import { RecoverView } from "./RecoverView";
 
 export function App() {
   const [state, setState] = useState<AppState>({
     routerState: { route: "Starting" },
-    isFetching: false,
-    apiError: undefined,
+    isContactingServer: false,
+    serverError: undefined,
   });
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export function App() {
   }, []);
 
   const narratives = getNarratives(setState);
-  const { apiError, isFetching, ...pageProps } = {
+  const { serverError, isContactingServer, ...pageProps } = {
     ...state,
     ...narratives,
   };
@@ -42,14 +43,14 @@ export function App() {
   return (
     <>
       <Router {...pageProps} />
-      {isFetching ? <p>Fetching data...</p> : ""}
-      {!isFetching && apiError ? showApiError(apiError) : ""}
+      {isContactingServer ? <p>Contacting server...</p> : ""}
+      {!isContactingServer && serverError ? showServerError(serverError) : ""}
       <ToastContainer />
     </>
   );
 }
 
-function showApiError(apiError: unknown) {
+function showServerError(apiError: unknown) {
   if (typeof apiError === "string") {
     const message = translations[apiError];
 
@@ -135,6 +136,16 @@ function Router(
           onSaveAsNew={routerState.onSaveAsNew}
           onSave={routerState.onSave}
           onCancel={routerState.onCancel}
+          writeAutoSave={props.writeAutoSave}
+        />
+      );
+    case "Recover":
+      return (
+        <RecoverView
+          {...routerState.card}
+          onSave={routerState.onSave}
+          onAbandon={routerState.onAbandon}
+          writeAutoSave={props.writeAutoSave}
         />
       );
     case "Groom":

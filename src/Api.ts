@@ -2,15 +2,23 @@ import { Api, Card, GroomCard } from "./types";
 
 export const api: Api = {
   login: async (userName: string, password: string) => {
-    await postAsJson({
+    const data = await postAsJson({
       query: `query login($userName: String!, $password: String!) {
-      login(userName: $userName, password: $password)
+      login(userName: $userName, password: $password) {
+        autoSave {
+          id
+          prompt
+          solution
+        }
+      }
     }`,
       variables: {
         userName,
         password,
       },
     });
+
+    return (data as { login: { autoSave: Card | undefined } }).login;
   },
   findNextCard: async () => {
     const data = await postAsJson({
@@ -133,6 +141,23 @@ export const api: Api = {
         disable(id: $id)
       }`,
       variables: { id: id },
+    });
+  },
+
+  writeAutoSave: async (card: Card) => {
+    await postAsJson({
+      query: `mutation writeAutoSave($card: CardInput!) {
+        writeAutoSave(card: $card)
+      }`,
+      variables: { card },
+    });
+  },
+
+  deleteAutoSave: async () => {
+    await postAsJson({
+      query: `mutation deleteAutoSave {
+        deleteAutoSave
+      }`,
     });
   },
 };
