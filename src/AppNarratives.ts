@@ -32,8 +32,22 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
 
   function login(userName: string, password: string) {
     withApi(setState, async () => {
-      await api.login(userName, password);
-      await promptNext(setState);
+      const { autoSave } = await api.login(userName, password);
+
+      if (autoSave) {
+        setRouterState({
+          route: "Recover",
+          card: autoSave,
+          onAbandon: async () => {
+            await api.deleteAutoSave();
+            await promptNext(setState);
+          },
+          onSave: async card => {
+            await api.updateCard(card, true);
+            await promptNext(setState);
+          },
+        });
+      } else await promptNext(setState);
     });
   }
 

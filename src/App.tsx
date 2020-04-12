@@ -21,6 +21,7 @@ import { AppNarratives, AppState, RouterState } from "./types";
 import { useState, useEffect } from "react";
 import { LoginView } from "./LoginView";
 import { translations } from "./Translations";
+import { RecoverView } from "./RecoverView";
 
 export function App() {
   const [state, setState] = useState<AppState>({
@@ -135,6 +136,15 @@ function Router(
           onSaveAsNew={routerState.onSaveAsNew}
           onSave={routerState.onSave}
           onCancel={routerState.onCancel}
+          writeAutoSave={props.writeAutoSave}
+        />
+      );
+    case "Recover":
+      return (
+        <RecoverView
+          {...routerState.card}
+          onSave={routerState.onSave}
+          onAbandon={routerState.onAbandon}
           writeAutoSave={props.writeAutoSave}
         />
       );

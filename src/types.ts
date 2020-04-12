@@ -30,6 +30,12 @@ export type EditState = {
   onCancel: () => void;
   onSave: (card: Card) => void;
 };
+export type RecoverState = {
+  route: "Recover";
+  card: Card;
+  onAbandon: () => void;
+  onSave: (card: Card) => void;
+};
 export type StartingState = { route: "Starting" };
 export type DoneState = { route: "Done" };
 export type GroomState = {
@@ -51,6 +57,7 @@ export type RouterState =
   | PromptState
   | SolutionState
   | EditState
+  | RecoverState
   | StartingState
   | DoneState
   | GroomState
@@ -63,7 +70,10 @@ export type AppState = {
 };
 
 export type Api = Readonly<{
-  login: (userName: string, password: string) => Promise<void>;
+  login: (
+    userName: string,
+    password: string,
+  ) => Promise<{ autoSave: Card | undefined }>;
   createCard: (prompt: string, solution: string) => Promise<void>;
   readCard: (id: string) => Promise<GroomCard | undefined>;
   updateCard: (card: Card, isMinor: boolean) => Promise<Card>;

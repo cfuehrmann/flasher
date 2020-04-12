@@ -23,6 +23,10 @@ export function CancelButton(props: ButtonProps) {
   return <W3CssButton {...props} w3CssColor={"w3-red"} text="Cancel" />;
 }
 
+export function AbandonButton(props: ButtonProps) {
+  return <W3CssButton {...props} w3CssColor={"w3-red"} text="Abandon" />;
+}
+
 export function CreateButton(props: ButtonProps) {
   return <W3CssButton {...props} w3CssColor={"w3-green"} text="Create" />;
 }

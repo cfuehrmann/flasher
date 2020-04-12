@@ -2,7 +2,7 @@ import { Api, Card, GroomCard } from "./types";
 
 export const api: Api = {
   login: async (userName: string, password: string) => {
-    await postAsJson({
+    const data = await postAsJson({
       query: `query login($userName: String!, $password: String!) {
       login(userName: $userName, password: $password) {
         autoSave {
@@ -17,6 +17,8 @@ export const api: Api = {
         password,
       },
     });
+
+    return (data as { login: { autoSave: Card | undefined } }).login;
   },
   findNextCard: async () => {
     const data = await postAsJson({
