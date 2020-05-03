@@ -132,7 +132,18 @@ function Router(
       return (
         <EditView
           {...routerState.card}
-          onDelete={routerState.onDelete}
+          onDelete={props.deleteAndNext}
+          onSaveAsNew={routerState.onSaveAsNew}
+          onSave={routerState.onSave}
+          onCancel={routerState.onCancel}
+          writeAutoSave={props.writeAutoSave}
+        />
+      );
+    case "GroomEdit":
+      return (
+        <EditView
+          {...routerState.card}
+          onDelete={props.deleteAndGroom(routerState.searchText)}
           onSaveAsNew={routerState.onSaveAsNew}
           onSave={routerState.onSave}
           onCancel={routerState.onCancel}

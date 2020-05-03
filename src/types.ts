@@ -25,7 +25,14 @@ export type SolutionState = {
 export type EditState = {
   route: "Edit";
   card: Card;
-  onDelete: (id: string) => void;
+  onSaveAsNew: (card: Card) => void;
+  onCancel: () => void;
+  onSave: (card: Card) => void;
+};
+export type GroomEditState = {
+  route: "GroomEdit";
+  card: Card;
+  searchText: string;
   onSaveAsNew: (card: Card) => void;
   onCancel: () => void;
   onSave: (card: Card) => void;
@@ -57,6 +64,7 @@ export type RouterState =
   | PromptState
   | SolutionState
   | EditState
+  | GroomEditState
   | RecoverState
   | StartingState
   | DoneState
@@ -100,6 +108,8 @@ export type AppNarratives = Readonly<{
   setCards: (searchText: string) => void;
   groomItem: (prevRouterState: GroomState) => (id: string) => void;
   writeAutoSave: (card: Card) => Promise<void>;
+  deleteAndGroom: (searchText: string) => (id: string) => Promise<void>;
+  deleteAndNext: (id: string) => Promise<void>;
 }>;
 
 export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;

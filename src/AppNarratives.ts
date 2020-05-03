@@ -28,6 +28,8 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     setCards,
     groomItem,
     writeAutoSave,
+    deleteAndGroom,
+    deleteAndNext,
   };
 
   function login(userName: string, password: string) {
@@ -42,7 +44,7 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
             await api.deleteAutoSave();
             await promptNext(setState);
           },
-          onSave: async card => {
+          onSave: async (card) => {
             await api.updateCard(card, true);
             await promptNext(setState);
           },
@@ -73,7 +75,6 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     setRouterState({
       route: "Edit",
       card: prevRouterState.card,
-      onDelete: deleteAndNext,
       onSaveAsNew: saveAsNewAndNext,
       onCancel: () => {
         setRouterState(prevRouterState);
@@ -128,7 +129,7 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
   }
 
   function deleteAndNext(id: string) {
-    withApi(setState, async () => {
+    return withApi(setState, async () => {
       await api.deleteCard(id);
       await promptNext(setState);
     });
@@ -150,7 +151,7 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
 
   function deleteAndGroom(searchText: string) {
     return (id: string) => {
-      withApi(setState, async () => {
+      return withApi(setState, async () => {
         await api.deleteCard(id);
         const cards = await api.findCards(searchText);
         setRouterState({ route: "Groom", cards, searchText });
@@ -178,9 +179,9 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       },
       onEdit: () =>
         setRouterState({
-          route: "Edit",
+          route: "GroomEdit",
           card,
-          onDelete: deleteAndGroom(groomState.searchText),
+          searchText: groomState.searchText,
           onSaveAsNew: saveGroomItem(false, card.disabled),
           onCancel: () => setRouterState(groomItemState),
           onSave: saveGroomItem(true, card.disabled),
@@ -206,23 +207,23 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
   }
 
   function setRouterState(routerState: RouterState) {
-    setState(prevState => ({ ...prevState, routerState }));
+    setState((prevState) => ({ ...prevState, routerState }));
   }
 };
 
 async function withApi(setState: SetStateType, apiMethod: () => Promise<void>) {
-  setState(prevState => ({ ...prevState, isContactingServer: true }));
+  setState((prevState) => ({ ...prevState, isContactingServer: true }));
 
   try {
     await apiMethod();
 
-    setState(prevState => ({
+    setState((prevState) => ({
       ...prevState,
       serverError: undefined,
       isContactingServer: false,
     }));
   } catch (e) {
-    setState(prevState =>
+    setState((prevState) =>
       e.message === "unauthenticated"
         ? {
             ...prevState,
