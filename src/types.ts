@@ -26,7 +26,6 @@ export type EditState = {
   route: "Edit";
   card: Card;
   onSaveAsNew: (card: Card) => void;
-  onCancel: () => void;
   onSave: (card: Card) => void;
 };
 export type GroomEditState = {
@@ -110,6 +109,7 @@ export type AppNarratives = Readonly<{
   writeAutoSave: (card: Card) => Promise<void>;
   deleteAndGroom: (searchText: string) => (id: string) => Promise<void>;
   deleteAndNext: (id: string) => Promise<void>;
+  cancelEdit(card: Card): Promise<void>;
 }>;
 
 export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;

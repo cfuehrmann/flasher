@@ -135,7 +135,7 @@ function Router(
           onDelete={props.deleteAndNext}
           onSaveAsNew={routerState.onSaveAsNew}
           onSave={routerState.onSave}
-          onCancel={routerState.onCancel}
+          onCancel={() => props.cancelEdit(routerState.card)}
           writeAutoSave={props.writeAutoSave}
         />
       );

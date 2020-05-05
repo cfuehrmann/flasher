@@ -30,6 +30,7 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     writeAutoSave,
     deleteAndGroom,
     deleteAndNext,
+    cancelEdit,
   };
 
   function login(userName: string, password: string) {
@@ -76,13 +77,14 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       route: "Edit",
       card: prevRouterState.card,
       onSaveAsNew: saveAsNewAndNext,
-      onCancel: () => {
-        setRouterState(prevRouterState);
-        withApi(setState, async () => {
-          await api.deleteAutoSave();
-        });
-      },
       onSave: saveAndShowSolution,
+    });
+  }
+
+  async function cancelEdit(card: Card) {
+    setRouterState({ route: "Solution", card });
+    await withApi(setState, async () => {
+      await api.deleteAutoSave();
     });
   }
 
