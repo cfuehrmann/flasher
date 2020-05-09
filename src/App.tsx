@@ -122,10 +122,12 @@ function Router(
       return (
         <GroomItemView
           {...routerState.card}
-          onEnable={routerState.onEnable}
-          onDisable={routerState.onDisable}
-          onBack={routerState.onBack}
-          onEdit={routerState.onEdit}
+          onEnable={(id) => props.enable(id, routerState.searchText)}
+          onDisable={(id) => props.disable(id, routerState.searchText)}
+          onBack={() => props.backFromGromItem(routerState.searchText)}
+          onEdit={() =>
+            props.groomEdit(routerState.card, routerState.searchText)
+          }
         />
       );
     case "Edit":
@@ -133,20 +135,26 @@ function Router(
         <EditView
           {...routerState.card}
           onDelete={props.deleteAndNext}
-          onSaveAsNew={routerState.onSaveAsNew}
-          onSave={routerState.onSave}
+          onSaveAsNew={props.saveAsNewAndNext}
+          onSave={props.saveAndShowSolution}
           onCancel={() => props.cancelEdit(routerState.card)}
           writeAutoSave={props.writeAutoSave}
         />
       );
     case "GroomEdit":
+      const { card: groomCard, searchText } = routerState;
+      const { disabled, ...card } = groomCard;
       return (
         <EditView
-          {...routerState.card}
-          onDelete={props.deleteAndGroom(routerState.searchText)}
-          onSaveAsNew={routerState.onSaveAsNew}
-          onSave={routerState.onSave}
-          onCancel={routerState.onCancel}
+          {...card}
+          onDelete={props.deleteAndGroom(searchText)}
+          onSaveAsNew={(card) =>
+            props.saveGroomItem(false, searchText, { ...card, disabled })
+          }
+          onSave={(card) =>
+            props.saveGroomItem(true, searchText, { ...card, disabled })
+          }
+          onCancel={() => props.cancelGroomEdit(groomCard, searchText)}
           writeAutoSave={props.writeAutoSave}
         />
       );
@@ -165,7 +173,7 @@ function Router(
           onGoToPrompt={props.goToPrompt}
           onGoToCreate={() => props.create(routerState)}
           onChangeInput={props.setCards}
-          onGroomItem={props.groomItem(routerState)}
+          onGroomItem={(id) => props.groomItem(routerState.searchText)(id)}
           searchText={routerState.searchText}
           cards={routerState.cards}
         />

@@ -25,16 +25,11 @@ export type SolutionState = {
 export type EditState = {
   route: "Edit";
   card: Card;
-  onSaveAsNew: (card: Card) => void;
-  onSave: (card: Card) => void;
 };
 export type GroomEditState = {
   route: "GroomEdit";
-  card: Card;
+  card: GroomCard;
   searchText: string;
-  onSaveAsNew: (card: Card) => void;
-  onCancel: () => void;
-  onSave: (card: Card) => void;
 };
 export type RecoverState = {
   route: "Recover";
@@ -52,10 +47,7 @@ export type GroomState = {
 export type GroomItemState = {
   route: "GroomItem";
   card: GroomCard;
-  onEnable: (id: string) => void;
-  onDisable: (id: string) => void;
-  onBack: () => void;
-  onEdit: () => void;
+  searchText: string;
 };
 
 export type RouterState =
@@ -105,11 +97,23 @@ export type AppNarratives = Readonly<{
   goToGroom: () => void;
   goToPrompt: () => void;
   setCards: (searchText: string) => void;
-  groomItem: (prevRouterState: GroomState) => (id: string) => void;
+  groomItem: (searchText: string) => (id: string) => void;
   writeAutoSave: (card: Card) => Promise<void>;
   deleteAndGroom: (searchText: string) => (id: string) => Promise<void>;
   deleteAndNext: (id: string) => Promise<void>;
   cancelEdit(card: Card): Promise<void>;
+  cancelGroomEdit(card: GroomCard, searchText: string): Promise<void>;
+  enable(id: string, searchText: string): Promise<void>;
+  disable(id: string, searchText: string): Promise<void>;
+  groomEdit(card: GroomCard, searchText: string): Promise<void>;
+  backFromGromItem(searchText: string): Promise<void>;
+  saveGroomItem(
+    isMinor: boolean,
+    searchText: string,
+    card: GroomCard,
+  ): Promise<void>;
+  saveAsNewAndNext(card: Card): Promise<void>;
+  saveAndShowSolution(card: Card): Promise<void>;
 }>;
 
 export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;
