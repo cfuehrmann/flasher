@@ -38,27 +38,45 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     saveGroomItem,
     saveAsNewAndNext,
     saveAndShowSolution,
+    saveRecovered,
+    abandonRecovered,
   };
 
-  function login(userName: string, password: string) {
-    withErrorHandling(setState, async () => {
+  async function login(userName: string, password: string) {
+    await withErrorHandling(setState, async () => {
       const { autoSave } = await api.login(userName, password);
 
       if (autoSave) {
         setRouterState({
           route: "Recover",
           card: autoSave,
-          onAbandon: async () => {
-            await api.deleteAutoSave();
-            await promptNext(setState);
-          },
-          onSave: async (card) => {
-            await api.updateCard(card, true);
-            await promptNext(setState);
-          },
         });
       } else await promptNext(setState);
     });
+  }
+
+  async function saveRecovered(card: Card) {
+    await withErrorHandling(setState, async () => {
+      await api.updateCard(card, true);
+      await promptNext(setState);
+    });
+  }
+
+  async function abandonRecovered() {
+    await withErrorHandling(setState, async () => {
+      await api.deleteAutoSave();
+      await promptNext(setState);
+    });
+  }
+
+  async function goToPrompt() {
+    await withErrorHandling(setState, async () => {
+      await promptNext(setState);
+    });
+  }
+
+  function goToGroom() {
+    setRouterState({ route: "Groom", searchText: "", cards: [] });
   }
 
   function showSolution(card: Card) {
@@ -105,16 +123,6 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       await api.createCard("New card", "");
       const cards = await api.findCards(groomState.searchText);
       setRouterState({ ...groomState, cards });
-    });
-  }
-
-  function goToGroom() {
-    setRouterState({ route: "Groom", searchText: "", cards: [] });
-  }
-
-  function goToPrompt() {
-    withErrorHandling(setState, async () => {
-      await promptNext(setState);
     });
   }
 
@@ -177,20 +185,22 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     };
   }
 
-  async function enable(id: string, searchText: string) {
-    await withErrorHandling(setState, async () => {
-      await api.enable(id);
-      const cards = await api.findCards(searchText);
-      setRouterState({ route: "Groom", cards, searchText });
-    });
+  function enable(searchText: string) {
+    return async (id: string) =>
+      await withErrorHandling(setState, async () => {
+        await api.enable(id);
+        const cards = await api.findCards(searchText);
+        setRouterState({ route: "Groom", cards, searchText });
+      });
   }
 
-  async function disable(id: string, searchText: string) {
-    await withErrorHandling(setState, async () => {
-      await api.disable(id);
-      const cards = await api.findCards(searchText);
-      setRouterState({ route: "Groom", cards, searchText });
-    });
+  function disable(searchText: string) {
+    return async (id: string) =>
+      await withErrorHandling(setState, async () => {
+        await api.disable(id);
+        const cards = await api.findCards(searchText);
+        setRouterState({ route: "Groom", cards, searchText });
+      });
   }
 
   async function groomEdit(card: GroomCard, searchText: string) {

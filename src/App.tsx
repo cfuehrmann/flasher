@@ -122,8 +122,8 @@ function Router(
       return (
         <GroomItemView
           {...routerState.card}
-          onEnable={(id) => props.enable(id, routerState.searchText)}
-          onDisable={(id) => props.disable(id, routerState.searchText)}
+          onEnable={props.enable(routerState.searchText)}
+          onDisable={props.disable(routerState.searchText)}
           onBack={() => props.backFromGromItem(routerState.searchText)}
           onEdit={() =>
             props.groomEdit(routerState.card, routerState.searchText)
@@ -162,8 +162,8 @@ function Router(
       return (
         <RecoverView
           {...routerState.card}
-          onSave={routerState.onSave}
-          onAbandon={routerState.onAbandon}
+          onSave={props.saveRecovered}
+          onAbandon={props.abandonRecovered}
           writeAutoSave={props.writeAutoSave}
         />
       );

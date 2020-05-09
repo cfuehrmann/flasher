@@ -34,8 +34,6 @@ export type GroomEditState = {
 export type RecoverState = {
   route: "Recover";
   card: Card;
-  onAbandon: () => void;
-  onSave: (card: Card) => void;
 };
 export type StartingState = { route: "Starting" };
 export type DoneState = { route: "Done" };
@@ -87,15 +85,15 @@ export type Api = Readonly<{
   deleteAutoSave: () => Promise<void>;
 }>;
 
-export type AppNarratives = Readonly<{
-  login: (userName: string, password: string) => void;
+export type AppNarratives = {
+  login: (userName: string, password: string) => Promise<void>;
+  goToPrompt: () => Promise<void>;
+  goToGroom: () => void;
   showSolution: (card: Card) => void;
   setOk: (id: string) => void;
   setFailed: (id: string) => void;
   editSolution: (prevRouterState: SolutionState) => void;
   create: (prevRouterState: GroomState) => void;
-  goToGroom: () => void;
-  goToPrompt: () => void;
   setCards: (searchText: string) => void;
   groomItem: (searchText: string) => (id: string) => void;
   writeAutoSave: (card: Card) => Promise<void>;
@@ -103,8 +101,8 @@ export type AppNarratives = Readonly<{
   deleteAndNext: (id: string) => Promise<void>;
   cancelEdit(card: Card): Promise<void>;
   cancelGroomEdit(card: GroomCard, searchText: string): Promise<void>;
-  enable(id: string, searchText: string): Promise<void>;
-  disable(id: string, searchText: string): Promise<void>;
+  enable: (searchText: string) => (id: string) => Promise<void>;
+  disable: (searchText: string) => (id: string) => Promise<void>;
   groomEdit(card: GroomCard, searchText: string): Promise<void>;
   backFromGromItem(searchText: string): Promise<void>;
   saveGroomItem(
@@ -114,6 +112,8 @@ export type AppNarratives = Readonly<{
   ): Promise<void>;
   saveAsNewAndNext(card: Card): Promise<void>;
   saveAndShowSolution(card: Card): Promise<void>;
-}>;
+  saveRecovered(card: Card): Promise<void>;
+  abandonRecovered(): Promise<void>;
+};
 
 export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;
