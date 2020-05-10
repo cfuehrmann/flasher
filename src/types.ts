@@ -1,15 +1,15 @@
-export type Card = Readonly<{
+export type Card = {
   id: string;
   prompt: string;
   solution: string;
-}>;
+};
 
-export type GroomCard = Readonly<{
+export type GroomCard = {
   id: string;
   prompt: string;
   solution: string;
   disabled: boolean;
-}>;
+};
 
 export type LoginState = {
   route: "Login";
@@ -66,7 +66,7 @@ export type AppState = {
   serverError?: unknown;
 };
 
-export type Api = Readonly<{
+export type Api = {
   login: (
     userName: string,
     password: string,
@@ -83,19 +83,19 @@ export type Api = Readonly<{
   disable: (id: string) => Promise<void>;
   writeAutoSave: (card: Card) => Promise<void>;
   deleteAutoSave: () => Promise<void>;
-}>;
+};
 
 export type AppNarratives = {
   login: (userName: string, password: string) => Promise<void>;
   goToPrompt: () => Promise<void>;
-  goToGroom: () => void;
-  showSolution: (card: Card) => void;
-  setOk: (id: string) => void;
-  setFailed: (id: string) => void;
-  editSolution: (prevRouterState: SolutionState) => void;
-  create: (prevRouterState: GroomState) => void;
-  setCards: (searchText: string) => void;
-  groomItem: (searchText: string) => (id: string) => void;
+  goToGroom: () => Promise<void>;
+  showSolution: (card: Card) => Promise<void>;
+  setOk: (id: string) => Promise<void>;
+  setFailed: (id: string) => Promise<void>;
+  editSolution: (prevRouterState: SolutionState) => Promise<void>;
+  create: (prevRouterState: GroomState) => Promise<void>;
+  setCards: (searchText: string) => Promise<void>;
+  groomItem: (searchText: string) => (id: string) => Promise<void>;
   writeAutoSave: (card: Card) => Promise<void>;
   deleteAndGroom: (searchText: string) => (id: string) => Promise<void>;
   deleteAndNext: (id: string) => Promise<void>;

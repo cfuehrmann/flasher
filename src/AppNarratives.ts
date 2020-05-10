@@ -75,29 +75,29 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     });
   }
 
-  function goToGroom() {
+  async function goToGroom() {
     setRouterState({ route: "Groom", searchText: "", cards: [] });
   }
 
-  function showSolution(card: Card) {
+  async function showSolution(card: Card) {
     setRouterState({ route: "Solution", card });
   }
 
-  function setOk(id: string) {
-    withErrorHandling(setState, async () => {
+  async function setOk(id: string) {
+    await withErrorHandling(setState, async () => {
       await api.setOk(id);
       await promptNext(setState);
     });
   }
 
-  function setFailed(id: string) {
-    withErrorHandling(setState, async () => {
+  async function setFailed(id: string) {
+    await withErrorHandling(setState, async () => {
       await api.setFailed(id);
       await promptNext(setState);
     });
   }
 
-  function editSolution(prevRouterState: SolutionState) {
+  async function editSolution(prevRouterState: SolutionState) {
     setRouterState({
       route: "Edit",
       card: prevRouterState.card,
@@ -118,66 +118,65 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     });
   }
 
-  function create(groomState: GroomState) {
-    withErrorHandling(setState, async () => {
+  async function create(groomState: GroomState) {
+    await withErrorHandling(setState, async () => {
       await api.createCard("New card", "");
       const cards = await api.findCards(groomState.searchText);
       setRouterState({ ...groomState, cards });
     });
   }
 
-  function setCards(searchText: string) {
-    withErrorHandling(setState, async () => {
+  async function setCards(searchText: string) {
+    await withErrorHandling(setState, async () => {
       const cards = await api.findCards(searchText);
       setRouterState({ route: "Groom", cards, searchText });
     });
   }
 
   function groomItem(searchText: string) {
-    return (id: string) =>
-      withErrorHandling(setState, async () => {
+    return async (id: string) =>
+      await withErrorHandling(setState, async () => {
         const card = await api.readCard(id);
-        if (card === undefined) {
-          return;
+        if (card !== undefined) {
+          setRouterState({
+            route: "GroomItem",
+            card,
+            searchText,
+          });
         }
-        setRouterState({
-          route: "GroomItem",
-          card,
-          searchText,
-        });
       });
   }
 
-  function writeAutoSave(card: Card) {
-    return withErrorHandling(setState, async () => {
+  async function writeAutoSave(card: Card) {
+    await withErrorHandling(setState, async () => {
       await api.writeAutoSave(card);
     });
   }
 
-  function deleteAndNext(id: string) {
-    return withErrorHandling(setState, async () => {
+  async function deleteAndNext(id: string) {
+    await withErrorHandling(setState, async () => {
       await api.deleteCard(id);
       await promptNext(setState);
     });
   }
 
-  function saveAsNewAndNext(card: Card) {
-    return withErrorHandling(setState, async () => {
+  async function saveAsNewAndNext(card: Card) {
+    await withErrorHandling(setState, async () => {
       await api.updateCard(card, false);
       await promptNext(setState);
     });
   }
 
-  function saveAndShowSolution(card: Card) {
-    return withErrorHandling(setState, async () => {
+  async function saveAndShowSolution(card: Card) {
+    await withErrorHandling(setState, async () => {
       await api.updateCard(card, true);
       setRouterState({ route: "Solution", card });
     });
   }
 
   function deleteAndGroom(searchText: string) {
-    return (id: string) => {
-      return withErrorHandling(setState, async () => {
+    return async (id: string) => {
+      await withErrorHandling(setState, async () => {
         await api.deleteCard(id);
         const cards = await api.findCards(searchText);
         setRouterState({ route: "Groom", cards, searchText });
