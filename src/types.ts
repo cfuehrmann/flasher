@@ -1,64 +1,30 @@
-export type Card = {
-  id: string;
-  prompt: string;
-  solution: string;
-};
+export type Card = { id: string; prompt: string; solution: string };
 
-export type GroomCard = {
-  id: string;
-  prompt: string;
-  solution: string;
-  disabled: boolean;
-};
-
-export type LoginState = {
-  route: "Login";
-};
-export type PromptState = {
-  route: "Prompt";
-  card: Card;
-};
-export type SolutionState = {
-  route: "Solution";
-  card: Card;
-};
-export type EditState = {
-  route: "Edit";
-  card: Card;
-};
-export type GroomEditState = {
-  route: "GroomEdit";
-  card: GroomCard;
-  searchText: string;
-};
-export type RecoverState = {
-  route: "Recover";
-  card: Card;
-};
-export type StartingState = { route: "Starting" };
-export type DoneState = { route: "Done" };
-export type GroomState = {
-  route: "Groom";
-  searchText: string;
-  cards: GroomCard[];
-};
-export type GroomItemState = {
-  route: "GroomItem";
-  card: GroomCard;
-  searchText: string;
-};
+export type GroomCard = Card & { disabled: boolean };
 
 export type RouterState =
-  | LoginState
-  | PromptState
-  | SolutionState
-  | EditState
-  | GroomEditState
-  | RecoverState
-  | StartingState
-  | DoneState
-  | GroomState
-  | GroomItemState;
+  | { route: "Starting" }
+  | { route: "Login" }
+  | { route: "Prompt"; card: Card }
+  | { route: "Done" }
+  | { route: "Solution"; card: Card }
+  | { route: "Edit"; card: Card }
+  | {
+      route: "Groom";
+      searchText: string;
+      cards: GroomCard[];
+    }
+  | {
+      route: "GroomSingle";
+      card: GroomCard;
+      searchText: string;
+    }
+  | {
+      route: "GroomEdit";
+      card: GroomCard;
+      searchText: string;
+    }
+  | { route: "Recover"; card: Card };
 
 export type AppState = {
   routerState: RouterState;
@@ -87,33 +53,33 @@ export type Api = {
 
 export type AppNarratives = {
   login: (userName: string, password: string) => Promise<void>;
-  goToPrompt: () => Promise<void>;
   goToGroom: () => Promise<void>;
-  showSolution: (card: Card) => Promise<void>;
-  setOk: (id: string) => Promise<void>;
-  setFailed: (id: string) => Promise<void>;
-  editSolution: (prevRouterState: SolutionState) => Promise<void>;
-  create: (prevRouterState: GroomState) => Promise<void>;
-  setCards: (searchText: string) => Promise<void>;
-  groomItem: (searchText: string) => (id: string) => Promise<void>;
-  writeAutoSave: (card: Card) => Promise<void>;
-  deleteAndGroom: (searchText: string) => (id: string) => Promise<void>;
+  showSolution: (card: Card) => () => Promise<void>;
+  goToPrompt: () => Promise<void>;
+  setOk: (id: string) => () => Promise<void>;
+  setFailed: (id: string) => () => Promise<void>;
+  editSolution: (card: Card) => () => Promise<void>;
+  saveAndShowSolution(card: Card): Promise<void>;
+  saveAsNewAndNext(card: Card): Promise<void>;
+  cancelEdit: (card: Card) => () => Promise<void>;
   deleteAndNext: (id: string) => Promise<void>;
-  cancelEdit(card: Card): Promise<void>;
-  cancelGroomEdit(card: GroomCard, searchText: string): Promise<void>;
+  goToCreate: (searchText: string) => () => Promise<void>;
+  setCards: (searchText: string) => Promise<void>;
+  groomSingle: (searchText: string) => (id: string) => Promise<void>;
+  groomEdit: (card: GroomCard, searchText: string) => () => Promise<void>;
   enable: (searchText: string) => (id: string) => Promise<void>;
   disable: (searchText: string) => (id: string) => Promise<void>;
-  groomEdit(card: GroomCard, searchText: string): Promise<void>;
-  backFromGromItem(searchText: string): Promise<void>;
-  saveGroomItem(
+  backFromGroomSingle: (searchText: string) => () => Promise<void>;
+  saveFromGroom: (
     isMinor: boolean,
     searchText: string,
-    card: GroomCard,
-  ): Promise<void>;
-  saveAsNewAndNext(card: Card): Promise<void>;
-  saveAndShowSolution(card: Card): Promise<void>;
+    disabled: boolean,
+  ) => (card: Card) => Promise<void>;
+  cancelGroomEdit: (card: GroomCard, searchText: string) => () => Promise<void>;
+  deleteAndGroom: (searchText: string) => (id: string) => Promise<void>;
   saveRecovered(card: Card): Promise<void>;
   abandonRecovered(): Promise<void>;
+  writeAutoSave: (card: Card) => Promise<void>;
 };
 
 export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;
