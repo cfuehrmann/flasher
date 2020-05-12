@@ -63,11 +63,7 @@ function showServerError(apiError: unknown) {
   }
 }
 
-function Router(
-  props: {
-    routerState: RouterState;
-  } & AppNarratives,
-) {
+function Router(props: { routerState: RouterState } & AppNarratives) {
   const routerState = props.routerState;
 
   switch (routerState.route) {
@@ -85,7 +81,7 @@ function Router(
             <ButtonBar>
               <ShowButton
                 width="100%"
-                onClick={() => props.showSolution(routerState.card)}
+                onClick={props.showSolution(routerState.card)}
               />
             </ButtonBar>
             <br />
@@ -93,6 +89,23 @@ function Router(
         </>
       );
     }
+    case "Done":
+      return (
+        <>
+          <Menu onGoToGroom={props.goToGroom} />
+          <CardView>
+            <br />
+            <div className="w3-container">
+              Congrats, there are no due cards!
+            </div>
+            <br />
+            <ButtonBar>
+              <RefreshButton width="100%" onClick={props.goToPrompt} />
+            </ButtonBar>
+            <br />
+          </CardView>
+        </>
+      );
     case "Solution": {
       const { id, prompt, solution } = routerState.card;
 
@@ -108,43 +121,24 @@ function Router(
             <ButtonBar>
               <EditButton
                 width="33%"
-                onClick={() => props.editSolution(routerState)}
+                onClick={props.editSolution(routerState.card)}
               />
-              <OkButton width="34%" onClick={() => props.setOk(id)} />
-              <FailedButton width="33%" onClick={() => props.setFailed(id)} />
+              <OkButton width="34%" onClick={props.setOk(id)} />
+              <FailedButton width="33%" onClick={props.setFailed(id)} />
             </ButtonBar>
             <br />
           </CardView>
         </>
       );
     }
-    case "GroomItem":
-      return (
-        <GroomItemView
-          {...routerState.card}
-          onEnable={routerState.onEnable}
-          onDisable={routerState.onDisable}
-          onBack={routerState.onBack}
-          onEdit={routerState.onEdit}
-        />
-      );
     case "Edit":
       return (
         <EditView
           {...routerState.card}
-          onDelete={routerState.onDelete}
-          onSaveAsNew={routerState.onSaveAsNew}
-          onSave={routerState.onSave}
-          onCancel={routerState.onCancel}
-          writeAutoSave={props.writeAutoSave}
-        />
-      );
-    case "Recover":
-      return (
-        <RecoverView
-          {...routerState.card}
-          onSave={routerState.onSave}
-          onAbandon={routerState.onAbandon}
+          onSave={props.saveAndShowSolution}
+          onSaveAsNew={props.saveAsNewAndNext}
+          onCancel={props.cancelEdit(routerState.card)}
+          onDelete={props.deleteAndNext}
           writeAutoSave={props.writeAutoSave}
         />
       );
@@ -152,34 +146,44 @@ function Router(
       return (
         <GroomView
           onGoToPrompt={props.goToPrompt}
-          onGoToCreate={() => props.create(routerState)}
+          onGoToCreate={props.goToCreate(routerState.searchText)}
           onChangeInput={props.setCards}
-          onGroomItem={props.groomItem(routerState)}
+          onGroomItem={props.groomSingle(routerState.searchText)}
           searchText={routerState.searchText}
           cards={routerState.cards}
         />
       );
-    case "Done":
+    case "GroomSingle":
       return (
-        <>
-          <Menu onGoToGroom={props.goToGroom} />
-          <CardView>
-            <br />
-            <div className="w3-container">
-              Congrats, there are no due cards!
-            </div>
-            <br />
-            <ButtonBar>
-              <RefreshButton
-                width="100%"
-                onClick={() => {
-                  props.goToPrompt();
-                }}
-              />
-            </ButtonBar>
-            <br />
-          </CardView>
-        </>
+        <GroomItemView
+          {...routerState.card}
+          onEdit={props.groomEdit(routerState.card, routerState.searchText)}
+          onEnable={props.enable(routerState.searchText)}
+          onDisable={props.disable(routerState.searchText)}
+          onBack={props.backFromGroomSingle(routerState.searchText)}
+        />
+      );
+    case "GroomEdit":
+      const { card: groomCard, searchText } = routerState;
+      const { disabled, ...card } = groomCard;
+      return (
+        <EditView
+          {...card}
+          onSave={props.saveFromGroom(true, searchText, disabled)}
+          onSaveAsNew={props.saveFromGroom(false, searchText, disabled)}
+          onCancel={props.cancelGroomEdit(groomCard, searchText)}
+          onDelete={props.deleteAndGroom(searchText)}
+          writeAutoSave={props.writeAutoSave}
+        />
+      );
+    case "Recover":
+      return (
+        <RecoverView
+          {...routerState.card}
+          onSave={props.saveRecovered}
+          onAbandon={props.abandonRecovered}
+          writeAutoSave={props.writeAutoSave}
+        />
       );
     default: {
       return <CardView>Should never happen!</CardView>;
