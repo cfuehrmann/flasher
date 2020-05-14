@@ -56,8 +56,8 @@ function showServerError(apiError: unknown) {
 
     if (typeof message === "string") {
       toast(message, {
-        type: toast.TYPE.ERROR,
-        position: toast.POSITION.BOTTOM_RIGHT,
+        type: "error",
+        position: "bottom-right",
       });
     }
   }
