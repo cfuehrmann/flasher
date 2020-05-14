@@ -1570,7 +1570,7 @@
   dependencies:
     regenerator-runtime "^0.13.4"
 
-"@babel/runtime@^7.0.0", "@babel/runtime@^7.3.4", "@babel/runtime@^7.4.2", "@babel/runtime@^7.4.5", "@babel/runtime@^7.5.5", "@babel/runtime@^7.6.3", "@babel/runtime@^7.7.2", "@babel/runtime@^7.7.4":
+"@babel/runtime@^7.0.0", "@babel/runtime@^7.3.4", "@babel/runtime@^7.4.5", "@babel/runtime@^7.5.5", "@babel/runtime@^7.6.3", "@babel/runtime@^7.7.2", "@babel/runtime@^7.7.4":
   version "7.7.7"
   resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.7.7.tgz#194769ca8d6d7790ec23605af9ee3e42a0aa79cf"
   integrity sha512-uCnC2JEVAu8AKB5do1WRIsvrdJ0flYx/A/9f/6chdacnEZ7LmavjdsDXr5ksYBegxtuTPR5Va9/+13QF/kFkCA==
@@ -2051,10 +2051,10 @@
     "@types/istanbul-lib-coverage" "*"
     "@types/istanbul-lib-report" "*"
 
-"@types/jest@^25.2.1":
-  version "25.2.1"
-  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-25.2.1.tgz#9544cd438607955381c1bdbdb97767a249297db5"
-  integrity sha512-msra1bCaAeEdkSyA0CZ6gW1ukMIvZ5YoJkdXw/qhQdsuuDlFTcEUrUw8CLCPt2rVRUfXlClVvK2gvPs9IokZaA==
+"@types/jest@^25.2.2":
+  version "25.2.2"
+  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-25.2.2.tgz#6a752e7a00f69c3e790ea00c345029d5cefa92bf"
+  integrity sha512-aRctFbG8Pb7DSLzUt/fEtL3q/GKb9mretFuYhRub2J0q6NhzBYbx9HTQzHrWgBNIxYOlxGNVe6Z54cpbUt+Few==
   dependencies:
     jest-diff "^25.2.1"
     pretty-format "^25.2.1"
@@ -2107,10 +2107,10 @@
   resolved "https://registry.yarnpkg.com/@types/q/-/q-1.5.2.tgz#690a1475b84f2a884fd07cd797c00f5f31356ea8"
   integrity sha512-ce5d3q03Ex0sy4R14722Rmt6MT07Ua+k4FwDfdcToYJcMKNtRVQvJ6JCAPdAmAnbRb6CsX6aYb9m96NGod9uTw==
 
-"@types/react-dom@^16.9.7":
-  version "16.9.7"
-  resolved "https://registry.yarnpkg.com/@types/react-dom/-/react-dom-16.9.7.tgz#60844d48ce252d7b2dccf0c7bb937130e27c0cd2"
-  integrity sha512-GHTYhM8/OwUCf254WO5xqR/aqD3gC9kSTLpopWGpQLpnw23jk44RvMHsyUSEplvRJZdHxhJGMMLF0kCPYHPhQA==
+"@types/react-dom@^16.9.8":
+  version "16.9.8"
+  resolved "https://registry.yarnpkg.com/@types/react-dom/-/react-dom-16.9.8.tgz#fe4c1e11dfc67155733dfa6aa65108b4971cb423"
+  integrity sha512-ykkPQ+5nFknnlU6lDd947WbQ6TE3NNzbQAkInC2EKY1qeYdTKp7onFusmYZb+ityzx2YviqT6BXSu+LyWWJwcA==
   dependencies:
     "@types/react" "*"
 
@@ -2122,10 +2122,10 @@
     "@types/prop-types" "*"
     csstype "^2.2.0"
 
-"@types/react@^16.9.34":
-  version "16.9.34"
-  resolved "https://registry.yarnpkg.com/@types/react/-/react-16.9.34.tgz#f7d5e331c468f53affed17a8a4d488cd44ea9349"
-  integrity sha512-8AJlYMOfPe1KGLKyHpflCg5z46n0b5DbRfqDksxBLBTUpB75ypDBAO9eCUcjNwE6LCUslwTz00yyG/X9gaVtow==
+"@types/react@^16.9.35":
+  version "16.9.35"
+  resolved "https://registry.yarnpkg.com/@types/react/-/react-16.9.35.tgz#a0830d172e8aadd9bd41709ba2281a3124bbd368"
+  integrity sha512-q0n0SsWcGc8nDqH2GJfWQWUOmZSJhXV64CjVN5SvcNti3TdEaA3AH0D8DwNmMdzjMAC/78tB8nAZIlV8yTz+zQ==
   dependencies:
     "@types/prop-types" "*"
     csstype "^2.2.0"
@@ -9522,20 +9522,19 @@ react-scripts@3.4.1:
   optionalDependencies:
     fsevents "2.1.2"
 
-react-toastify@^5.5.0:
-  version "5.5.0"
-  resolved "https://registry.yarnpkg.com/react-toastify/-/react-toastify-5.5.0.tgz#f55de44f6b5e3ce3b13b69e5bb4427f2c9404822"
-  integrity sha512-jsVme7jALIFGRyQsri/g4YTsRuaaGI70T6/ikjwZMB4mwTZaCWqj5NqxhGrRStKlJc5npXKKvKeqTiRGQl78LQ==
+react-toastify@^6.0.4:
+  version "6.0.4"
+  resolved "https://registry.yarnpkg.com/react-toastify/-/react-toastify-6.0.4.tgz#5a06f9ef29b9f257813fd0ab7c5b1f2aa9e33551"
+  integrity sha512-ieNHqMZim/8h0NfSigWsmqly9dG4JwtTnBCq3y5UVua73Os8VyvsZkdu5CHORqXXgIe9CGIIPz4AbIiFXWkLHg==
   dependencies:
-    "@babel/runtime" "^7.4.2"
     classnames "^2.2.6"
     prop-types "^15.7.2"
-    react-transition-group "^4"
+    react-transition-group "^4.4.1"
 
-react-transition-group@^4:
-  version "4.3.0"
-  resolved "https://registry.yarnpkg.com/react-transition-group/-/react-transition-group-4.3.0.tgz#fea832e386cf8796c58b61874a3319704f5ce683"
-  integrity sha512-1qRV1ZuVSdxPlPf4O8t7inxUGpdyO5zG9IoNfJxSO0ImU2A1YWkEQvFPuIPZmMLkg5hYs7vv5mMOyfgSkvAwvw==
+react-transition-group@^4.4.1:
+  version "4.4.1"
+  resolved "https://registry.yarnpkg.com/react-transition-group/-/react-transition-group-4.4.1.tgz#63868f9325a38ea5ee9535d828327f85773345c9"
+  integrity sha512-Djqr7OQ2aPUiYurhPalTrVy9ddmFCCzwhqQmtN+J3+3DzLO209Fdr70QrN8Z3DsglWql6iY1lDWAfpFiBtuKGw==
   dependencies:
     "@babel/runtime" "^7.5.5"
     dom-helpers "^5.0.1"
@@ -11082,10 +11081,10 @@ typedarray@^0.0.6:
   resolved "https://registry.yarnpkg.com/typedarray/-/typedarray-0.0.6.tgz#867ac74e3864187b1d3d47d996a78ec5c8830777"
   integrity sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
 
-typescript@3.8.3:
-  version "3.8.3"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.8.3.tgz#409eb8544ea0335711205869ec458ab109ee1061"
-  integrity sha512-MYlEfn5VrLNsgudQTVJeNaQFUAI7DkhnOjdpAp4T+ku1TfQClewlbSuTVHiA+8skNBgaf02TL/kLOvig4y3G8w==
+typescript@3.9.2:
+  version "3.9.2"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.2.tgz#64e9c8e9be6ea583c54607677dd4680a1cf35db9"
+  integrity sha512-q2ktq4n/uLuNNShyayit+DTobV2ApPEo/6so68JaD5ojvc/6GClBipedB9zNWYxRSAlZXAe405Rlijzl6qDiSw==
 
 uc.micro@^1.0.1, uc.micro@^1.0.5:
   version "1.0.6"
