@@ -172,7 +172,7 @@ async function handleWithState(
     }));
   } catch (e) {
     setState((prevState) =>
-      e.message === "unauthenticated"
+      e.message === "Unauthorized"
         ? {
             ...prevState,
             serverError: e.message,

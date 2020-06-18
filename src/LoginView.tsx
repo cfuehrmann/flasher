@@ -26,7 +26,7 @@ export function LoginView(props: Props) {
         <input
           className="w3-input"
           type="text"
-          onChange={event =>
+          onChange={(event) =>
             setUserName((event.target as HTMLInputElement).value)
           }
           value={credentials.userName}
@@ -36,20 +36,22 @@ export function LoginView(props: Props) {
         <input
           className="w3-input"
           type="password"
-          onChange={event =>
+          onChange={(event) =>
             setPassword((event.target as HTMLInputElement).value)
           }
           value={credentials.password}
         />
         <br />
-        <ButtonBar>
-          <OkButton
-            width="26%"
-            onClick={() =>
-              props.onOk(credentials.userName, credentials.password)
-            }
-          />
-        </ButtonBar>
+        {credentials.userName && credentials.password ? (
+          <ButtonBar>
+            <OkButton
+              width="26%"
+              onClick={() =>
+                props.onOk(credentials.userName, credentials.password)
+              }
+            />
+          </ButtonBar>
+        ) : null}
       </div>
       <br />
     </div>
