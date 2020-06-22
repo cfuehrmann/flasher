@@ -42,16 +42,14 @@ export function LoginView(props: Props) {
           value={credentials.password}
         />
         <br />
-        {credentials.userName && credentials.password ? (
-          <ButtonBar>
-            <OkButton
-              width="26%"
-              onClick={() =>
-                props.onOk(credentials.userName, credentials.password)
-              }
-            />
-          </ButtonBar>
-        ) : null}
+        <ButtonBar>
+          <OkButton
+            width="26%"
+            onClick={() =>
+              props.onOk(credentials.userName, credentials.password)
+            }
+          />
+        </ButtonBar>
       </div>
       <br />
     </div>
