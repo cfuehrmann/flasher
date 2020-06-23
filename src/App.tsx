@@ -50,17 +50,15 @@ export function App() {
   );
 }
 
-function showServerError(apiError: unknown) {
-  if (typeof apiError === "string") {
-    const message = translations[apiError];
+function showServerError(serverError: unknown) {
+  if (typeof serverError !== "string") return;
 
-    if (typeof message === "string") {
-      toast(message, {
-        type: "error",
-        position: "bottom-right",
-      });
-    }
-  }
+  const message = translations[serverError];
+
+  toast(typeof message === "string" ? message : serverError, {
+    type: "error",
+    position: "bottom-right",
+  });
 }
 
 function Router(props: { routerState: RouterState } & AppNarratives) {
