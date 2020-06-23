@@ -8,7 +8,8 @@ export const api: Api = {
 
   findNextCard: async () => {
     const response = await get("Cards/Next");
-    return await response.json();
+
+    return response.status === 200 ? await response.json() : undefined;
   },
 
   setOk: async (id: string) => {
