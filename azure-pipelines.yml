@@ -20,10 +20,3 @@ steps:
 
   - script: yarn build
     displayName: "Run the build script"
-
-  - task: Docker@2
-    inputs:
-      containerRegistry: "cfuehrmanns Docker connection"
-      repository: "cfuehrmann/flasher"
-      command: "buildAndPush"
-      Dockerfile: "**/Dockerfile"
