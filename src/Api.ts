@@ -89,7 +89,10 @@ async function sendRequest(method: string, url: string, body?: {}) {
     { method, body: bodyString, headers },
   );
 
-  if (!response.ok) throw new Error(response.statusText);
+  if (!response.ok)
+    throw new Error(
+      response.status === 401 ? "Unauthorized" : response.statusText,
+    );
 
   return response;
 }
