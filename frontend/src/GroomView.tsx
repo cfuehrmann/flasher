@@ -23,7 +23,7 @@ export function GroomView(props: {
         <input
           className="w3-bar-item w3-input"
           type="text"
-          onChange={event =>
+          onChange={(event) =>
             props.onChangeInput((event.target as HTMLInputElement).value)
           }
           value={props.searchText}
@@ -35,10 +35,10 @@ export function GroomView(props: {
   );
 
   function List() {
-    const disabledCards = props.cards.filter(c => c.disabled);
+    const disabledCards = props.cards.filter((c) => c.disabled);
 
     const enabledCardButtons = props.cards
-      .filter(c => !c.disabled)
+      .filter((c) => !c.disabled)
       .map(getCardButton);
 
     return disabledCards.length === 0 ? (

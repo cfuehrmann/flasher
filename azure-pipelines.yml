@@ -16,7 +16,9 @@ steps:
     displayName: "Install Node.js"
 
   - script: yarn install
+    workingDirectory: frontend/
     displayName: "Install the npm packages"
 
   - script: yarn build
+    workingDirectory: frontend/
     displayName: "Run the build script"
