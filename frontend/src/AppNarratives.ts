@@ -175,7 +175,6 @@ async function handleWithState(
       e.message === "Unauthorized"
         ? {
             ...prevState,
-            serverError: e.message,
             routerState: { route: "Login" },
             isContactingServer: false,
           }
