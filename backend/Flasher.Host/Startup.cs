@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,7 @@ using Microsoft.OpenApi.Models;
 
 using Flasher.Injectables;
 using Flasher.Store.Cards;
+using Flasher.Store.Exceptions;
 
 [assembly: ApiController]
 
@@ -138,10 +140,26 @@ namespace Flasher.Host
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILogger<Startup> logger)
         {
-            if (env.IsDevelopment())
+            app.UseExceptionHandler(errorApp =>
             {
-                app.UseDeveloperExceptionPage();
-            }
+                errorApp.Run(async context =>
+                {
+                    context.Response.ContentType = "text/html";
+
+                    var error = context.Features.Get<IExceptionHandlerPathFeature>()?.Error;
+
+                    if (error is ConflictException)
+                    {
+                        context.Response.StatusCode = StatusCodes.Status409Conflict;
+                        string text = error.Message ?? "Conflict while accessing a file!";
+                        await context.Response.WriteAsync(text);
+                        return;
+                    }
+
+                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    await context.Response.WriteAsync("Internal server error!");
+                });
+            });
 
             app.UseSwagger();
 

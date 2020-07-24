@@ -50,7 +50,7 @@ namespace Flasher.Host.Controllers
             if (passwordVerificationResult != PasswordVerificationResult.Success)
                 return Challenge();
 
-            var readAutoSave = _autoSaveStore.Read(User.Identity.Name!);
+            var readAutoSave = _autoSaveStore.Read(request.userName);
 
             string tokenString = GetTokenString(request.userName);
 

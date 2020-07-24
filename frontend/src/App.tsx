@@ -20,7 +20,6 @@ import { SolutionView } from "./SolutionView";
 import { AppNarratives, AppState, RouterState } from "./types";
 import { useState, useEffect } from "react";
 import { LoginView } from "./LoginView";
-import { translations } from "./Translations";
 import { RecoverView } from "./RecoverView";
 
 export function App() {
@@ -50,15 +49,13 @@ export function App() {
   );
 }
 
-function showServerError(serverError: unknown) {
-  if (typeof serverError !== "string") return;
-
-  const message = translations[serverError];
-
-  toast(typeof message === "string" ? message : serverError, {
-    type: "error",
-    position: "bottom-right",
-  });
+function showServerError(serverError: Error) {
+  toast(
+    typeof serverError.message === "string"
+      ? serverError.message
+      : "Unknown server error!",
+    { type: "error", position: "bottom-right" },
+  );
 }
 
 function Router(props: { routerState: RouterState } & AppNarratives) {

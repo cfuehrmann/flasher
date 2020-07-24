@@ -10,21 +10,23 @@ namespace Flasher.Store.FileStore.AutoSaving
 {
     public class AutoSaveStore : IAutoSaveStore
     {
-        private readonly string _path;
+        private readonly string _directory;
 
         public AutoSaveStore(IOptionsMonitor<FileStoreOptions> options)
         {
             if (options.CurrentValue.Directory == null)
                 throw new Exception("Missing configuration 'FileStore:Directory'");
 
-            _path = Path.Combine(options.CurrentValue.Directory, "autoSave.json");
+            _directory = options.CurrentValue.Directory;
         }
 
         public async Task<AutoSave?> Read(string user)
         {
-            if (!File.Exists(_path)) return null;
+            string path = GetPath(user);
 
-            using var fs = File.OpenRead(_path);
+            if (!File.Exists(path)) return null;
+
+            using var fs = File.OpenRead(path);
             var deserialized = await JsonSerializer.DeserializeAsync<DeserializedAutoSave>(fs);
 
             if (deserialized.id == null) throw new Exception($"The Id of the auto save is null!");
@@ -36,16 +38,22 @@ namespace Flasher.Store.FileStore.AutoSaving
 
         public Task Delete(string user)
         {
-            File.Delete(_path);
+            string path = GetPath(user);
+            File.Delete(path);
             return Task.CompletedTask;
         }
 
         public async Task Write(string user, AutoSave autoSave)
         {
-            using var fs = File.Create(_path, 131072, FileOptions.Asynchronous);
+            string path = GetPath(user);
+            using var fs = File.Create(path, 131072, FileOptions.Asynchronous);
             var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
-
             await JsonSerializer.SerializeAsync<AutoSave>(fs, autoSave, jsonOptions);
+        }
+
+        private string GetPath(string user)
+        {
+            return Path.Combine(_directory, user, "autoSave.json");
         }
     }
 }

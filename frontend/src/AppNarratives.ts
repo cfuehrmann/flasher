@@ -172,7 +172,7 @@ async function handleWithState(
     }));
   } catch (e) {
     setState((prevState) =>
-      e.message === "Unauthorized"
+      e.status === 401
         ? {
             ...prevState,
             routerState: { route: "Login" },
@@ -180,7 +180,7 @@ async function handleWithState(
           }
         : {
             ...prevState,
-            serverError: e.message,
+            serverError: e,
             isContactingServer: false,
           },
     );
