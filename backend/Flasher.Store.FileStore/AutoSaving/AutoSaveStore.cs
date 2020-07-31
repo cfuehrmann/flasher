@@ -39,14 +39,20 @@ namespace Flasher.Store.FileStore.AutoSaving
         public Task Delete(string user)
         {
             string path = GetPath(user);
-            File.Delete(path);
+
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.None, 1, FileOptions.DeleteOnClose);
+                
             return Task.CompletedTask;
         }
 
         public async Task Write(string user, AutoSave autoSave)
         {
             string path = GetPath(user);
-            using var fs = File.Create(path, 131072, FileOptions.Asynchronous);
+
+            using var fs = new FileStream(path, FileMode.Create, FileAccess.Write,
+                FileShare.None, 131072, true);
+
             var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
             await JsonSerializer.SerializeAsync<AutoSave>(fs, autoSave, jsonOptions);
         }
