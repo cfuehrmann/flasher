@@ -40,9 +40,13 @@ namespace Flasher.Store.FileStore.AutoSaving
         {
             string path = GetPath(user);
 
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read,
-                FileShare.None, 1, FileOptions.DeleteOnClose);
-                
+            try
+            {
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read,
+                    FileShare.None, 1, FileOptions.DeleteOnClose);
+            }
+            catch (FileNotFoundException) { }
+            
             return Task.CompletedTask;
         }
 
