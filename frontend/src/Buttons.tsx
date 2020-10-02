@@ -47,7 +47,7 @@ export function SaveButton(props: ButtonProps) {
   return <W3CssButton {...props} w3CssColor={"w3-green"} text="Save" />;
 }
 
-export function DeleteHistoryButtobn(props: ButtonProps) {
+export function DeleteHistoryButton(props: ButtonProps) {
   return (
     <W3CssButton {...props} w3CssColor={"w3-red"} text="Delete&nbsp;history" />
   );

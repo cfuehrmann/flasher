@@ -164,11 +164,11 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
       );
     case "GroomEdit":
       const { card: groomCard, searchText } = routerState;
-      const { disabled, ...card } = groomCard;
+      const { disabled, state, ...card } = groomCard;
       return (
         <EditView
           {...card}
-          onSave={props.saveFromGroom(searchText, disabled)}
+          onSave={props.saveFromGroom(searchText, disabled, state)}
           onCancel={props.cancelGroomEdit(groomCard, searchText)}
           writeAutoSave={props.writeAutoSave}
         />

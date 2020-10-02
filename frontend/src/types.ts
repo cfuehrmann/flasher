@@ -1,6 +1,6 @@
 export type Card = { id: string; prompt: string; solution: string };
-
-export type GroomCard = Card & { disabled: boolean };
+export type CardState = "new" | "ok" | "failed";
+export type GroomCard = Card & { disabled: boolean; state: CardState };
 
 export type RouterState =
   | { route: "Starting" }
@@ -72,6 +72,7 @@ export type AppNarratives = {
   saveFromGroom: (
     searchText: string,
     disabled: boolean,
+    state: CardState,
   ) => (card: Card) => Promise<void>;
   cancelGroomEdit: (card: GroomCard, searchText: string) => () => Promise<void>;
   delete: (searchText: string) => (id: string) => Promise<void>;

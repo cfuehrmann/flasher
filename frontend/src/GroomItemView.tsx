@@ -4,7 +4,7 @@ import {
   BackButton,
   ButtonBar,
   DeleteButton,
-  DeleteHistoryButtobn,
+  DeleteHistoryButton,
   DisableButton,
   EditButton,
   EnableButton,
@@ -33,23 +33,26 @@ export function GroomItemView(props: Props) {
         <br />
         <br />
         <ButtonBar>
-          <DeleteHistoryButtobn width="50%" onClick={props.onDeleteHistory} />
-          <DeleteButton width="50%" onClick={props.onDelete} />
-        </ButtonBar>
-        <ButtonBar>
+          {props.state === "new" ? (
+            <DeleteButton width="50%" onClick={props.onDelete} />
+          ) : (
+            <DeleteHistoryButton width="50%" onClick={props.onDeleteHistory} />
+          )}
           {props.disabled ? (
             <EnableButton
-              width="33%"
+              width="50%"
               onClick={() => props.onEnable(props.id)}
             />
           ) : (
             <DisableButton
-              width="33%"
+              width="50%"
               onClick={() => props.onDisable(props.id)}
             />
           )}
-          <EditButton width="33%" onClick={props.onEdit} />
-          <BackButton width="34%" onClick={props.onBack} />
+        </ButtonBar>
+        <ButtonBar>
+          <EditButton width="50%" onClick={props.onEdit} />
+          <BackButton width="50%" onClick={props.onBack} />
         </ButtonBar>
         <br />
       </CardView>

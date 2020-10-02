@@ -93,20 +93,24 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
         setRouterState({ route: "Groom", cards, searchText });
       }),
 
-    saveFromGroom: (searchText, disabled) => async (card) =>
+    saveFromGroom: (searchText, disabled, state) => async (card) =>
       await handle(async () => {
         await api.updateCard(card);
         setRouterState({
           route: "GroomSingle",
           searchText,
-          card: { ...card, disabled },
+          card: { ...card, disabled, state },
         });
       }),
 
     deleteHistory: async (searchText, card) =>
       await handle(async () => {
         await api.deleteHistory(card.id);
-        setRouterState({ route: "GroomSingle", searchText, card });
+        setRouterState({
+          route: "GroomSingle",
+          searchText,
+          card: { ...card, state: "new" },
+        });
       }),
 
     cancelGroomEdit: (card, searchText) => async () => {
