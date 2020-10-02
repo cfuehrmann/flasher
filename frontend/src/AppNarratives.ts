@@ -41,26 +41,14 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
 
     saveAndShowSolution: async (card) =>
       await handle(async () => {
-        await api.updateCard(card, true);
+        await api.updateCard(card);
         setRouterState({ route: "Solution", card });
-      }),
-
-    saveAsNewAndNext: async (card) =>
-      await handle(async () => {
-        await api.updateCard(card, false);
-        await promptNext();
       }),
 
     cancelEdit: (card) => async () => {
       setRouterState({ route: "Solution", card });
       await handle(async () => await api.deleteAutoSave());
     },
-
-    deleteAndNext: async (id) =>
-      await handle(async () => {
-        await api.deleteCard(id);
-        await promptNext();
-      }),
 
     goToCreate: (searchText) => async () =>
       await handle(async () => {
@@ -105,9 +93,9 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
         setRouterState({ route: "Groom", cards, searchText });
       }),
 
-    saveFromGroom: (isMinor, searchText, disabled) => async (card) =>
+    saveFromGroom: (searchText, disabled) => async (card) =>
       await handle(async () => {
-        await api.updateCard(card, isMinor);
+        await api.updateCard(card);
         setRouterState({
           route: "GroomSingle",
           searchText,
@@ -115,12 +103,18 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
         });
       }),
 
+    deleteHistory: async (searchText, card) =>
+      await handle(async () => {
+        await api.deleteHistory(card.id);
+        setRouterState({ route: "GroomSingle", searchText, card });
+      }),
+
     cancelGroomEdit: (card, searchText) => async () => {
       setRouterState({ route: "GroomSingle", card, searchText });
       await handle(async () => await api.deleteAutoSave());
     },
 
-    deleteAndGroom: (searchText) => async (id) =>
+    delete: (searchText) => async (id) =>
       await handle(async () => {
         await api.deleteCard(id);
         const cards = await api.findCards(searchText);
@@ -129,7 +123,7 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
 
     saveRecovered: async (card) =>
       await handle(async () => {
-        await api.updateCard(card, true);
+        await api.updateCard(card);
         await promptNext();
       }),
 

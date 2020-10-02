@@ -47,8 +47,10 @@ export function SaveButton(props: ButtonProps) {
   return <W3CssButton {...props} w3CssColor={"w3-green"} text="Save" />;
 }
 
-export function AsNewButton(props: ButtonProps) {
-  return <W3CssButton {...props} w3CssColor={"w3-green"} text="As&nbsp;new" />;
+export function DeleteHistoryButtobn(props: ButtonProps) {
+  return (
+    <W3CssButton {...props} w3CssColor={"w3-red"} text="Delete&nbsp;history" />
+  );
 }
 
 export function DeleteButton(props: ButtonProps) {
@@ -60,11 +62,11 @@ export function TextButton(props: ButtonProps & { text: string }) {
 }
 
 export function EnableButton(props: ButtonProps) {
-  return <W3CssButton {...props} w3CssColor={"w3-green"} text="Enable" />;
+  return <W3CssButton {...props} w3CssColor={"w3-dark-grey"} text="Enable" />;
 }
 
 export function DisableButton(props: ButtonProps) {
-  return <W3CssButton {...props} w3CssColor={"w3-red"} text="Disable" />;
+  return <W3CssButton {...props} w3CssColor={"w3-dark-grey"} text="Disable" />;
 }
 
 export function RefreshButton(props: ButtonProps) {

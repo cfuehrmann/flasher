@@ -5,6 +5,5 @@ namespace Flasher.Host.Model
 #nullable disable warnings
         public string? prompt { get; set; }
         public string? solution { get; set; }
-        public bool isMinor { get; set; }
     }
 }

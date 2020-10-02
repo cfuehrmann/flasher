@@ -1,18 +1,10 @@
 import * as React from "react";
 
-import {
-  AsNewButton,
-  ButtonBar,
-  CancelButton,
-  DeleteButton,
-  SaveButton,
-} from "./Buttons";
+import { ButtonBar, CancelButton, SaveButton } from "./Buttons";
 import { Card } from "./types";
 import { useAutoSave } from "./useAutoSave";
 
 type Props = Card & {
-  onDelete: (id: string) => void;
-  onSaveAsNew: (card: Card) => void;
   onCancel: () => void;
   onSave: (card: Card) => void;
   writeAutoSave: (card: Card) => Promise<void>;
@@ -46,10 +38,8 @@ export function EditView(props: Props) {
         <br />
         <br />
         <ButtonBar>
-          <DeleteButton width="26%" onClick={() => props.onDelete(card.id)} />
-          <AsNewButton width="26%" onClick={() => props.onSaveAsNew(card)} />
-          <CancelButton width="26%" onClick={props.onCancel} />
-          <SaveButton width="22%" onClick={() => props.onSave(card)} />
+          <CancelButton width="50%" onClick={props.onCancel} />
+          <SaveButton width="50%" onClick={() => props.onSave(card)} />
         </ButtonBar>
         <br />
       </div>

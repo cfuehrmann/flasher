@@ -29,8 +29,8 @@ export const api: Api = {
     return await response.json();
   },
 
-  updateCard: async (card, isMinor) => {
-    await patch(`Cards/${card.id}`, { ...card, isMinor });
+  updateCard: async (card) => {
+    await patch(`Cards/${card.id}`, card);
     return { id: "dummy", prompt: "dummy", solution: "dummy" };
   },
 
@@ -49,6 +49,8 @@ export const api: Api = {
   disable: async (id: string) => {
     await post(`Cards/${id}/Disable`);
   },
+
+  deleteHistory: async (id) => await del(`History/${id}`),
 
   writeAutoSave: async (card: Card) => await put(`AutoSave`, card),
 

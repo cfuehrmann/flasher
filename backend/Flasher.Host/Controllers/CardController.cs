@@ -57,22 +57,7 @@ namespace Flasher.Host.Controllers
         public async Task<ActionResult<bool>> Update(string id, UpdateCardRequest request)
         {
             var now = _time.Now;
-
-            var update = request.isMinor ?
-                new CardUpdate(id)
-                {
-                    prompt = request.prompt,
-                    solution = request.solution,
-                } :
-                new CardUpdate(id)
-                {
-                    prompt = request.prompt,
-                    solution = request.solution,
-                    state = State.New,
-                    changeTime = now,
-                    nextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime)
-                };
-
+            var update = new CardUpdate(id) { prompt = request.prompt, solution = request.solution };
             var cardWasFound = await _store.Update(User.Identity.Name!, update);
 
             await _autoSaveStore.Delete(User.Identity.Name!);

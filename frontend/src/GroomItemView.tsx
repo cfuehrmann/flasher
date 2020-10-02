@@ -3,6 +3,8 @@ import * as React from "react";
 import {
   BackButton,
   ButtonBar,
+  DeleteButton,
+  DeleteHistoryButtobn,
   DisableButton,
   EditButton,
   EnableButton,
@@ -13,6 +15,8 @@ import { SolutionView } from "./SolutionView";
 import { GroomCard } from "./types";
 
 type Props = GroomCard & {
+  onDeleteHistory: () => void;
+  onDelete: () => void;
   onEnable: (id: string) => void;
   onDisable: (id: string) => void;
   onEdit: () => void;
@@ -28,6 +32,10 @@ export function GroomItemView(props: Props) {
         <SolutionView solution={props.solution} />
         <br />
         <br />
+        <ButtonBar>
+          <DeleteHistoryButtobn width="50%" onClick={props.onDeleteHistory} />
+          <DeleteButton width="50%" onClick={props.onDelete} />
+        </ButtonBar>
         <ButtonBar>
           {props.disabled ? (
             <EnableButton

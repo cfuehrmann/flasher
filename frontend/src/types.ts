@@ -39,7 +39,7 @@ export type Api = {
   ) => Promise<{ autoSave: Card | undefined }>;
   createCard: (prompt: string, solution: string) => Promise<void>;
   readCard: (id: string) => Promise<GroomCard | undefined>;
-  updateCard: (card: Card, isMinor: boolean) => Promise<Card>;
+  updateCard: (card: Card) => Promise<Card>;
   deleteCard: (id: string) => Promise<void>;
   findNextCard: () => Promise<Card | undefined>;
   setOk: (id: string) => Promise<void>;
@@ -47,6 +47,7 @@ export type Api = {
   findCards: (substring: string) => Promise<GroomCard[]>;
   enable: (id: string) => Promise<void>;
   disable: (id: string) => Promise<void>;
+  deleteHistory: (id: string) => Promise<void>;
   writeAutoSave: (card: Card) => Promise<void>;
   deleteAutoSave: () => Promise<void>;
 };
@@ -60,9 +61,7 @@ export type AppNarratives = {
   setFailed: (id: string) => () => Promise<void>;
   editSolution: (card: Card) => () => Promise<void>;
   saveAndShowSolution(card: Card): Promise<void>;
-  saveAsNewAndNext(card: Card): Promise<void>;
   cancelEdit: (card: Card) => () => Promise<void>;
-  deleteAndNext: (id: string) => Promise<void>;
   goToCreate: (searchText: string) => () => Promise<void>;
   setCards: (searchText: string) => Promise<void>;
   groomSingle: (searchText: string) => (id: string) => Promise<void>;
@@ -71,12 +70,12 @@ export type AppNarratives = {
   disable: (searchText: string) => (id: string) => Promise<void>;
   backFromGroomSingle: (searchText: string) => () => Promise<void>;
   saveFromGroom: (
-    isMinor: boolean,
     searchText: string,
     disabled: boolean,
   ) => (card: Card) => Promise<void>;
   cancelGroomEdit: (card: GroomCard, searchText: string) => () => Promise<void>;
-  deleteAndGroom: (searchText: string) => (id: string) => Promise<void>;
+  delete: (searchText: string) => (id: string) => Promise<void>;
+  deleteHistory: (searchText: string, id: GroomCard) => Promise<void>;
   saveRecovered(card: Card): Promise<void>;
   abandonRecovered(): Promise<void>;
   writeAutoSave: (card: Card) => Promise<void>;

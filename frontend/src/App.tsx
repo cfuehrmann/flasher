@@ -131,9 +131,7 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
         <EditView
           {...routerState.card}
           onSave={props.saveAndShowSolution}
-          onSaveAsNew={props.saveAsNewAndNext}
           onCancel={props.cancelEdit(routerState.card)}
-          onDelete={props.deleteAndNext}
           writeAutoSave={props.writeAutoSave}
         />
       );
@@ -152,6 +150,12 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
       return (
         <GroomItemView
           {...routerState.card}
+          onDeleteHistory={() =>
+            props.deleteHistory(routerState.searchText, routerState.card)
+          }
+          onDelete={() =>
+            props.delete(routerState.searchText)(routerState.card.id)
+          }
           onEdit={props.groomEdit(routerState.card, routerState.searchText)}
           onEnable={props.enable(routerState.searchText)}
           onDisable={props.disable(routerState.searchText)}
@@ -164,10 +168,8 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
       return (
         <EditView
           {...card}
-          onSave={props.saveFromGroom(true, searchText, disabled)}
-          onSaveAsNew={props.saveFromGroom(false, searchText, disabled)}
+          onSave={props.saveFromGroom(searchText, disabled)}
           onCancel={props.cancelGroomEdit(groomCard, searchText)}
-          onDelete={props.deleteAndGroom(searchText)}
           writeAutoSave={props.writeAutoSave}
         />
       );
