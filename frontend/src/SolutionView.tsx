@@ -1,26 +1,25 @@
 import * as React from "react";
+import ReactMarkdown from "react-markdown";
+import RemarkMathPlugin from "remark-math";
+import RemarkGfmPlugin from "remark-gfm";
 // @ts-ignore
-import math from "micromark-extension-math";
-// @ts-ignore
-import mathHtml from "micromark-extension-math/html";
-// @ts-ignore
-import gfmSyntax from "micromark-extension-gfm";
-// @ts-ignore
-import gfmHtml from "micromark-extension-gfm/html";
-import micromark from "micromark";
+import { BlockMath, InlineMath } from "react-katex";
 
 export function SolutionView(props: { solution: string }) {
-  const markdown = micromark(props.solution, {
-    extensions: [math, gfmSyntax()],
-    htmlExtensions: [mathHtml(), gfmHtml],
-  });
-
   return (
     <>
-      <div
-        className="w3-container markdown-body"
-        dangerouslySetInnerHTML={{ __html: markdown }}
-      />
+      <div className="w3-container markdown-body">
+        <ReactMarkdown
+          //escapeHtml={false}
+          plugins={[RemarkMathPlugin, RemarkGfmPlugin]}
+          renderers={{
+            inlineMath: ({ value }) => <InlineMath>{value}</InlineMath>,
+            math: ({ value }) => <BlockMath>{value}</BlockMath>,
+          }}
+        >
+          {props.solution}
+        </ReactMarkdown>
+      </div>
     </>
   );
 }
