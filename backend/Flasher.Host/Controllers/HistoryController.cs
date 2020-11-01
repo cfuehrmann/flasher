@@ -15,32 +15,21 @@ namespace Flasher.Host.Controllers
         private readonly IDateTime _time;
         private readonly IOptionsMonitor<CardsOptions> _optionsMonitor;
 
-        public HistoryController(ICardStore store, IDateTime time, IOptionsMonitor<CardsOptions> optionsMonitor)
-        {
-            _store = store;
-            _time = time;
-            _optionsMonitor = optionsMonitor;
-        }
+        public HistoryController(ICardStore store, IDateTime time, IOptionsMonitor<CardsOptions> optionsMonitor) =>
+            (_store, _time, _optionsMonitor) = (store, time, optionsMonitor);
 
         [HttpDelete]
         [Route("/[controller]/{id}")]
         public async Task<ActionResult<bool>> Delete(string id)
         {
             var now = _time.Now;
-
             var update = new CardUpdate(id)
             {
                 state = State.New,
                 changeTime = now,
                 nextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime)
             };
-
-            var cardWasFound = await _store.Update(User.Identity.Name!, update);
-
-            if (cardWasFound)
-                return Ok();
-
-            return NotFound();
+            return await _store.Update(User.Identity!.Name!, update) ? Ok() : NotFound();
         }
     }
 }

@@ -4,14 +4,14 @@ using Flasher.Store.Cards;
 
 namespace Flasher.Store.FileStore.Cards
 {
-    public class DeserializedCard
+    public sealed record DeserializedCard
     {
-        public string? id { get; set; }
-        public string? prompt { get; set; }
-        public string? solution { get; set; }
-        public State? state { get; set; }
-        public DateTime? changeTime { get; set; }
-        public DateTime? nextTime { get; set; }
-        public bool? disabled { get; set; }
+        public string? id { get; init; }
+        public string? prompt { get; init; }
+        public string? solution { get; init; }
+        public State? state { get; init; }
+        public DateTime? changeTime { get; init; }
+        public DateTime? nextTime { get; init; }
+        public bool? disabled { get; init; }
     }
 }

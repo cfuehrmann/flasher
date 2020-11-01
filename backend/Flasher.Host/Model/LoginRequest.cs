@@ -1,9 +1,9 @@
 namespace Flasher.Host.Model
 {
-    public class LoginRequest
+    public sealed record LoginRequest
     {
 #nullable disable warnings
-        public string userName { get; set; }
-        public string password { get; set; }
+        public string userName { get; init; }
+        public string password { get; init; }
     }
 }

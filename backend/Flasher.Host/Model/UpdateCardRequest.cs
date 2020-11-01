@@ -1,9 +1,9 @@
 namespace Flasher.Host.Model
 {
-    public class UpdateCardRequest
+    public sealed record UpdateCardRequest
     {
 #nullable disable warnings
-        public string? prompt { get; set; }
-        public string? solution { get; set; }
+        public string? prompt { get; init; }
+        public string? solution { get; init; }
     }
 }

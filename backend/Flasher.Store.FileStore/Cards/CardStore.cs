@@ -23,62 +23,42 @@ namespace Flasher.Store.FileStore.Cards
 
         public CardStore(IOptionsMonitor<FileStoreOptions> options, IDateTime time)
         {
-            if (options.CurrentValue.Directory == null)
-                throw new Exception("Missing configuration 'FileStore:Directory'");
-
-            _directory = options.CurrentValue.Directory;
-
+            _directory = options.CurrentValue.Directory ?? throw new("Missing configuration 'FileStore:Directory'");
             _jsonOptions = new JsonSerializerOptions { WriteIndented = true };
             _jsonOptions.Converters.Add(new JsonStringEnumConverter());
-
             const int lowestPrimeAboveInitialNumberOfUsers = 2;
-
             _cardsByUser = new ConcurrentDictionary<string, ConcurrentDictionary<string, CachedCard>>(
                 Environment.ProcessorCount * 2, lowestPrimeAboveInitialNumberOfUsers);
-
             _time = time;
         }
 
         public async Task Create(string user, FullCard card)
         {
             var cards = EnsureCache(user);
-
             var cachedCard = new CachedCard(card.id, card.prompt, card.solution, card.state,
                 card.changeTime, card.nextTime, card.disabled);
-
             if (!cards.TryAdd(card.id, cachedCard))
                 throw new ArgumentException($"The card with id {card.id} already exists!");
-
             await WriteCards(user);
         }
 
         public Task<FullCard?> Read(string user, string id)
         {
-            var cards = EnsureCache(user);
-
-            var result = cards.TryGetValue(id, out var cachedCard) ?
-                cachedCard.ToResponse() :
-                null;
-
+            var result = EnsureCache(user).TryGetValue(id, out var cachedCard) ? cachedCard.ToResponse() : null;
             return Task.FromResult(result);
         }
 
         public async Task<bool> Update(string user, CardUpdate update)
         {
             var cards = EnsureCache(user);
-
-            if (!cards.TryGetValue(update.id, out var card))
-                return false;
-
+            if (!cards.TryGetValue(update.id, out var card)) return false;
             if (update.prompt != null) card.prompt = update.prompt;
             if (update.solution != null) card.solution = update.solution;
             if (update.state is State state) card.state = state;
             if (update.changeTime is DateTime changeTime) card.changeTime = changeTime;
             if (update.nextTime is DateTime nextTime) card.nextTime = nextTime;
             if (update.disabled is bool disabled) card.disabled = disabled;
-
             await WriteCards(user);
-
             return true;
         }
 
@@ -91,28 +71,23 @@ namespace Flasher.Store.FileStore.Cards
 
         public Task<FindResponse> Find(string user, string searchText)
         {
-            var cards = EnsureCache(user);
-
             var result =
-                from card in cards.Values
+                from card in EnsureCache(user).Values
                 where card.prompt != null && card.solution != null &&
                     (card.prompt.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
                         card.solution.Contains(searchText, StringComparison.OrdinalIgnoreCase))
                 select new FoundCard(card.id, card.prompt, card.solution, card.disabled);
-
             return Task.FromResult(new FindResponse(result));
         }
 
         public Task<FullCard?> FindNext(string user)
         {
-            var cards = EnsureCache(user);
 
-            var result = cards.Values
+            var result = EnsureCache(user).Values
                 .Where(card => card.nextTime <= _time.Now && !card.disabled)
                 .OrderBy(card => card.nextTime)
                 .FirstOrDefault()
                 .ToResponse();
-
             return Task.FromResult(result);
         }
 
@@ -123,6 +98,7 @@ namespace Flasher.Store.FileStore.Cards
                 var path = GetPath(user);
                 var json = File.ReadAllText(path);
                 var deserializedCards = JsonSerializer.Deserialize<IEnumerable<DeserializedCard>>(json, _jsonOptions);
+                if (deserializedCards == null) throw new("Deserializing the cards file returned null!");
                 var dictionary = GetCachedCards(deserializedCards).ToDictionary(card => card.id);
                 return new ConcurrentDictionary<string, CachedCard>(dictionary);
             });
@@ -146,12 +122,9 @@ namespace Flasher.Store.FileStore.Cards
         private async Task WriteCards(string user)
         {
             var path = GetPath(user);
-
             try
             {
-                using var fs = new FileStream(path, FileMode.Create, FileAccess.Write,
-                    FileShare.None, 131072, true);
-
+                using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
                 await JsonSerializer.SerializeAsync<ICollection<CachedCard>>(
                     fs, _cardsByUser[user].Values, _jsonOptions);
             }
@@ -161,10 +134,7 @@ namespace Flasher.Store.FileStore.Cards
             }
         }
 
-        private string GetPath(string user)
-        {
-            return Path.Combine(_directory, user, "cards.json");
-        }
+        private string GetPath(string user) => Path.Combine(_directory, user, "cards.json");
     }
 
     public static class Extensions
@@ -172,15 +142,15 @@ namespace Flasher.Store.FileStore.Cards
         public static FullCard? ToResponse(this CachedCard? storedCard)
         {
             return storedCard == null ?
-                null :
-                new FullCard(
-                    storedCard.id,
-                    storedCard.prompt,
-                    storedCard.solution,
-                    storedCard.state,
-                    storedCard.changeTime,
-                    storedCard.nextTime,
-                    storedCard.disabled);
+               null :
+               new FullCard(
+                   storedCard.id,
+                   storedCard.prompt,
+                   storedCard.solution,
+                   storedCard.state,
+                   storedCard.changeTime,
+                   storedCard.nextTime,
+                   storedCard.disabled);
         }
     }
 }

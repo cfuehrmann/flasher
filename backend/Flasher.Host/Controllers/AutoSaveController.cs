@@ -13,21 +13,13 @@ namespace Flasher.Host.Controllers
     {
         private readonly IAutoSaveStore _store;
 
-        public AutoSaveController(IAutoSaveStore store)
-        {
-            _store = store;
-        }
+        public AutoSaveController(IAutoSaveStore store) => _store = store;
 
         [HttpDelete]
-        public async Task Delete()
-        {
-            await _store.Delete(User.Identity.Name!);
-        }
+        public async Task Delete() => await _store.Delete(User.Identity!.Name!);
 
         [HttpPut]
-        public async Task Write(WriteAutoSaveRequest request)
-        {
-            await _store.Write(User.Identity.Name!, new AutoSave(request.id, request.prompt, request.solution));
-        }
+        public async Task Write(WriteAutoSaveRequest request) =>
+            await _store.Write(User.Identity!.Name!, new AutoSave(request.id, request.prompt, request.solution));
     }
 }

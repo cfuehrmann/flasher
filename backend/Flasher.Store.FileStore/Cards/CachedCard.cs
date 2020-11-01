@@ -4,7 +4,7 @@ using Flasher.Store.Cards;
 
 namespace Flasher.Store.FileStore.Cards
 {
-    public class CachedCard
+    public sealed record CachedCard
     {
         public CachedCard(
             string id, string prompt, string solution, State state, DateTime changeTime, DateTime nextTime, bool disabled)
@@ -19,7 +19,7 @@ namespace Flasher.Store.FileStore.Cards
         }
 
         public string id { get; }
-        public string prompt { get; set; }
+        public string prompt { get; set; } // intentionally mutable!
         public string solution { get; set; }
         public State state { get; set; }
         public DateTime changeTime { get; set; }

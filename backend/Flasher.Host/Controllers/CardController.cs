@@ -19,13 +19,9 @@ namespace Flasher.Host.Controllers
         private readonly IDateTime _time;
         private readonly IOptionsMonitor<CardsOptions> _optionsMonitor;
 
-        public CardsController(ICardStore store, IAutoSaveStore autoSaveStore, IDateTime time, IOptionsMonitor<CardsOptions> optionsMonitor)
-        {
-            _store = store;
-            _autoSaveStore = autoSaveStore;
-            _time = time;
-            _optionsMonitor = optionsMonitor;
-        }
+        public CardsController(ICardStore store, IAutoSaveStore autoSaveStore, IDateTime time,
+            IOptionsMonitor<CardsOptions> optionsMonitor) =>
+            (_store, _autoSaveStore, _time, _optionsMonitor) = (store, autoSaveStore, time, optionsMonitor);
 
         [HttpPost]
         [Route("/[controller]")]
@@ -35,9 +31,7 @@ namespace Flasher.Host.Controllers
             var now = _time.Now;
             var nextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime);
             var card = new FullCard(id, request.prompt, request.solution, State.New, now, nextTime, true);
-
-            await _store.Create(User.Identity.Name!, card);
-
+            await _store.Create(User.Identity!.Name!, card);
             return CreatedAtAction(nameof(Read), new { id = id }, card);
         }
 
@@ -45,11 +39,8 @@ namespace Flasher.Host.Controllers
         [Route("/[controller]/{id}")]
         public async Task<ActionResult<FullCard>> Read(string id)
         {
-            var result = await _store.Read(User.Identity.Name!, id);
-
-            if (result != null) return result;
-
-            return NotFound();
+            var result = await _store.Read(User.Identity!.Name!, id);
+            return result != null ? result : NotFound();
         }
 
         [HttpPatch]
@@ -58,44 +49,27 @@ namespace Flasher.Host.Controllers
         {
             var now = _time.Now;
             var update = new CardUpdate(id) { prompt = request.prompt, solution = request.solution };
-            var cardWasFound = await _store.Update(User.Identity.Name!, update);
-
+            var cardWasFound = await _store.Update(User.Identity!.Name!, update);
             await _autoSaveStore.Delete(User.Identity.Name!);
-
-            if (cardWasFound)
-                return Ok();
-
-            return NotFound();
+            return cardWasFound ? Ok() : NotFound();
         }
 
         [HttpDelete]
         [Route("/[controller]/{id}")]
-        public async Task<ActionResult> Delete(string id)
-        {
-            var cardWasFound = await _store.Delete(User.Identity.Name!, id);
-
-            if (cardWasFound)
-                return NoContent();
-
-            return NotFound();
-        }
+        public async Task<ActionResult> Delete(string id) =>
+            await _store.Delete(User.Identity!.Name!, id) ? NoContent() : NotFound();
 
         [HttpGet]
         [Route("/[controller]")]
-        public async Task<FindResponse> Find(string? searchText)
-        {
-            return await _store.Find(User.Identity.Name!, searchText ?? "");
-        }
+        public async Task<FindResponse> Find(string? searchText) =>
+            await _store.Find(User.Identity!.Name!, searchText ?? "");
 
         [HttpGet]
         [Route("/[controller]/[action]")]
         public async Task<ActionResult<FullCard>> Next()
         {
-            var result = await _store.FindNext(User.Identity.Name!);
-
-            if (result != null) return result;
-
-            return NoContent();
+            var result = await _store.FindNext(User.Identity!.Name!);
+            return result != null ? result : NoContent();
         }
 
         [HttpPost]
@@ -113,13 +87,7 @@ namespace Flasher.Host.Controllers
         public async Task<ActionResult> Enable(string id)
         {
             var update = new CardUpdate(id) { disabled = false };
-
-            var cardWasFound = await _store.Update(User.Identity.Name!, update);
-
-            if (cardWasFound)
-                return NoContent();
-
-            return NotFound();
+            return await _store.Update(User.Identity!.Name!, update) ? NoContent() : NotFound();
         }
 
         [HttpPost]
@@ -127,37 +95,22 @@ namespace Flasher.Host.Controllers
         public async Task<ActionResult> Disable(string id)
         {
             var update = new CardUpdate(id) { disabled = true };
-
-            var cardWasFound = await _store.Update(User.Identity.Name!, update);
-
-            if (cardWasFound)
-                return NoContent();
-
-            return NotFound();
+            return await _store.Update(User.Identity!.Name!, update) ? NoContent() : NotFound();
         }
 
         private async Task<ActionResult> SetState(string id, State state, double multiplier)
         {
-            var card = await _store.Read(User.Identity.Name!, id);
-
+            var card = await _store.Read(User.Identity!.Name!, id);
             if (card == null) return NotFound();
-
             var now = _time.Now;
             var passedTime = now - card.changeTime;
-
             var update = new CardUpdate(id)
             {
                 state = state,
                 changeTime = now,
                 nextTime = now.Add(passedTime * multiplier)
             };
-
-            var cardWasFound = await _store.Update(User.Identity.Name!, update);
-
-            if (cardWasFound)
-                return NoContent();
-
-            return NotFound();
+            return await _store.Update(User.Identity.Name!, update) ? NoContent() : NotFound();
         }
     }
 }

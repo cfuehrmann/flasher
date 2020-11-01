@@ -1,7 +1,7 @@
 namespace Flasher.Store.FileStore
 {
-    public class FileStoreOptions
+    public sealed record FileStoreOptions
     {
-        public string? Directory { get; set; }
+        public string? Directory { get; init; }
     }
 }

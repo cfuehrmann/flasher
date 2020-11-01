@@ -31,10 +31,7 @@ namespace Flasher.Host
 {
     public class Startup
     {
-        public Startup(IConfiguration configuration)
-        {
-            Configuration = configuration;
-        }
+        public Startup(IConfiguration configuration) => Configuration = configuration;
 
         public IConfiguration Configuration { get; }
 
@@ -45,9 +42,7 @@ namespace Flasher.Host
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
             });
-
             var securityKey = new RsaSecurityKey(RSA.Create());
-
             services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -61,7 +56,6 @@ namespace Flasher.Host
                     ValidateIssuer = false
                 };
             });
-
             services.AddAuthorization(options =>
             {
                 options.AddPolicy("Bearer",
@@ -70,16 +64,12 @@ namespace Flasher.Host
                         .Build()
                 );
             });
-
             services.AddSwaggerGen(c =>
-            {
-                c.SwaggerDoc("v1", new OpenApiInfo { Title = "Flasher API", Version = "v1" });
-            });
-
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "Flasher API", Version = "v1" })
+            );
             services.AddSingleton(securityKey);
             services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
             services.AddSingleton<IDateTime, SystemDateTime>();
-
             RegisterStoreByConvention(services);
         }
 
@@ -87,14 +77,11 @@ namespace Flasher.Host
         {
             var hostAssembly = Assembly.GetExecutingAssembly();
             var interfaceAssembly = typeof(ICardStore).Assembly;
-
             // The line below would need changing if we discovered the implementation assembly dynamically
             var implementationAssembly = typeof(Flasher.Store.FileStore.Cards.CardStore).Assembly;
-
             var hostAssemblyTypes = hostAssembly.GetExportedTypes();
             var interfaceAssemblyTypes = interfaceAssembly.GetExportedTypes();
             var implementationAssemblyTypes = implementationAssembly.GetExportedTypes();
-
             RegisterStoreImplementations(services, interfaceAssemblyTypes, implementationAssemblyTypes);
             ConfigureOptionsByConvention(services, hostAssemblyTypes);
             ConfigureOptionsByConvention(services, implementationAssemblyTypes);
@@ -105,20 +92,18 @@ namespace Flasher.Host
         {
             var registrations =
                 from interfaceType in interfaceAssemblyTypes
-                where interfaceType.Namespace != null && interfaceType.Namespace.StartsWith("Flasher.Store") && interfaceType.IsInterface
+                where interfaceType.Namespace != null && interfaceType.Namespace.StartsWith("Flasher.Store") &&
+                    interfaceType.IsInterface
                 let implementations =
                     from type in implementationAssemblyTypes
                     where type.GetInterfaces().Contains(interfaceType)
                     select type
                 select (interfaceType, implementations);
-
             foreach (var (interfaceType, implementations) in registrations)
             {
                 int count = implementations.Count();
-
                 if (count != 1)
-                    throw new Exception($"There are {count} implementations for {interfaceType.Name}, but exactly one is needed!");
-
+                    throw new($"There are {count} implementations for {interfaceType.Name}, but exactly one is needed!");
                 services.AddSingleton(interfaceType, implementations.First());
             }
         }
@@ -130,11 +115,14 @@ namespace Flasher.Host
                 where type.Name.EndsWith("Options")
                 let prefix = type.Name.Substring(0, type.Name.Length - 7)
                 select (type, prefix);
-
-            var configure = typeof(OptionsConfigurationServiceCollectionExtensions).GetMethods().Single(method => method.GetParameters().Length == 2);
-
+            var configure =
+                typeof(OptionsConfigurationServiceCollectionExtensions)
+                    .GetMethods()
+                    .Single(method => method.GetParameters().Length == 2);
             foreach (var (tOptions, prefix) in optionTypes)
-                configure.MakeGenericMethod(tOptions).Invoke(null, new object[] { services, Configuration.GetSection(prefix) });
+                configure
+                    .MakeGenericMethod(tOptions)
+                    .Invoke(null, new object[] { services, Configuration.GetSection(prefix) });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -145,9 +133,7 @@ namespace Flasher.Host
                 errorApp.Run(async context =>
                 {
                     context.Response.ContentType = "text/html";
-
                     var error = context.Features.Get<IExceptionHandlerPathFeature>()?.Error;
-
                     if (error is ConflictException)
                     {
                         context.Response.StatusCode = StatusCodes.Status409Conflict;
@@ -155,47 +141,31 @@ namespace Flasher.Host
                         await context.Response.WriteAsync(text);
                         return;
                     }
-
                     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
                     await context.Response.WriteAsync("Internal server error!");
                 });
             });
-
             app.UseSwagger();
-
-            app.UseSwaggerUI(c =>
-            {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Flasher API");
-            });
-
+            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Flasher API"));
             app.UseRouting();
-
             app.Use(async (context, next) =>
             {
-                if (context.Request.Cookies.TryGetValue("__Host-jwt", out string value))
+                if (context.Request.Cookies.TryGetValue("__Host-jwt", out string? value))
                     context.Request.Headers.Append("Authorization", "Bearer " + value);
-
                 await next.Invoke();
             });
-
             app.UseAuthentication();
             app.UseAuthorization();
-
             app.Use(async (context, next) =>
             {
                 var stopWatch = new Stopwatch();
                 stopWatch.Start();
-
                 await next.Invoke();
-
                 stopWatch.Stop();
-                logger.LogInformation("Duration for {path}: {duration}ms", context.Request.Path, stopWatch.ElapsedMilliseconds);
+                logger.LogInformation("Duration for {path}: {duration}ms",
+                    context.Request.Path, stopWatch.ElapsedMilliseconds);
             });
-
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapControllers();
-            });
+            app.UseEndpoints(endpoints => endpoints.MapControllers());
         }
     }
 }

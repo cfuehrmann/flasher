@@ -2,8 +2,8 @@ using System;
 
 namespace Flasher.Host
 {
-    public class AuthenticationOptions
+    public sealed record AuthenticationOptions
     {
-        public TimeSpan TokenLifetime { get; set; }
+        public TimeSpan TokenLifetime { get; init; }
     }
 }

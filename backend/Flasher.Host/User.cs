@@ -1,12 +1,9 @@
 namespace Flasher.Host
 {
-    public class User
+    public sealed record User
     {
-        public User(string name)
-        {
-            this.Name = name;
-        }
-        
+        public User(string name) => this.Name = name;
+
         public string Name { get; }
     }
 }

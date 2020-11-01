@@ -1,13 +1,9 @@
 namespace Flasher.Store.AutoSaving
 {
-    public class AutoSave
+    public sealed record AutoSave
     {
-        public AutoSave(string id, string prompt, string solution)
-        {
-            this.id = id;
-            this.prompt = prompt;
-            this.solution = solution;
-        }
+        public AutoSave(string id, string prompt, string solution) => 
+            (this.id, this.prompt, this.solution) = (id, prompt, solution);
 
         public string id { get; }
         public string prompt { get; }

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -15,17 +14,13 @@ namespace Flasher.Store.FileStore.Authentication
 
         public AuthenticationStore(IOptionsMonitor<FileStoreOptions> options)
         {
-            if (options.CurrentValue.Directory == null)
-                throw new Exception("Missing configuration 'FileStore:Directory'");
-
+            if (options.CurrentValue.Directory == null) throw new("Missing configuration 'FileStore:Directory'");
             var json = File.ReadAllText(Path.Combine(options.CurrentValue.Directory, "users.json"));
-
-            _users = JsonSerializer.Deserialize<IDictionary<string, string>>(json);
+            _users = JsonSerializer.Deserialize<IDictionary<string, string>>(json)
+                ?? throw new("Deserializing the users file returned null!");
         }
 
-        public Task<string?> GetPasswordHash(string userName)
-        {
-            return Task.FromResult(_users.TryGetValue(userName, out string? result) ? result : null);
-        }
+        public Task<string?> GetPasswordHash(string userName) =>
+             Task.FromResult(_users.TryGetValue(userName, out string? result) ? result : null);
     }
 }
