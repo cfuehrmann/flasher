@@ -17,9 +17,6 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
         else await promptNext();
       }),
 
-    goToGroom: async () =>
-      setRouterState({ route: "Groom", searchText: "", cards: [] }),
-
     showSolution: (card) => async () =>
       setRouterState({ route: "Solution", card }),
 

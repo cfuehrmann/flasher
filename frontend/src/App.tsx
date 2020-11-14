@@ -69,7 +69,7 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
     case "Prompt": {
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} />
+          <Menu onGoToGroom={props.setCards} />
           <CardView>
             <PromptView value={routerState.card.prompt} />
             <br />
@@ -87,7 +87,7 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
     case "Done":
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} />
+          <Menu onGoToGroom={props.setCards} />
           <CardView>
             <br />
             <div className="w3-container">
@@ -106,7 +106,7 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
 
       return (
         <>
-          <Menu onGoToGroom={props.goToGroom} />
+          <Menu onGoToGroom={props.setCards} />
           <CardView>
             <PromptView value={prompt} />
             <br />
@@ -188,12 +188,18 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
   }
 }
 
-function Menu(props: { onGoToGroom: () => void }) {
+function Menu(props: { onGoToGroom: (searchText: string) => void }) {
   return (
     <div className="w3-bar">
-      <button className="w3-bar-item w3-button" onClick={props.onGoToGroom}>
-        Groom
-      </button>
+      <input
+        className="w3-bar-item w3-input w3-border w3-right"
+        type="text"
+        onChange={(event) =>
+          props.onGoToGroom((event.target as HTMLInputElement).value)
+        }
+        // value={props.searchText}
+        placeholder="Search all cards..."
+      />
     </div>
   );
 }

@@ -54,7 +54,6 @@ export type Api = {
 
 export type AppNarratives = {
   login: (userName: string, password: string) => Promise<void>;
-  goToGroom: () => Promise<void>;
   showSolution: (card: Card) => () => Promise<void>;
   goToPrompt: () => Promise<void>;
   setOk: (id: string) => () => Promise<void>;

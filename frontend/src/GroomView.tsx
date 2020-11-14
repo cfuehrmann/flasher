@@ -14,22 +14,23 @@ export function GroomView(props: {
   return (
     <>
       <div className="w3-bar">
-        <button className="w3-bar-item w3-button" onClick={props.onGoToCreate}>
-          Create
-        </button>
         <button className="w3-bar-item w3-button" onClick={props.onGoToPrompt}>
           Prompt
         </button>
         <input
-          className="w3-bar-item w3-input"
+          className="w3-bar-item w3-input w3-border w3-right"
           type="text"
+          autoFocus
           onChange={(event) =>
             props.onChangeInput((event.target as HTMLInputElement).value)
           }
           value={props.searchText}
-          placeholder="Search.."
+          placeholder="Search all cards..."
         />
       </div>
+
+      <TextButton key="xxx" text="+" onClick={props.onGoToCreate} />
+
       {List()}
     </>
   );
