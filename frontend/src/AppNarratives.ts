@@ -47,11 +47,16 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       await handle(async () => await api.deleteAutoSave());
     },
 
-    goToCreate: (searchText) => async () =>
+    goToCreate: async () =>
       await handle(async () => {
         await api.createCard("New card", "");
-        const cards = await api.findCards(searchText);
-        setRouterState({ route: "Groom", cards, searchText });
+        const cards = await api.findCards("");
+        setRouterState({ route: "Groom", cards, searchText: "" });
+      }),
+
+    goToGroom: async () =>
+      await handle(async () => {
+        setRouterState({ route: "Groom", cards: [], searchText: "" });
       }),
 
     setCards: async (searchText) =>

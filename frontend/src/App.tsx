@@ -69,7 +69,7 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
     case "Prompt": {
       return (
         <>
-          <Menu onGoToGroom={props.setCards} />
+          <Menu onGoToGroom={props.goToGroom} />
           <CardView>
             <PromptView value={routerState.card.prompt} />
             <br />
@@ -87,7 +87,7 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
     case "Done":
       return (
         <>
-          <Menu onGoToGroom={props.setCards} />
+          <Menu onGoToGroom={props.goToGroom} />
           <CardView>
             <br />
             <div className="w3-container">
@@ -106,7 +106,7 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
 
       return (
         <>
-          <Menu onGoToGroom={props.setCards} />
+          <Menu onGoToGroom={props.goToGroom} />
           <CardView>
             <PromptView value={prompt} />
             <br />
@@ -139,7 +139,7 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
       return (
         <GroomView
           onGoToPrompt={props.goToPrompt}
-          onGoToCreate={props.goToCreate(routerState.searchText)}
+          onGoToCreate={props.goToCreate}
           onChangeInput={props.setCards}
           onGroomItem={props.groomSingle(routerState.searchText)}
           searchText={routerState.searchText}
@@ -188,18 +188,12 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
   }
 }
 
-function Menu(props: { onGoToGroom: (searchText: string) => void }) {
+function Menu(props: { onGoToGroom: () => void }) {
   return (
     <div className="w3-bar">
-      <input
-        className="w3-bar-item w3-input w3-border w3-right"
-        type="text"
-        onChange={(event) =>
-          props.onGoToGroom((event.target as HTMLInputElement).value)
-        }
-        // value={props.searchText}
-        placeholder="Search all cards..."
-      />
+      <button className="w3-bar-item w3-button" onClick={props.onGoToGroom}>
+        Groom
+      </button>
     </div>
   );
 }

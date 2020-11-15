@@ -25,7 +25,7 @@ export function GroomView(props: {
             props.onChangeInput((event.target as HTMLInputElement).value)
           }
           value={props.searchText}
-          placeholder="Search all cards..."
+          placeholder="Search..."
         />
       </div>
 

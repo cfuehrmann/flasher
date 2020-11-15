@@ -61,7 +61,8 @@ export type AppNarratives = {
   editSolution: (card: Card) => () => Promise<void>;
   saveAndShowSolution(card: Card): Promise<void>;
   cancelEdit: (card: Card) => () => Promise<void>;
-  goToCreate: (searchText: string) => () => Promise<void>;
+  goToCreate: () => Promise<void>;
+  goToGroom: () => Promise<void>;
   setCards: (searchText: string) => Promise<void>;
   groomSingle: (searchText: string) => (id: string) => Promise<void>;
   groomEdit: (card: GroomCard, searchText: string) => () => Promise<void>;
