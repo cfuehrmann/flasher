@@ -141,9 +141,14 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
           onGoToPrompt={props.goToPrompt}
           onGoToCreate={props.goToCreate}
           onChangeInput={props.setCards}
-          onGroomItem={props.groomSingle(routerState.searchText)}
+          onGroomItem={props.groomSingle(
+            routerState.searchText,
+            routerState.page,
+          )}
+          onGoToPage={props.goToGroomPage}
           searchText={routerState.searchText}
-          cards={routerState.cards}
+          findResponse={routerState.findResponse}
+          page={routerState.page}
         />
       );
     case "GroomSingle":
@@ -151,25 +156,39 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
         <GroomItemView
           {...routerState.card}
           onDeleteHistory={() =>
-            props.deleteHistory(routerState.searchText, routerState.card)
+            props.deleteHistory(
+              routerState.searchText,
+              routerState.page,
+              routerState.card,
+            )
           }
           onDelete={() =>
-            props.delete(routerState.searchText)(routerState.card.id)
+            props.delete(
+              routerState.searchText,
+              routerState.page,
+            )(routerState.card.id)
           }
-          onEdit={props.groomEdit(routerState.card, routerState.searchText)}
-          onEnable={props.enable(routerState.searchText)}
-          onDisable={props.disable(routerState.searchText)}
-          onBack={props.backFromGroomSingle(routerState.searchText)}
+          onEdit={props.groomEdit(
+            routerState.card,
+            routerState.searchText,
+            routerState.page,
+          )}
+          onEnable={props.enable(routerState.searchText, routerState.page)}
+          onDisable={props.disable(routerState.searchText, routerState.page)}
+          onBack={props.backFromGroomSingle(
+            routerState.searchText,
+            routerState.page,
+          )}
         />
       );
     case "GroomEdit":
-      const { card: groomCard, searchText } = routerState;
+      const { card: groomCard, searchText, page } = routerState;
       const { disabled, state, ...card } = groomCard;
       return (
         <EditView
           {...card}
-          onSave={props.saveFromGroom(searchText, disabled, state)}
-          onCancel={props.cancelGroomEdit(groomCard, searchText)}
+          onSave={props.saveFromGroom(searchText, page, disabled, state)}
+          onCancel={props.cancelGroomEdit(groomCard, searchText, page)}
           writeAutoSave={props.writeAutoSave}
         />
       );

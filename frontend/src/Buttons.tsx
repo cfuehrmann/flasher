@@ -1,7 +1,12 @@
 import * as React from "react";
 import { ReactNode } from "react";
 
-type ButtonProps = { key?: string; width?: string; onClick: () => void };
+type ButtonProps = {
+  key?: string;
+  width?: string;
+  disabled?: boolean;
+  onClick: () => void;
+};
 
 export function ButtonBar(props: { children: ReactNode }) {
   return (
@@ -79,7 +84,12 @@ function W3CssButton(
   return (
     <button
       key={props.key}
-      className={"w3-bar-item w3-button " + props.w3CssColor + " w3-border"}
+      className={
+        "w3-bar-item w3-button " +
+        props.w3CssColor +
+        " w3-border" +
+        (props.disabled ? " w3-disabled" : "")
+      }
       style={{ width: props.width }}
       onMouseDown={props.onClick} // onMouseDown because onClick sometime gets swallowed by previous blur
     >

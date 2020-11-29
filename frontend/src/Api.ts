@@ -36,10 +36,9 @@ export const api: Api = {
 
   deleteCard: async (id) => await del(`Cards/${id}`),
 
-  findCards: async (searchText: string) => {
-    const response = await get(`Cards?searchText=${searchText}`);
-    const json = await response.json();
-    return json.cards;
+  findCards: async (searchText: string, page: number) => {
+    const response = await get(`Cards?searchText=${searchText}&page=${page}`);
+    return await response.json();
   },
 
   enable: async (id: string) => {
