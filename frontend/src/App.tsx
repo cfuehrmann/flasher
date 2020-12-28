@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useState, useEffect } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -10,15 +11,14 @@ import {
   OkButton,
   ShowButton,
   RefreshButton,
+  TextButton,
 } from "./Buttons";
 import { CardView } from "./CardView";
 import { EditView } from "./EditView";
-import { GroomItemView } from "./GroomItemView";
 import { GroomView } from "./GroomView";
 import { PromptView } from "./PromptView";
 import { SolutionView } from "./SolutionView";
 import { AppNarratives, AppState, RouterState } from "./types";
-import { useState, useEffect } from "react";
 import { LoginView } from "./LoginView";
 import { RecoverView } from "./RecoverView";
 
@@ -137,42 +137,9 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
       );
     case "Groom":
       return (
-        <GroomView
-          onGoToPrompt={props.goToPrompt}
-          onGoToCreate={props.goToCreate}
-          onChangeInput={props.setCards}
-          onGroomItem={props.groomSingle(routerState.searchText)}
-          searchText={routerState.searchText}
-          cards={routerState.cards}
-        />
+        <GroomView handleApi={props.handle} onGoToPrompt={props.goToPrompt} />
       );
-    case "GroomSingle":
-      return (
-        <GroomItemView
-          {...routerState.card}
-          onDeleteHistory={() =>
-            props.deleteHistory(routerState.searchText, routerState.card)
-          }
-          onDelete={() =>
-            props.delete(routerState.searchText)(routerState.card.id)
-          }
-          onEdit={props.groomEdit(routerState.card, routerState.searchText)}
-          onEnable={props.enable(routerState.searchText)}
-          onDisable={props.disable(routerState.searchText)}
-          onBack={props.backFromGroomSingle(routerState.searchText)}
-        />
-      );
-    case "GroomEdit":
-      const { card: groomCard, searchText } = routerState;
-      const { disabled, state, ...card } = groomCard;
-      return (
-        <EditView
-          {...card}
-          onSave={props.saveFromGroom(searchText, disabled, state)}
-          onCancel={props.cancelGroomEdit(groomCard, searchText)}
-          writeAutoSave={props.writeAutoSave}
-        />
-      );
+
     case "Recover":
       return (
         <RecoverView
@@ -190,10 +157,14 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
 
 function Menu(props: { onGoToGroom: () => void }) {
   return (
-    <div className="w3-bar">
-      <button className="w3-bar-item w3-button" onClick={props.onGoToGroom}>
-        Groom
-      </button>
-    </div>
+    <>
+      <div className="w3-top">
+        <div className="w3-bar w3-light-grey w3-border">
+          <TextButton text="Groom" onClick={props.onGoToGroom} />
+        </div>
+      </div>
+      <br />
+      <br />
+    </>
   );
 }

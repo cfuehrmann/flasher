@@ -1,6 +1,15 @@
 export type Card = { id: string; prompt: string; solution: string };
 export type CardState = "new" | "ok" | "failed";
 export type GroomCard = Card & { disabled: boolean; state: CardState };
+export type FindResponseCard = {
+  id: string;
+  prompt: string;
+  disabled: boolean;
+};
+export type FindResponse = {
+  cards: FindResponseCard[];
+  count: number;
+};
 
 export type RouterState =
   | { route: "Starting" }
@@ -9,21 +18,7 @@ export type RouterState =
   | { route: "Done" }
   | { route: "Solution"; card: Card }
   | { route: "Edit"; card: Card }
-  | {
-      route: "Groom";
-      searchText: string;
-      cards: GroomCard[];
-    }
-  | {
-      route: "GroomSingle";
-      card: GroomCard;
-      searchText: string;
-    }
-  | {
-      route: "GroomEdit";
-      card: GroomCard;
-      searchText: string;
-    }
+  | { route: "Groom" }
   | { route: "Recover"; card: Card };
 
 export type AppState = {
@@ -37,14 +32,14 @@ export type Api = {
     userName: string,
     password: string,
   ) => Promise<{ autoSave: Card | undefined }>;
-  createCard: (prompt: string, solution: string) => Promise<void>;
+  createCard: (prompt: string, solution: string) => Promise<FindResponseCard>;
   readCard: (id: string) => Promise<GroomCard | undefined>;
   updateCard: (card: Card) => Promise<Card>;
   deleteCard: (id: string) => Promise<void>;
   findNextCard: () => Promise<Card | undefined>;
   setOk: (id: string) => Promise<void>;
   setFailed: (id: string) => Promise<void>;
-  findCards: (substring: string) => Promise<GroomCard[]>;
+  findCards: (searchText: string, skip: number) => Promise<FindResponse>;
   enable: (id: string) => Promise<void>;
   disable: (id: string) => Promise<void>;
   deleteHistory: (id: string) => Promise<void>;
@@ -53,6 +48,7 @@ export type Api = {
 };
 
 export type AppNarratives = {
+  handle: (body: () => Promise<void>) => Promise<void>;
   login: (userName: string, password: string) => Promise<void>;
   showSolution: (card: Card) => () => Promise<void>;
   goToPrompt: () => Promise<void>;
@@ -61,22 +57,7 @@ export type AppNarratives = {
   editSolution: (card: Card) => () => Promise<void>;
   saveAndShowSolution(card: Card): Promise<void>;
   cancelEdit: (card: Card) => () => Promise<void>;
-  goToCreate: () => Promise<void>;
   goToGroom: () => Promise<void>;
-  setCards: (searchText: string) => Promise<void>;
-  groomSingle: (searchText: string) => (id: string) => Promise<void>;
-  groomEdit: (card: GroomCard, searchText: string) => () => Promise<void>;
-  enable: (searchText: string) => (id: string) => Promise<void>;
-  disable: (searchText: string) => (id: string) => Promise<void>;
-  backFromGroomSingle: (searchText: string) => () => Promise<void>;
-  saveFromGroom: (
-    searchText: string,
-    disabled: boolean,
-    state: CardState,
-  ) => (card: Card) => Promise<void>;
-  cancelGroomEdit: (card: GroomCard, searchText: string) => () => Promise<void>;
-  delete: (searchText: string) => (id: string) => Promise<void>;
-  deleteHistory: (searchText: string, id: GroomCard) => Promise<void>;
   saveRecovered(card: Card): Promise<void>;
   abandonRecovered(): Promise<void>;
   writeAutoSave: (card: Card) => Promise<void>;

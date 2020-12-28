@@ -21,7 +21,8 @@ export const api: Api = {
   },
 
   createCard: async (prompt, solution) => {
-    await post(`Cards`, { prompt, solution });
+    const response = await post(`Cards`, { prompt, solution });
+    return await response.json();
   },
 
   readCard: async (id: string) => {
@@ -36,10 +37,9 @@ export const api: Api = {
 
   deleteCard: async (id) => await del(`Cards/${id}`),
 
-  findCards: async (searchText: string) => {
-    const response = await get(`Cards?searchText=${searchText}`);
-    const json = await response.json();
-    return json.cards;
+  findCards: async (searchText: string, skip: number) => {
+    const response = await get(`Cards?searchText=${searchText}&skip=${skip}`);
+    return await response.json();
   },
 
   enable: async (id: string) => {

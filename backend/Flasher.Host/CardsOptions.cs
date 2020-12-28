@@ -7,5 +7,6 @@ namespace Flasher.Host
         public TimeSpan NewCardWaitingTime { get; init; }
         public double OkMultiplier { get; init; }
         public double FailedMultiplier { get; init; }
+        public int PageSize { get; init; }
     }
 }

@@ -8,7 +8,7 @@ namespace Flasher.Store.Cards
         Task<FullCard?> Read(string user, string id);
         Task<bool> Update(string user, CardUpdate update);
         Task<bool> Delete(string user, string id);
-        Task<FindResponse> Find(string user, string searchText);
+        Task<FindResponse> Find(string user, string searchText, int skip, int take);
         Task<FullCard?> FindNext(string user);
     }
 }

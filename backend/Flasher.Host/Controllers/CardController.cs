@@ -61,8 +61,12 @@ namespace Flasher.Host.Controllers
 
         [HttpGet]
         [Route("/[controller]")]
-        public async Task<FindResponse> Find(string? searchText) =>
-            await _store.Find(User.Identity!.Name!, searchText ?? "");
+        public async Task<Flasher.Store.Cards.FindResponse> Find(string? searchText, int skip)
+        {
+            var pageSize = _optionsMonitor.CurrentValue.PageSize;
+            var take = pageSize < 1 ? 15 : pageSize;
+            return await _store.Find(User.Identity!.Name!, searchText ?? "", skip, take);
+        }
 
         [HttpGet]
         [Route("/[controller]/[action]")]

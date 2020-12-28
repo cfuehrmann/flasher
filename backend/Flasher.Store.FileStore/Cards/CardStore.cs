@@ -69,15 +69,21 @@ namespace Flasher.Store.FileStore.Cards
             return result;
         }
 
-        public Task<FindResponse> Find(string user, string searchText)
+        public Task<FindResponse> Find(string user, string searchText, int skip, int take)
         {
-            var result =
+            var allHits =
                 from card in EnsureCache(user).Values
                 where card.prompt != null && card.solution != null &&
                     (card.prompt.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
                         card.solution.Contains(searchText, StringComparison.OrdinalIgnoreCase))
-                select new FoundCard(card.id, card.prompt, card.solution, card.disabled);
-            return Task.FromResult(new FindResponse(result));
+                orderby card.disabled descending, card.nextTime, card.id
+                select new FoundCard(card.id, card.prompt, card.disabled);
+
+            var allHitsArray = allHits.ToArray();
+
+            var result = new FindResponse(allHitsArray.Skip(skip).Take(take), allHitsArray.Length);
+
+            return Task.FromResult(result);
         }
 
         public Task<FullCard?> FindNext(string user)
@@ -85,7 +91,7 @@ namespace Flasher.Store.FileStore.Cards
 
             var result = EnsureCache(user).Values
                 .Where(card => card.nextTime <= _time.Now && !card.disabled)
-                .OrderBy(card => card.nextTime)
+                .OrderBy(card => card.nextTime).ThenBy(card => card.id)
                 .FirstOrDefault()
                 .ToResponse();
             return Task.FromResult(result);

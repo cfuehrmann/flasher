@@ -47,85 +47,7 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       await handle(async () => await api.deleteAutoSave());
     },
 
-    goToCreate: async () =>
-      await handle(async () => {
-        await api.createCard("New card", "");
-        const cards = await api.findCards("");
-        setRouterState({ route: "Groom", cards, searchText: "" });
-      }),
-
-    goToGroom: async () =>
-      await handle(async () => {
-        setRouterState({ route: "Groom", cards: [], searchText: "" });
-      }),
-
-    setCards: async (searchText) =>
-      await handle(async () => {
-        const cards = await api.findCards(searchText);
-        setRouterState({ route: "Groom", cards, searchText });
-      }),
-
-    groomSingle: (searchText) => async (id) =>
-      await handle(async () => {
-        const card = await api.readCard(id);
-        if (card !== undefined)
-          setRouterState({ route: "GroomSingle", card, searchText });
-      }),
-
-    groomEdit: (card, searchText) => async () =>
-      setRouterState({ route: "GroomEdit", card, searchText }),
-
-    enable: (searchText) => async (id) =>
-      await handle(async () => {
-        await api.enable(id);
-        const cards = await api.findCards(searchText);
-        setRouterState({ route: "Groom", cards, searchText });
-      }),
-
-    disable: (searchText) => async (id) =>
-      await handle(async () => {
-        await api.disable(id);
-        const cards = await api.findCards(searchText);
-        setRouterState({ route: "Groom", cards, searchText });
-      }),
-
-    backFromGroomSingle: (searchText) => async () =>
-      await handle(async () => {
-        const cards = await api.findCards(searchText);
-        setRouterState({ route: "Groom", cards, searchText });
-      }),
-
-    saveFromGroom: (searchText, disabled, state) => async (card) =>
-      await handle(async () => {
-        await api.updateCard(card);
-        setRouterState({
-          route: "GroomSingle",
-          searchText,
-          card: { ...card, disabled, state },
-        });
-      }),
-
-    deleteHistory: async (searchText, card) =>
-      await handle(async () => {
-        await api.deleteHistory(card.id);
-        setRouterState({
-          route: "GroomSingle",
-          searchText,
-          card: { ...card, state: "new" },
-        });
-      }),
-
-    cancelGroomEdit: (card, searchText) => async () => {
-      setRouterState({ route: "GroomSingle", card, searchText });
-      await handle(async () => await api.deleteAutoSave());
-    },
-
-    delete: (searchText) => async (id) =>
-      await handle(async () => {
-        await api.deleteCard(id);
-        const cards = await api.findCards(searchText);
-        setRouterState({ route: "Groom", cards, searchText });
-      }),
+    goToGroom: async () => setRouterState({ route: "Groom" }),
 
     saveRecovered: async (card) =>
       await handle(async () => {
@@ -141,6 +63,8 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
 
     writeAutoSave: async (card) =>
       await handle(async () => await api.writeAutoSave(card)),
+
+    handle,
   };
 
   function setRouterState(routerState: RouterState) {
