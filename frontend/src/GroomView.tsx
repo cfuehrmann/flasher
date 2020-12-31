@@ -1,16 +1,13 @@
 import * as React from "react";
 import { useState } from "react";
 
-import { FindResponseCard, GroomCard } from "./types";
 import { api } from "./Api";
+import { ApiHandler, FindResponseCard, GroomCard } from "./types";
 import { TextButton } from "./Buttons";
 import { GroomItemView } from "./GroomItemView";
 import { EditView } from "./EditView";
 
-export function GroomView(props: {
-  handleApi: (body: () => Promise<void>) => Promise<void>;
-  onGoToPrompt: () => void;
-}) {
+export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
   const [modal, setModal] = useState({ kind: "none" } as
     | { kind: "none" }
     | { kind: "view"; card: GroomCard }
@@ -40,12 +37,10 @@ export function GroomView(props: {
             <TextButton text="Prompt" onClick={props.onGoToPrompt} />
             <TextButton
               text="Create"
-              onClick={async () =>
-                await handleApi(async () => {
-                  const response = await api.createCard("New card", "");
-                  setCards([response, ...cards]);
-                })
-              }
+              onClick={handleApi(async () => {
+                const response = await api.createCard("New card", "");
+                setCards([response, ...cards]);
+              })}
             />
           </div>
           <div className="w3-bar w3-light-grey w3-border">
@@ -59,14 +54,12 @@ export function GroomView(props: {
             />
             <TextButton
               text="Go"
-              onClick={async () =>
-                await handleApi(async () => {
-                  const { cards, count } = await api.findCards(searchText, 0);
-                  setActiveSearchText(searchText);
-                  setCards(cards);
-                  setCount(count);
-                })
-              }
+              onClick={handleApi(async () => {
+                const { cards, count } = await api.findCards(searchText, 0);
+                setActiveSearchText(searchText);
+                setCards(cards);
+                setCount(count);
+              })}
             />
           </div>
           {activeSearchText !== undefined ? (
@@ -112,12 +105,10 @@ export function GroomView(props: {
       <div
         className="w3-card w3-hover-shadow w3-center"
         key={id}
-        onClick={async () =>
-          await handleApi(async () => {
-            const card = await api.readCard(id);
-            if (card) setModal({ kind: "view", card });
-          })
-        }
+        onClick={handleApi(async () => {
+          const card = await api.readCard(id);
+          if (card) setModal({ kind: "view", card });
+        })}
       >
         <div className="w3-container">
           <p>{(disabled ? "(Disabled) " : "") + prompt}</p>
@@ -131,19 +122,17 @@ export function GroomView(props: {
       <TextButton
         text={"Show more"}
         width="100%"
-        onClick={async () =>
-          await handleApi(async () => {
-            const findResponse = await api.findCards(
-              activeSearchText,
-              cards.length,
-            );
-            const filteredResponse = findResponse.cards.filter(
-              (fc) => !cards.some((c) => c.id === fc.id),
-            );
-            setCards([...cards, ...filteredResponse]);
-            setCount(findResponse.count);
-          })
-        }
+        onClick={handleApi(async () => {
+          const findResponse = await api.findCards(
+            activeSearchText,
+            cards.length,
+          );
+          const filteredResponse = findResponse.cards.filter(
+            (fc) => !cards.some((c) => c.id === fc.id),
+          );
+          setCards([...cards, ...filteredResponse]);
+          setCount(findResponse.count);
+        })}
       />
     ) : undefined;
   }
@@ -156,43 +145,35 @@ export function GroomView(props: {
           <GroomItemView
             {...groomCard}
             onBack={() => setModal({ kind: "none" })}
-            onDelete={async () =>
-              await handleApi(async () => {
-                await api.deleteCard(id);
-                const newCards = cards.filter((c) => c.id !== id);
-                if (newCards.length !== cards.length) setCards(newCards);
-                setModal({ kind: "none" });
-              })
-            }
-            onDeleteHistory={async () =>
-              await handleApi(async () => {
-                await api.deleteHistory(id);
-                setModal({
-                  kind: "view",
-                  card: { ...groomCard, state: "new" },
-                });
-              })
-            }
-            onDisable={async () =>
-              await handleApi(async () => {
-                await api.disable(id);
-                const newCards = cards.map((c) =>
-                  c.id !== id ? c : { ...c, disabled: true },
-                );
-                setCards(newCards);
-                setModal({ kind: "none" });
-              })
-            }
-            onEnable={async () =>
-              await handleApi(async () => {
-                await api.enable(id);
-                const newCards = cards.map((c) =>
-                  c.id !== id ? c : { ...c, disabled: false },
-                );
-                setCards(newCards);
-                setModal({ kind: "none" });
-              })
-            }
+            onDelete={handleApi(async () => {
+              await api.deleteCard(id);
+              const newCards = cards.filter((c) => c.id !== id);
+              if (newCards.length !== cards.length) setCards(newCards);
+              setModal({ kind: "none" });
+            })}
+            onDeleteHistory={handleApi(async () => {
+              await api.deleteHistory(id);
+              setModal({
+                kind: "view",
+                card: { ...groomCard, state: "new" },
+              });
+            })}
+            onDisable={handleApi(async () => {
+              await api.disable(id);
+              const newCards = cards.map((c) =>
+                c.id !== id ? c : { ...c, disabled: true },
+              );
+              setCards(newCards);
+              setModal({ kind: "none" });
+            })}
+            onEnable={handleApi(async () => {
+              await api.enable(id);
+              const newCards = cards.map((c) =>
+                c.id !== id ? c : { ...c, disabled: false },
+              );
+              setCards(newCards);
+              setModal({ kind: "none" });
+            })}
             onEdit={() => setModal({ kind: "edit", card: groomCard })}
           ></GroomItemView>
         </div>
@@ -209,25 +190,19 @@ export function GroomView(props: {
             id={id}
             prompt={prompt}
             solution={solution}
-            onCancel={async () =>
-              await handleApi(async () => {
-                setModal({ kind: "view", card: groomCard });
-                await api.deleteAutoSave();
-              })
-            }
-            onSave={async (card) =>
-              await handleApi(async () => {
-                await api.updateCard(card);
-                const newCards = cards.map((c) =>
-                  c.id !== id ? c : { ...c, prompt: card.prompt },
-                );
-                setCards(newCards);
-                setModal({ kind: "view", card: { ...groomCard, ...card } });
-              })
-            }
-            writeAutoSave={async (card) =>
-              await handleApi(async () => await api.writeAutoSave(card))
-            }
+            onCancel={handleApi(async () => {
+              setModal({ kind: "view", card: groomCard });
+              await api.deleteAutoSave();
+            })}
+            onSave={handleApi(async (card) => {
+              await api.updateCard(card);
+              const newCards = cards.map((c) =>
+                c.id !== id ? c : { ...c, prompt: card.prompt },
+              );
+              setCards(newCards);
+              setModal({ kind: "view", card: { ...groomCard, ...card } });
+            })}
+            writeAutoSave={handleApi(api.writeAutoSave)}
           ></EditView>
         </div>
       </div>

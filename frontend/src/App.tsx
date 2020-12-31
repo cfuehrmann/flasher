@@ -137,7 +137,10 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
       );
     case "Groom":
       return (
-        <GroomView handleApi={props.handle} onGoToPrompt={props.goToPrompt} />
+        <GroomView
+          handleApi={props.handleApi}
+          onGoToPrompt={props.goToPrompt}
+        />
       );
 
     case "Recover":

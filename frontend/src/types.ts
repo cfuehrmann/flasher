@@ -47,8 +47,13 @@ export type Api = {
   deleteAutoSave: () => Promise<void>;
 };
 
-export type AppNarratives = {
-  handle: (body: () => Promise<void>) => Promise<void>;
+export type ApiHandler = {
+  handleApi: <T extends readonly unknown[]>(
+    body: (...args: T) => Promise<void>,
+  ) => (...args: T) => Promise<void>;
+};
+
+export type AppNarratives = ApiHandler & {
   login: (userName: string, password: string) => Promise<void>;
   showSolution: (card: Card) => () => Promise<void>;
   goToPrompt: () => Promise<void>;
