@@ -77,18 +77,22 @@ namespace Flasher.Store.FileStore.Cards
                     (card.prompt.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
                         card.solution.Contains(searchText, StringComparison.OrdinalIgnoreCase))
                 orderby card.disabled descending, card.nextTime, card.id
-                select new FoundCard(card.id, card.prompt, card.disabled);
+                select new FullCard(
+                    id: card.id,
+                    prompt: card.prompt,
+                    solution: card.solution,
+                    state: card.state,
+                    changeTime: card.changeTime,
+                    nextTime: card.nextTime,
+                    disabled: card.disabled);
 
             var allHitsArray = allHits.ToArray();
-
             var result = new FindResponse(allHitsArray.Skip(skip).Take(take), allHitsArray.Length);
-
             return Task.FromResult(result);
         }
 
         public Task<FullCard?> FindNext(string user)
         {
-
             var result = EnsureCache(user).Values
                 .Where(card => card.nextTime <= _time.Now && !card.disabled)
                 .OrderBy(card => card.nextTime).ThenBy(card => card.id)
@@ -116,13 +120,13 @@ namespace Flasher.Store.FileStore.Cards
                 if (card.id != null && card.prompt != null && card.solution != null && card.state != null &&
                     card.changeTime != null && card.nextTime != null && card.disabled != null)
                     yield return new CachedCard(
-                        card.id,
-                        card.prompt,
-                        card.solution,
-                        card.state.Value,
-                        card.changeTime.Value,
-                        card.nextTime.Value,
-                        card.disabled.Value);
+                        id: card.id,
+                        prompt: card.prompt,
+                        solution: card.solution,
+                        state: card.state.Value,
+                        changeTime: card.changeTime.Value,
+                        nextTime: card.nextTime.Value,
+                        disabled: card.disabled.Value);
         }
 
         private async Task WriteCards(string user)
@@ -131,6 +135,7 @@ namespace Flasher.Store.FileStore.Cards
             try
             {
                 using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
+                
                 await JsonSerializer.SerializeAsync<ICollection<CachedCard>>(
                     fs, _cardsByUser[user].Values, _jsonOptions);
             }
@@ -150,13 +155,13 @@ namespace Flasher.Store.FileStore.Cards
             return storedCard == null ?
                null :
                new FullCard(
-                   storedCard.id,
-                   storedCard.prompt,
-                   storedCard.solution,
-                   storedCard.state,
-                   storedCard.changeTime,
-                   storedCard.nextTime,
-                   storedCard.disabled);
+                   id: storedCard.id,
+                   prompt: storedCard.prompt,
+                   solution: storedCard.solution,
+                   state: storedCard.state,
+                   changeTime: storedCard.changeTime,
+                   nextTime: storedCard.nextTime,
+                   disabled: storedCard.disabled);
         }
     }
 }

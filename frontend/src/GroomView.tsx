@@ -2,7 +2,7 @@ import * as React from "react";
 import { useState } from "react";
 
 import { api } from "./Api";
-import { ApiHandler, FindResponseCard, GroomCard } from "./types";
+import { ApiHandler, GroomCard } from "./types";
 import { TextButton } from "./Buttons";
 import { GroomItemView } from "./GroomItemView";
 import { EditView } from "./EditView";
@@ -17,7 +17,7 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
     undefined,
   );
   const [count, setCount] = useState<number | undefined>(undefined);
-  const [cards, setCards] = useState<FindResponseCard[]>([]);
+  const [cards, setCards] = useState<GroomCard[]>([]);
 
   const handleApi = props.handleApi;
 
@@ -100,18 +100,17 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
     }
   }
 
-  function CardButton({ id, prompt, disabled }: FindResponseCard) {
+  function CardButton(card: GroomCard) {
     return (
       <div
         className="w3-card w3-hover-shadow w3-center"
-        key={id}
+        key={card.id}
         onClick={handleApi(async () => {
-          const card = await api.readCard(id);
-          if (card) setModal({ kind: "view", card });
+          setModal({ kind: "view", card });
         })}
       >
         <div className="w3-container">
-          <p>{(disabled ? "(Disabled) " : "") + prompt}</p>
+          <p>{(card.disabled ? "(Disabled) " : "") + card.prompt}</p>
         </div>
       </div>
     );

@@ -30,7 +30,14 @@ namespace Flasher.Host.Controllers
             var id = Guid.NewGuid().ToString();
             var now = _time.Now;
             var nextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime);
-            var card = new FullCard(id, request.prompt, request.solution, State.New, now, nextTime, true);
+            var card = new FullCard(
+                id: id,
+                prompt: request.prompt,
+                solution: request.solution,
+                state: State.New,
+                changeTime: now,
+                nextTime: nextTime,
+                disabled: true);
             await _store.Create(User.Identity!.Name!, card);
             return CreatedAtAction(nameof(Read), new { id = id }, card);
         }

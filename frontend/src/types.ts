@@ -1,15 +1,7 @@
 export type Card = { id: string; prompt: string; solution: string };
 export type CardState = "new" | "ok" | "failed";
 export type GroomCard = Card & { disabled: boolean; state: CardState };
-export type FindResponseCard = {
-  id: string;
-  prompt: string;
-  disabled: boolean;
-};
-export type FindResponse = {
-  cards: FindResponseCard[];
-  count: number;
-};
+export type FindResponse = { cards: GroomCard[]; count: number };
 
 export type RouterState =
   | { route: "Starting" }
@@ -32,7 +24,7 @@ export type Api = {
     userName: string,
     password: string,
   ) => Promise<{ autoSave: Card | undefined }>;
-  createCard: (prompt: string, solution: string) => Promise<FindResponseCard>;
+  createCard: (prompt: string, solution: string) => Promise<GroomCard>;
   readCard: (id: string) => Promise<GroomCard | undefined>;
   updateCard: (card: Card) => Promise<Card>;
   deleteCard: (id: string) => Promise<void>;
