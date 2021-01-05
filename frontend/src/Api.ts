@@ -35,7 +35,9 @@ export const api: Api = {
     return { id: "dummy", prompt: "dummy", solution: "dummy" };
   },
 
-  deleteCard: async (id) => await del(`Cards/${id}`),
+  deleteCard: async (id) => {
+    await del(`Cards/${id}`);
+  },
 
   findCards: async (searchText: string, skip: number) => {
     const response = await get(`Cards?searchText=${searchText}&skip=${skip}`);
@@ -50,11 +52,16 @@ export const api: Api = {
     await post(`Cards/${id}/Disable`);
   },
 
-  deleteHistory: async (id) => await del(`History/${id}`),
+  deleteHistory: async (id) => {
+    const response = await del(`History/${id}`);
+    return await response.json();
+  },
 
   writeAutoSave: async (card: Card) => await put(`AutoSave`, card),
 
-  deleteAutoSave: async () => await del("AutoSave"),
+  deleteAutoSave: async () => {
+    await del("AutoSave");
+  },
 };
 
 async function get(url: string) {
@@ -74,7 +81,7 @@ async function put(url: string, body: {}) {
 }
 
 async function del(url: string) {
-  await sendRequest("DELETE", url);
+  return await sendRequest("DELETE", url);
 }
 
 async function sendRequest(method: string, url: string, body?: {}) {

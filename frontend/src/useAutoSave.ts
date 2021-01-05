@@ -9,26 +9,38 @@ export function useAutoSave(
 
   const isSaving = useRef(false);
   const cardRef = useRef(card);
+  const interval = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     cardRef.current = card;
   });
 
   useEffect(() => {
-    const interval = setInterval(async () => {
-      if (isSaving.current) return;
+    startAutoSaveInterval();
+    return clearAutoSaveInterval;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  return {
+    card,
+    setPrompt,
+    setSolution,
+    startAutoSaveInterval,
+    clearAutoSaveInterval,
+  };
+
+  function startAutoSaveInterval() {
+    interval.current = setInterval(async () => {
+      if (isSaving.current) return;
       isSaving.current = true;
       await writeAutoSave(cardRef.current);
       isSaving.current = false;
     }, 5000);
-    return () => {
-      clearInterval(interval);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }
 
-  return { card, setPrompt, setSolution };
+  function clearAutoSaveInterval() {
+    if (interval.current) clearInterval(interval.current);
+  }
 
   // Narratives for this component. Not pulled out because too trivial
   function setPrompt(prompt: string) {

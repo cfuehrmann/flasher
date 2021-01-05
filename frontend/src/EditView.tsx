@@ -5,18 +5,28 @@ import { Card } from "./types";
 import { useAutoSave } from "./useAutoSave";
 
 type Props = Card & {
-  onCancel: () => void;
-  onSave: (card: Card) => void;
+  onCancel: (
+    clearAutoSaveInterval: () => void,
+    startAutoSaveInterval: () => void,
+  ) => void;
+  onSave: (
+    card: Card,
+    clearAutoSaveInterval: () => void,
+    startAutoSaveInterval: () => void,
+  ) => void;
   writeAutoSave: (card: Card) => Promise<void>;
 };
 
 export function EditView(props: Props) {
   const { id, prompt, solution } = props;
 
-  const { card, setPrompt, setSolution } = useAutoSave(
-    { id, prompt, solution },
-    props.writeAutoSave,
-  );
+  const {
+    card,
+    setPrompt,
+    setSolution,
+    clearAutoSaveInterval,
+    startAutoSaveInterval,
+  } = useAutoSave({ id, prompt, solution }, props.writeAutoSave);
 
   return (
     <div className="w3-container" style={{ whiteSpace: "pre-wrap" }}>
@@ -38,8 +48,18 @@ export function EditView(props: Props) {
         <br />
         <br />
         <ButtonBar>
-          <CancelButton width="50%" onClick={props.onCancel} />
-          <SaveButton width="50%" onClick={() => props.onSave(card)} />
+          <CancelButton
+            width="50%"
+            onClick={() =>
+              props.onCancel(clearAutoSaveInterval, startAutoSaveInterval)
+            }
+          />
+          <SaveButton
+            width="50%"
+            onClick={() =>
+              props.onSave(card, clearAutoSaveInterval, startAutoSaveInterval)
+            }
+          />
         </ButtonBar>
         <br />
       </div>

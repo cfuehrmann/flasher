@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import { api } from "./Api";
 import { AppNarratives, RouterState, SetStateType, AppState } from "./types";
 
@@ -31,28 +32,57 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
 
     editSolution: (card) => async () => setRouterState({ route: "Edit", card }),
 
-    saveAndShowSolution: handleApi(async (card) => {
-      await api.updateCard(card);
-      setRouterState({ route: "Solution", card });
-    }),
-
-    cancelEdit: (card) =>
+    saveAndShowSolution: async (
+      card,
+      clearAutoSaveInterval,
+      startAutoSaveInterval,
+    ) => {
+      clearAutoSaveInterval();
       handleApi(async () => {
-        setRouterState({ route: "Solution", card });
-        await api.deleteAutoSave();
-      }),
+        try {
+          await api.updateCard(card);
+          setRouterState({ route: "Solution", card });
+        } catch (_) {
+          startAutoSaveInterval();
+        }
+      })();
+    },
+
+    cancelEdit: async (card, clearAutoSaveInterval, startAutoSaveInterval) => {
+      clearAutoSaveInterval();
+      handleApi(api.deleteAutoSave)();
+      setRouterState({ route: "Solution", card });
+    },
 
     goToGroom: async () => setRouterState({ route: "Groom" }),
 
-    saveRecovered: handleApi(async (card) => {
-      await api.updateCard(card);
-      await promptNext();
-    }),
+    saveRecovered: async (
+      card,
+      clearAutoSaveInterval,
+      startAutoSaveInterval,
+    ) => {
+      clearAutoSaveInterval();
+      handleApi(async () => {
+        try {
+          await api.updateCard(card);
+          await promptNext();
+        } catch (_) {
+          startAutoSaveInterval();
+        }
+      })();
+    },
 
-    abandonRecovered: handleApi(async () => {
-      await api.deleteAutoSave();
-      await promptNext();
-    }),
+    abandonRecovered: async (clearAutoSaveInterval, startAutoSaveInterval) => {
+      clearAutoSaveInterval();
+      handleApi(async () => {
+        try {
+          await api.deleteAutoSave();
+          await promptNext();
+        } catch (_) {
+          startAutoSaveInterval();
+        }
+      })();
+    },
 
     writeAutoSave: handleApi(api.writeAutoSave),
 
@@ -90,21 +120,32 @@ function handleWithState<T extends readonly unknown[]>(
         isContactingServer: false,
       }));
     } catch (e) {
-      setState((prevState) =>
-        e.status === 401
-          ? {
-              ...prevState,
-              routerState: { route: "Login" },
-              isContactingServer: false,
-            }
-          : {
-              ...prevState,
-              serverError: e,
-              isContactingServer: false,
-            },
-      );
+      if (e.status === 401) {
+        setState((prevState) => ({
+          ...prevState,
+          routerState: { route: "Login" },
+          isContactingServer: false,
+        }));
+      } else {
+        showServerError(e);
+        setState((prevState) => ({
+          ...prevState,
+          serverError: e,
+          isContactingServer: false,
+        }));
+      }
     }
   };
+}
+
+function showServerError(serverError: Error) {
+  // toast.configure();
+  toast(
+    typeof serverError.message === "string"
+      ? serverError.message
+      : "Unknown server error!",
+    { type: "error", position: "bottom-right" },
+  );
 }
 
 async function promptNextWithState(setState: SetStateType) {

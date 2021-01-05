@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { ToastContainer, toast } from "react-toastify";
+import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import { getNarratives, initialize } from "./AppNarratives";
@@ -43,18 +43,8 @@ export function App() {
     <>
       <Router {...pageProps} />
       {isContactingServer ? <p>Contacting server...</p> : ""}
-      {!isContactingServer && serverError ? showServerError(serverError) : ""}
       <ToastContainer />
     </>
-  );
-}
-
-function showServerError(serverError: Error) {
-  toast(
-    typeof serverError.message === "string"
-      ? serverError.message
-      : "Unknown server error!",
-    { type: "error", position: "bottom-right" },
   );
 }
 
@@ -131,7 +121,13 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
         <EditView
           {...routerState.card}
           onSave={props.saveAndShowSolution}
-          onCancel={props.cancelEdit(routerState.card)}
+          onCancel={(clearAutoSaveInterval, startAutoSaveInterval) =>
+            props.cancelEdit(
+              routerState.card,
+              clearAutoSaveInterval,
+              startAutoSaveInterval,
+            )
+          }
           writeAutoSave={props.writeAutoSave}
         />
       );

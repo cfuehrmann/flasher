@@ -34,7 +34,7 @@ export type Api = {
   findCards: (searchText: string, skip: number) => Promise<FindResponse>;
   enable: (id: string) => Promise<void>;
   disable: (id: string) => Promise<void>;
-  deleteHistory: (id: string) => Promise<void>;
+  deleteHistory: (id: string) => Promise<GroomCard>;
   writeAutoSave: (card: Card) => Promise<void>;
   deleteAutoSave: () => Promise<void>;
 };
@@ -52,11 +52,26 @@ export type AppNarratives = ApiHandler & {
   setOk: (id: string) => () => Promise<void>;
   setFailed: (id: string) => () => Promise<void>;
   editSolution: (card: Card) => () => Promise<void>;
-  saveAndShowSolution(card: Card): Promise<void>;
-  cancelEdit: (card: Card) => () => Promise<void>;
+  saveAndShowSolution(
+    card: Card,
+    clearAutoSaveInterval: () => void,
+    startAutoSaveInterval: () => void,
+  ): Promise<void>;
+  cancelEdit: (
+    card: Card,
+    clearAutoSaveInterval: () => void,
+    startAutoSaveInterval: () => void,
+  ) => Promise<void>;
   goToGroom: () => Promise<void>;
-  saveRecovered(card: Card): Promise<void>;
-  abandonRecovered(): Promise<void>;
+  saveRecovered(
+    card: Card,
+    clearAutoSaveInterval: () => void,
+    startAutoSaveInterval: () => void,
+  ): Promise<void>;
+  abandonRecovered(
+    clearAutoSaveInterval: () => void,
+    startAutoSaveInterval: () => void,
+  ): Promise<void>;
   writeAutoSave: (card: Card) => Promise<void>;
 };
 

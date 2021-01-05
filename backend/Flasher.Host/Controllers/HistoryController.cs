@@ -20,7 +20,7 @@ namespace Flasher.Host.Controllers
 
         [HttpDelete]
         [Route("/[controller]/{id}")]
-        public async Task<ActionResult<bool>> Delete(string id)
+        public async Task<ActionResult<FullCard>> Delete(string id)
         {
             var now = _time.Now;
             var update = new CardUpdate(id)
@@ -29,7 +29,8 @@ namespace Flasher.Host.Controllers
                 changeTime = now,
                 nextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime)
             };
-            return await _store.Update(User.Identity!.Name!, update) ? Ok() : NotFound();
+            var result = await _store.Update(User.Identity!.Name!, update);
+            return result != null ? Ok(result) : NotFound();
         }
     }
 }

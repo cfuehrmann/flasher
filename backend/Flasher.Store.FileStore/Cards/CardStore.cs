@@ -48,10 +48,10 @@ namespace Flasher.Store.FileStore.Cards
             return Task.FromResult(result);
         }
 
-        public async Task<bool> Update(string user, CardUpdate update)
+        public async Task<FullCard?> Update(string user, CardUpdate update)
         {
             var cards = EnsureCache(user);
-            if (!cards.TryGetValue(update.id, out var card)) return false;
+            if (!cards.TryGetValue(update.id, out var card)) return null;
             if (update.prompt != null) card.prompt = update.prompt;
             if (update.solution != null) card.solution = update.solution;
             if (update.state is State state) card.state = state;
@@ -59,7 +59,14 @@ namespace Flasher.Store.FileStore.Cards
             if (update.nextTime is DateTime nextTime) card.nextTime = nextTime;
             if (update.disabled is bool disabled) card.disabled = disabled;
             await WriteCards(user);
-            return true;
+            return new FullCard(
+                id: card.id,
+                prompt: card.prompt,
+                solution: card.solution,
+                state: card.state,
+                changeTime: card.changeTime,
+                nextTime: card.nextTime,
+                disabled: card.disabled);
         }
 
         public async Task<bool> Delete(string user, string id)
@@ -135,7 +142,7 @@ namespace Flasher.Store.FileStore.Cards
             try
             {
                 using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
-                
+
                 await JsonSerializer.SerializeAsync<ICollection<CachedCard>>(
                     fs, _cardsByUser[user].Values, _jsonOptions);
             }

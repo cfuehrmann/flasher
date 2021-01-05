@@ -144,29 +144,28 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
           <GroomItemView
             {...groomCard}
             onBack={() => setModal({ kind: "none" })}
-            onDelete={handleApi(async () => {
-              await api.deleteCard(id);
+            onDelete={() => {
+              handleApi(() => api.deleteCard(id))();
               const newCards = cards.filter((c) => c.id !== id);
               if (newCards.length !== cards.length) setCards(newCards);
               setModal({ kind: "none" });
-            })}
+            }}
             onDeleteHistory={handleApi(async () => {
-              await api.deleteHistory(id);
-              setModal({
-                kind: "view",
-                card: { ...groomCard, state: "new" },
-              });
+              const card = await api.deleteHistory(id);
+              const newCards = cards.map((c) => (c.id !== id ? c : card));
+              setCards(newCards);
+              setModal({ kind: "view", card });
             })}
-            onDisable={handleApi(async () => {
-              await api.disable(id);
+            onDisable={() => {
+              handleApi(() => api.disable(id))();
               const newCards = cards.map((c) =>
                 c.id !== id ? c : { ...c, disabled: true },
               );
               setCards(newCards);
               setModal({ kind: "none" });
-            })}
+            }}
             onEnable={handleApi(async () => {
-              await api.enable(id);
+              handleApi(() => api.enable(id))();
               const newCards = cards.map((c) =>
                 c.id !== id ? c : { ...c, disabled: false },
               );
@@ -189,18 +188,26 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
             id={id}
             prompt={prompt}
             solution={solution}
-            onCancel={handleApi(async () => {
+            onCancel={(clearAutoSaveInterval, startAutoSaveInterval) => {
+              clearAutoSaveInterval();
+              handleApi(api.deleteAutoSave)();
               setModal({ kind: "view", card: groomCard });
-              await api.deleteAutoSave();
-            })}
-            onSave={handleApi(async (card) => {
-              await api.updateCard(card);
-              const newCards = cards.map((c) =>
-                c.id !== id ? c : { ...c, prompt: card.prompt },
-              );
-              setCards(newCards);
-              setModal({ kind: "view", card: { ...groomCard, ...card } });
-            })}
+            }}
+            onSave={(card, clearAutoSaveInterval, startAutoSaveInterval) => {
+              clearAutoSaveInterval();
+              handleApi(async () => {
+                try {
+                  await api.updateCard(card);
+                  const newCards = cards.map((c) =>
+                    c.id !== id ? c : { ...c, ...card },
+                  );
+                  setCards(newCards);
+                  setModal({ kind: "view", card: { ...groomCard, ...card } });
+                } catch (_) {
+                  startAutoSaveInterval();
+                }
+              })();
+            }}
             writeAutoSave={handleApi(api.writeAutoSave)}
           ></EditView>
         </div>

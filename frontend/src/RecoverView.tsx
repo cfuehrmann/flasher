@@ -5,18 +5,28 @@ import { Card } from "./types";
 import { useAutoSave } from "./useAutoSave";
 
 type Props = Card & {
-  onAbandon: () => void;
-  onSave: (card: Card) => void;
+  onAbandon: (
+    clearAutoSaveInterval: () => void,
+    startAutoSaveInterval: () => void,
+  ) => void;
+  onSave: (
+    card: Card,
+    clearAutoSaveInterval: () => void,
+    startAutoSaveInterval: () => void,
+  ) => void;
   writeAutoSave: (card: Card) => Promise<void>;
 };
 
 export function RecoverView(props: Props) {
   const { id, prompt, solution } = props;
 
-  const { card, setPrompt, setSolution } = useAutoSave(
-    { id, prompt, solution },
-    props.writeAutoSave,
-  );
+  const {
+    card,
+    setPrompt,
+    setSolution,
+    clearAutoSaveInterval,
+    startAutoSaveInterval,
+  } = useAutoSave({ id, prompt, solution }, props.writeAutoSave);
 
   return (
     <div className="w3-container" style={{ whiteSpace: "pre-wrap" }}>
@@ -45,8 +55,16 @@ export function RecoverView(props: Props) {
         <br />
         <br />
         <ButtonBar>
-          <AbandonButton onClick={props.onAbandon} />
-          <SaveButton onClick={() => props.onSave(card)} />
+          <AbandonButton
+            onClick={() =>
+              props.onAbandon(clearAutoSaveInterval, startAutoSaveInterval)
+            }
+          />
+          <SaveButton
+            onClick={() =>
+              props.onSave(card, clearAutoSaveInterval, startAutoSaveInterval)
+            }
+          />
         </ButtonBar>
         <br />
       </div>
