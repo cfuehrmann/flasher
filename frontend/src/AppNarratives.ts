@@ -1,33 +1,57 @@
 import { toast } from "react-toastify";
 import { api } from "./Api";
-import { AppNarratives, RouterState, SetStateType, AppState } from "./types";
+import {
+  AppNarratives,
+  RouterState,
+  SetStateType,
+  AppState,
+  Card,
+} from "./types";
 
 export const initialize = async (setState: SetStateType) =>
-  handleWithState(setState, async () => await promptNextWithState(setState))();
+  handleWithState(setState, async () => {
+    const card = await api.findNextCard();
+    setState((prevState: AppState) => ({
+      ...prevState,
+      routerState: card ? { route: "Prompt", card } : { route: "Done" },
+    }));
+  })();
 
 export const getNarratives = (setState: SetStateType): AppNarratives => {
+  const setPromptOrDone = (card: Card | undefined) =>
+    setState((prevState: AppState) => ({
+      ...prevState,
+      routerState: card ? { route: "Prompt", card } : { route: "Done" },
+    }));
+
   return {
     login: handleApi(async (userName, password) => {
       const { autoSave } = await api.login(userName, password);
       if (autoSave) setRouterState({ route: "Recover", card: autoSave });
-      else await promptNext();
+      else {
+        const card = await api.findNextCard();
+        setPromptOrDone(card);
+      }
     }),
 
     showSolution: (card) => async () =>
       setRouterState({ route: "Solution", card }),
 
-    goToPrompt: handleApi(promptNext),
+    goToPrompt: handleApi(async () => {
+      const card = await api.findNextCard();
+      setPromptOrDone(card);
+    }),
 
     setOk: (id: string) =>
       handleApi(async () => {
-        await api.setOk(id);
-        await promptNext();
+        const card = await api.setOk(id);
+        setPromptOrDone(card);
       }),
 
     setFailed: (id) =>
       handleApi(async () => {
-        await api.setFailed(id);
-        await promptNext();
+        const card = await api.setFailed(id);
+        setPromptOrDone(card);
       }),
 
     editSolution: (card) => async () => setRouterState({ route: "Edit", card }),
@@ -65,7 +89,8 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       handleApi(async () => {
         try {
           await api.updateCard(card);
-          await promptNext();
+          const nextCard = await api.findNextCard();
+          setPromptOrDone(nextCard);
         } catch (_) {
           startAutoSaveInterval();
         }
@@ -77,7 +102,8 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       handleApi(async () => {
         try {
           await api.deleteAutoSave();
-          await promptNext();
+          const nextCard = await api.findNextCard();
+          setPromptOrDone(nextCard);
         } catch (_) {
           startAutoSaveInterval();
         }
@@ -97,10 +123,6 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
     body: (...args: T) => Promise<void>,
   ) {
     return handleWithState(setState, body);
-  }
-
-  async function promptNext() {
-    await promptNextWithState(setState);
   }
 };
 
@@ -146,13 +168,4 @@ function showServerError(serverError: Error) {
       : "Unknown server error!",
     { type: "error", position: "bottom-right" },
   );
-}
-
-async function promptNextWithState(setState: SetStateType) {
-  const card = await api.findNextCard();
-
-  setState((prevState: AppState) => ({
-    ...prevState,
-    routerState: card ? { route: "Prompt", card } : { route: "Done" },
-  }));
 }

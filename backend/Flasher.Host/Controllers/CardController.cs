@@ -85,13 +85,21 @@ namespace Flasher.Host.Controllers
 
         [HttpPost]
         [Route("/[controller]/{id}/[action]")]
-        public async Task<ActionResult> SetOk(string id) =>
+        public async Task<ActionResult<FullCard>> SetOk(string id)
+        {
             await SetState(id, State.Ok, _optionsMonitor.CurrentValue.OkMultiplier);
+            var result = await _store.FindNext(User.Identity!.Name!);
+            return result != null ? result : NoContent();
+        }
 
         [HttpPost]
         [Route("/[controller]/{id}/[action]")]
-        public async Task<ActionResult> SetFailed(string id) =>
-            await SetState(id, State.Failed, _optionsMonitor.CurrentValue.FailedMultiplier);
+        public async Task<ActionResult<FullCard>> SetFailed(string id)
+        {
+            await SetState(id, State.Failed, _optionsMonitor.CurrentValue.OkMultiplier);
+            var result = await _store.FindNext(User.Identity!.Name!);
+            return result != null ? result : NoContent();
+        }
 
         [HttpPost]
         [Route("/[controller]/{id}/[action]")]

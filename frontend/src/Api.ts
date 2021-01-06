@@ -13,11 +13,13 @@ export const api: Api = {
   },
 
   setOk: async (id: string) => {
-    await post(`Cards/${id}/SetOk`);
+    const response = await post(`Cards/${id}/SetOk`);
+    return await response.json();
   },
 
   setFailed: async (id: string) => {
-    await post(`Cards/${id}/SetFailed`);
+    const response = await post(`Cards/${id}/SetFailed`);
+    return await response.json();
   },
 
   createCard: async (prompt, solution) => {
