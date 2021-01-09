@@ -8,18 +8,17 @@ export const api: Api = {
 
   findNextCard: async () => {
     const response = await get("Cards/Next");
-
     return response.status === 200 ? await response.json() : undefined;
   },
 
   setOk: async (id: string) => {
     const response = await post(`Cards/${id}/SetOk`);
-    return await response.json();
+    return response.status === 200 ? await response.json() : undefined;
   },
 
   setFailed: async (id: string) => {
     const response = await post(`Cards/${id}/SetFailed`);
-    return await response.json();
+    return response.status === 200 ? await response.json() : undefined;
   },
 
   createCard: async (prompt, solution) => {
