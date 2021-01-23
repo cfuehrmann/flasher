@@ -6,10 +6,7 @@ export type FindResponse = { cards: GroomCard[]; count: number };
 export type RouterState =
   | { route: "Starting" }
   | { route: "Login" }
-  | { route: "Prompt"; card: Card }
-  | { route: "Done" }
-  | { route: "Solution"; card: Card }
-  | { route: "Edit"; card: Card }
+  | { route: "Prompt" }
   | { route: "Groom" }
   | { route: "Recover"; card: Card };
 
@@ -47,21 +44,7 @@ export type ApiHandler = {
 
 export type AppNarratives = ApiHandler & {
   login: (userName: string, password: string) => Promise<void>;
-  showSolution: (card: Card) => () => Promise<void>;
   goToPrompt: () => Promise<void>;
-  setOk: (id: string) => () => Promise<void>;
-  setFailed: (id: string) => () => Promise<void>;
-  editSolution: (card: Card) => () => Promise<void>;
-  saveAndShowSolution(
-    card: Card,
-    clearAutoSaveInterval: () => void,
-    startAutoSaveInterval: () => void,
-  ): Promise<void>;
-  cancelEdit: (
-    card: Card,
-    clearAutoSaveInterval: () => void,
-    startAutoSaveInterval: () => void,
-  ) => Promise<void>;
   goToGroom: () => Promise<void>;
   saveRecovered(
     card: Card,

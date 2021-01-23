@@ -1,5 +1,3 @@
-import * as React from "react";
-
 export function PromptView(props: { value: string }) {
   return (
     <header className="w3-container">
