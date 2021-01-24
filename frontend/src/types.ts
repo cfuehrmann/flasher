@@ -44,18 +44,8 @@ export type ApiHandler = {
 
 export type AppNarratives = ApiHandler & {
   login: (userName: string, password: string) => Promise<void>;
-  goToPrompt: () => Promise<void>;
-  goToGroom: () => Promise<void>;
-  saveRecovered(
-    card: Card,
-    clearAutoSaveInterval: () => void,
-    startAutoSaveInterval: () => void,
-  ): Promise<void>;
-  abandonRecovered(
-    clearAutoSaveInterval: () => void,
-    startAutoSaveInterval: () => void,
-  ): Promise<void>;
-  writeAutoSave: (card: Card) => Promise<void>;
+  goToPrompt: () => void;
+  goToGroom: () => void;
 };
 
 export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;

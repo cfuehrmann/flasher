@@ -26,41 +26,9 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
       }
     }),
 
-    goToPrompt: handleApi(async () => {
-      setPrompt();
-    }),
+    goToPrompt: setPrompt,
 
-    goToGroom: async () => setRouterState({ route: "Groom" }),
-
-    saveRecovered: async (
-      card,
-      clearAutoSaveInterval,
-      startAutoSaveInterval,
-    ) => {
-      clearAutoSaveInterval();
-      handleApi(async () => {
-        try {
-          await api.updateCard(card);
-          setPrompt();
-        } catch (_) {
-          startAutoSaveInterval();
-        }
-      })();
-    },
-
-    abandonRecovered: async (clearAutoSaveInterval, startAutoSaveInterval) => {
-      clearAutoSaveInterval();
-      handleApi(async () => {
-        try {
-          await api.deleteAutoSave();
-          setPrompt();
-        } catch (_) {
-          startAutoSaveInterval();
-        }
-      })();
-    },
-
-    writeAutoSave: handleApi(api.writeAutoSave),
+    goToGroom: () => setRouterState({ route: "Groom" }),
 
     handleApi,
   };

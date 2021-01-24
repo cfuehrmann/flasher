@@ -59,10 +59,9 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
     case "Recover":
       return (
         <RecoverView
+          handleApi={props.handleApi}
+          onGoToPrompt={props.goToPrompt}
           {...routerState.card}
-          onSave={props.saveRecovered}
-          onAbandon={props.abandonRecovered}
-          writeAutoSave={props.writeAutoSave}
         />
       );
     default: {

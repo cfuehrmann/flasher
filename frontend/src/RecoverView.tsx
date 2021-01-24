@@ -1,21 +1,11 @@
 import * as React from "react";
+import { api } from "./Api";
 
 import { AbandonButton, ButtonBar, SaveButton } from "./Buttons";
-import { Card } from "./types";
+import { ApiHandler, Card } from "./types";
 import { useAutoSave } from "./useAutoSave";
 
-type Props = Card & {
-  onAbandon: (
-    clearAutoSaveInterval: () => void,
-    startAutoSaveInterval: () => void,
-  ) => void;
-  onSave: (
-    card: Card,
-    clearAutoSaveInterval: () => void,
-    startAutoSaveInterval: () => void,
-  ) => void;
-  writeAutoSave: (card: Card) => Promise<void>;
-};
+type Props = Card & ApiHandler & { onGoToPrompt: () => void };
 
 export function RecoverView(props: Props) {
   const { id, prompt, solution } = props;
@@ -26,7 +16,7 @@ export function RecoverView(props: Props) {
     setSolution,
     clearAutoSaveInterval,
     startAutoSaveInterval,
-  } = useAutoSave({ id, prompt, solution }, props.writeAutoSave);
+  } = useAutoSave({ id, prompt, solution }, props.handleApi(api.writeAutoSave));
 
   return (
     <div className="w3-container" style={{ whiteSpace: "pre-wrap" }}>
@@ -56,14 +46,30 @@ export function RecoverView(props: Props) {
         <br />
         <ButtonBar>
           <AbandonButton
-            onClick={() =>
-              props.onAbandon(clearAutoSaveInterval, startAutoSaveInterval)
-            }
+            onClick={() => {
+              clearAutoSaveInterval();
+              props.handleApi(async () => {
+                try {
+                  await api.deleteAutoSave();
+                  props.onGoToPrompt();
+                } catch (_) {
+                  startAutoSaveInterval();
+                }
+              })();
+            }}
           />
           <SaveButton
-            onClick={() =>
-              props.onSave(card, clearAutoSaveInterval, startAutoSaveInterval)
-            }
+            onClick={() => {
+              clearAutoSaveInterval();
+              props.handleApi(async () => {
+                try {
+                  await api.updateCard(card);
+                  props.onGoToPrompt();
+                } catch (_) {
+                  startAutoSaveInterval();
+                }
+              })();
+            }}
           />
         </ButtonBar>
         <br />
