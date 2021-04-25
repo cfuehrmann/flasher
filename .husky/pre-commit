@@ -1,2 +1,2 @@
 cd frontend
-npm run frontend-staged
+npm run format-staged
