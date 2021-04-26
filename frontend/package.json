@@ -4,30 +4,30 @@
   "private": true,
   "homepage": ".",
   "dependencies": {
-    "@testing-library/jest-dom": "^5.11.9",
-    "@testing-library/react": "^11.2.5",
-    "@testing-library/user-event": "^12.8.3",
-    "@types/jest": "^26.0.20",
-    "@types/node": "^14.14.34",
+    "@testing-library/jest-dom": "^5.12.0",
+    "@testing-library/react": "^11.2.6",
+    "@testing-library/user-event": "^13.1.5",
+    "@types/jest": "^26.0.22",
+    "@types/node": "^14.14.41",
     "@types/react": "^17.0.3",
-    "@types/react-dom": "^17.0.2",
+    "@types/react-dom": "^17.0.3",
     "github-markdown-css": "^4.0.0",
-    "react": "^17.0.1",
-    "react-dom": "^17.0.1",
-    "react-katex": "^2.0.2",
-    "react-markdown": "^5.0.3",
-    "react-toastify": "^7.0.3",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-markdown": "^6.0.1",
+    "react-toastify": "^7.0.4",
+    "rehype-katex": "^5.0.0",
     "remark-gfm": "^1.0.0",
     "remark-math": "^4.0.0",
     "w3-css": "^4.1.0",
-    "web-vitals": "^1.1.0"
+    "web-vitals": "^1.1.1"
   },
   "devDependencies": {
     "husky": "^6.0.0",
     "prettier": "^2.2.1",
     "pretty-quick": "^3.1.0",
     "react-scripts": "4.0.3",
-    "typescript": "^4.2.3"
+    "typescript": "^4.2.4"
   },
   "scripts": {
     "start": "react-scripts start",
