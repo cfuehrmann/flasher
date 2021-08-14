@@ -7,7 +7,7 @@
     "@testing-library/jest-dom": "^5.14.1",
     "@testing-library/react": "^11.2.6",
     "@testing-library/user-event": "^13.2.1",
-    "@types/jest": "^26.0.22",
+    "@types/jest": "^27.0.1",
     "@types/node": "^14.14.41",
     "@types/react": "^17.0.18",
     "@types/react-dom": "^17.0.9",
@@ -23,7 +23,7 @@
     "web-vitals": "^1.1.1"
   },
   "devDependencies": {
-    "husky": "^6.0.0",
+    "husky": "^7.0.1",
     "prettier": "^2.3.2",
     "pretty-quick": "^3.1.1",
     "react-scripts": "4.0.3",
