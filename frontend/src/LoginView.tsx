@@ -20,12 +20,13 @@ export function LoginView(props: Props) {
       <div className="w3-container w3-green">
         <h2>Login</h2>
       </div>
-      <div className="w3-container">
+      <form className="w3-container">
         <br />
         <label>User Name</label>
         <input
           className="w3-input"
           type="text"
+          autoComplete="username"
           onChange={(event) =>
             setUserName((event.target as HTMLInputElement).value)
           }
@@ -36,6 +37,7 @@ export function LoginView(props: Props) {
         <input
           className="w3-input"
           type="password"
+          autoComplete="current-password"
           onChange={(event) =>
             setPassword((event.target as HTMLInputElement).value)
           }
@@ -50,7 +52,7 @@ export function LoginView(props: Props) {
             }
           />
         </ButtonBar>
-      </div>
+      </form>
       <br />
     </div>
   );
