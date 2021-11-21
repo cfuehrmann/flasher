@@ -6,21 +6,20 @@ using Microsoft.Extensions.Options;
 
 using Flasher.Store.Authentication;
 
-namespace Flasher.Store.FileStore.Authentication
+namespace Flasher.Store.FileStore.Authentication;
+
+public class AuthenticationStore : IAuthenticationStore
 {
-    public class AuthenticationStore : IAuthenticationStore
-    {
-        private readonly IDictionary<string, string> _users;
+  private readonly IDictionary<string, string> _users;
 
-        public AuthenticationStore(IOptionsMonitor<FileStoreOptions> options)
-        {
-            if (options.CurrentValue.Directory == null) throw new("Missing configuration 'FileStore:Directory'");
-            var json = File.ReadAllText(Path.Combine(options.CurrentValue.Directory, "users.json"));
-            _users = JsonSerializer.Deserialize<IDictionary<string, string>>(json)
-                ?? throw new("Deserializing the users file returned null!");
-        }
+  public AuthenticationStore(IOptionsMonitor<FileStoreOptions> options)
+  {
+    if (options.CurrentValue.Directory == null) throw new("Missing configuration 'FileStore:Directory'");
+    var json = File.ReadAllText(Path.Combine(options.CurrentValue.Directory, "users.json"));
+    _users = JsonSerializer.Deserialize<IDictionary<string, string>>(json)
+        ?? throw new("Deserializing the users file returned null!");
+  }
 
-        public Task<string?> GetPasswordHash(string userName) =>
-             Task.FromResult(_users.TryGetValue(userName, out string? result) ? result : null);
-    }
+  public Task<string?> GetPasswordHash(string userName) =>
+       Task.FromResult(_users.TryGetValue(userName, out string? result) ? result : null);
 }

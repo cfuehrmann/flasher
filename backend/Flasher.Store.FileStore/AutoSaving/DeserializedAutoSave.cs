@@ -1,9 +1,8 @@
-namespace Flasher.Store.FileStore.AutoSaving
+namespace Flasher.Store.FileStore.AutoSaving;
+
+public sealed record DeserializedAutoSave
 {
-    public sealed record DeserializedAutoSave
-    {
-        public string? id { get; init; }
-        public string? prompt { get; init; }
-        public string? solution { get; init; }
-    }
+  public string? id { get; init; }
+  public string? prompt { get; init; }
+  public string? solution { get; init; }
 }

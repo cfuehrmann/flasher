@@ -1,9 +1,8 @@
-namespace Flasher.Store.Cards
+namespace Flasher.Store.Cards;
+
+public enum State
 {
-    public enum State
-    {
-        New,
-        Ok,
-        Failed
-    }
+  New,
+  Ok,
+  Failed
 }
