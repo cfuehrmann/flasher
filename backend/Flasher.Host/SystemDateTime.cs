@@ -6,5 +6,5 @@ namespace Flasher.Host;
 
 public sealed class SystemDateTime : IDateTime
 {
-  public DateTime Now => DateTime.Now;
+    public DateTime Now => DateTime.Now;
 }

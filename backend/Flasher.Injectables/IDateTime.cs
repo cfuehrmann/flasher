@@ -4,5 +4,5 @@ namespace Flasher.Injectables;
 
 public interface IDateTime
 {
-  public DateTime Now { get; }
+    public DateTime Now { get; }
 }
