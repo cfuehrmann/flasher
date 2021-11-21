@@ -1,9 +1,8 @@
 using System.Threading.Tasks;
 
-namespace Flasher.Store.Authentication
+namespace Flasher.Store.Authentication;
+
+public interface IAuthenticationStore
 {
-    public interface IAuthenticationStore
-    {
-        Task<string?> GetPasswordHash(string userName);
-    }
+  Task<string?> GetPasswordHash(string userName);
 }
