@@ -13,7 +13,6 @@ export type RouterState =
 export type AppState = {
   routerState: RouterState;
   isContactingServer: boolean;
-  serverError?: Error;
 };
 
 export type Api = {

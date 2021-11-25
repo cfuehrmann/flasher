@@ -56,21 +56,29 @@ function handleWithState<T extends readonly unknown[]>(
 
       setState((prevState) => ({
         ...prevState,
-        serverError: undefined,
         isContactingServer: false,
       }));
     } catch (e) {
-      if (e.status === 401) {
+      if (
+        typeof e === "object" &&
+        e !== null &&
+        (e as { status: unknown }).status === 401
+      ) {
         setState((prevState) => ({
           ...prevState,
           routerState: { route: "Login" },
           isContactingServer: false,
         }));
       } else {
-        showServerError(e);
+        const message = getErrorMessage(e);
+
+        toast(message, {
+          type: "error",
+          position: "bottom-right",
+        });
+
         setState((prevState) => ({
           ...prevState,
-          serverError: e,
           isContactingServer: false,
         }));
       }
@@ -78,12 +86,12 @@ function handleWithState<T extends readonly unknown[]>(
   };
 }
 
-function showServerError(serverError: Error) {
-  // toast.configure();
-  toast(
-    typeof serverError.message === "string"
-      ? serverError.message
-      : "Unknown server error!",
-    { type: "error", position: "bottom-right" },
-  );
+function getErrorMessage(error: unknown) {
+  const unknownError = "Unknown server error!";
+
+  if (typeof error !== "object" || error === null) return unknownError;
+
+  const message = (error as { message: unknown }).message;
+
+  return typeof message === "string" ? message : unknownError;
 }

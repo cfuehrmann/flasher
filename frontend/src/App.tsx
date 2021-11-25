@@ -1,4 +1,3 @@
-import * as React from "react";
 import { useState, useEffect } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -15,7 +14,6 @@ export function App() {
   const [state, setState] = useState<AppState>({
     routerState: { route: "Starting" },
     isContactingServer: false,
-    serverError: undefined,
   });
 
   useEffect(() => {
@@ -23,7 +21,7 @@ export function App() {
   }, []);
 
   const narratives = getNarratives(setState);
-  const { serverError, isContactingServer, ...pageProps } = {
+  const { isContactingServer, ...pageProps } = {
     ...state,
     ...narratives,
   };

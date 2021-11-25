@@ -1,10 +1,9 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Options;
-
 using Flasher.Store.AutoSaving;
+using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.AutoSaving;
 
@@ -22,9 +21,9 @@ public class AutoSaveStore : IAutoSaveStore
         using var fs = File.OpenRead(path);
         var deserialized = await JsonSerializer.DeserializeAsync<DeserializedAutoSave>(fs) ??
             throw new("Deserializing the auto save file returned null!");
-        var id = deserialized.id ?? throw new($"The Id of the auto save is null!");
-        var prompt = deserialized.prompt ?? throw new($"The Prompt of the auto save is null!");
-        var solution = deserialized.solution ?? throw new($"The Solution of the auto save is null!");
+        var id = deserialized.Id ?? throw new($"The Id of the auto save is null!");
+        var prompt = deserialized.Prompt ?? throw new($"The Prompt of the auto save is null!");
+        var solution = deserialized.Solution ?? throw new($"The Solution of the auto save is null!");
         return new AutoSave(id, prompt, solution);
     }
 

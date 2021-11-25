@@ -1,11 +1,12 @@
-using Flasher.Store.AutoSaving;
+﻿using Flasher.Store.AutoSaving;
 
 namespace Flasher.Host.Model;
 
 public sealed record LoginResponse
 {
-    public LoginResponse(string jsonWebToken) => this.jsonWebToken = jsonWebToken;
+    public LoginResponse(string jsonWebToken) => this.JsonWebToken = jsonWebToken;
 
-    public string jsonWebToken { get; }
-    public AutoSave? autoSave { get; init; }
+    public string JsonWebToken { get; }
+
+    public AutoSave? AutoSave { get; init; }
 }

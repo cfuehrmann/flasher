@@ -1,10 +1,9 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Options;
-
 using Flasher.Store.Authentication;
+using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.Authentication;
 

@@ -1,9 +1,8 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using Flasher.Host.Model;
+using Flasher.Store.AutoSaving;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
-using Flasher.Store.AutoSaving;
-using Flasher.Host.Model;
 
 namespace Flasher.Host.Controllers;
 
@@ -20,5 +19,5 @@ public class AutoSaveController : ControllerBase
 
     [HttpPut]
     public async Task Write(WriteAutoSaveRequest request) =>
-        await _store.Write(User.Identity!.Name!, new AutoSave(request.id, request.prompt, request.solution));
+        await _store.Write(User.Identity!.Name!, new AutoSave(request.Id, request.Prompt, request.Solution));
 }

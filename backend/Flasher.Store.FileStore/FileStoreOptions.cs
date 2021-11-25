@@ -1,4 +1,4 @@
-namespace Flasher.Store.FileStore;
+﻿namespace Flasher.Store.FileStore;
 
 public sealed record FileStoreOptions
 {

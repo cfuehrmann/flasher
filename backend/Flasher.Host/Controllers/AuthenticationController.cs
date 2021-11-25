@@ -1,17 +1,16 @@
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Flasher.Host.Model;
+using Flasher.Injectables;
+using Flasher.Store.Authentication;
+using Flasher.Store.AutoSaving;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-
-using Flasher.Host.Model;
-using Flasher.Injectables;
-using Flasher.Store.Authentication;
-using Flasher.Store.AutoSaving;
 
 namespace Flasher.Host.Controllers;
 
@@ -41,13 +40,13 @@ public class AuthenticationController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
     {
-        var hashedPassword = await _store.GetPasswordHash(request.userName);
+        var hashedPassword = await _store.GetPasswordHash(request.UserName);
         if (hashedPassword == null) return Challenge();
         var passwordVerificationResult =
-            _passwordHasher.VerifyHashedPassword(new User(request.userName), hashedPassword, request.password);
+            _passwordHasher.VerifyHashedPassword(new User(request.UserName), hashedPassword, request.Password);
         if (passwordVerificationResult != PasswordVerificationResult.Success) return Challenge();
-        var readAutoSave = _autoSaveStore.Read(request.userName);
-        var tokenString = GetTokenString(request.userName);
+        var readAutoSave = _autoSaveStore.Read(request.UserName);
+        var tokenString = GetTokenString(request.UserName);
         var options = new CookieOptions
         {
             SameSite = SameSiteMode.Strict,
@@ -58,7 +57,7 @@ public class AuthenticationController : ControllerBase
         };
         HttpContext.Response.Cookies.Append("__Host-jwt", tokenString, options);
         var autoSave = await readAutoSave;
-        return new LoginResponse(tokenString) { autoSave = autoSave };
+        return new LoginResponse(tokenString) { AutoSave = autoSave };
     }
 
     private string GetTokenString(string userName)
