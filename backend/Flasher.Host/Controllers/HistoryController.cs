@@ -1,10 +1,9 @@
 ﻿using System.Threading.Tasks;
+using Flasher.Injectables;
+using Flasher.Store.Cards;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-
-using Flasher.Injectables;
-using Flasher.Store.Cards;
 
 namespace Flasher.Host.Controllers;
 
@@ -25,9 +24,9 @@ public class HistoryController : ControllerBase
         var now = _time.Now;
         var update = new CardUpdate(id)
         {
-            state = State.New,
-            changeTime = now,
-            nextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime)
+            State = State.New,
+            ChangeTime = now,
+            NextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime)
         };
         var result = await _store.Update(User.Identity!.Name!, update);
         return result != null ? Ok(result) : NotFound();

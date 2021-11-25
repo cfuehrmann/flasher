@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-
 using Flasher.Host.Model;
 using Flasher.Injectables;
 using Flasher.Store.AutoSaving;
 using Flasher.Store.Cards;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Flasher.Host.Controllers;
 
@@ -31,15 +30,15 @@ public class CardsController : ControllerBase
         var now = _time.Now;
         var nextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime);
         var card = new FullCard(
-            id: id,
-            prompt: request.prompt,
-            solution: request.solution,
-            state: State.New,
-            changeTime: now,
-            nextTime: nextTime,
-            disabled: true);
+            Id: id,
+            Prompt: request.Prompt,
+            Solution: request.Solution,
+            State: State.New,
+            ChangeTime: now,
+            NextTime: nextTime,
+            Disabled: true);
         await _store.Create(User.Identity!.Name!, card);
-        return CreatedAtAction(nameof(Read), new { id = id }, card);
+        return CreatedAtAction(nameof(Read), new { id }, card);
     }
 
     [HttpGet]
@@ -54,8 +53,8 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}")]
     public async Task<ActionResult<bool>> Update(string id, UpdateCardRequest request)
     {
-        var now = _time.Now;
-        var update = new CardUpdate(id) { prompt = request.prompt, solution = request.solution };
+        _ = _time.Now;
+        var update = new CardUpdate(id) { Prompt = request.Prompt, Solution = request.Solution };
         var cardWasFound = await _store.Update(User.Identity!.Name!, update) != null;
         await _autoSaveStore.Delete(User.Identity.Name!);
         return cardWasFound ? Ok() : NotFound();
@@ -105,7 +104,7 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}/[action]")]
     public async Task<ActionResult> Enable(string id)
     {
-        var update = new CardUpdate(id) { disabled = false };
+        var update = new CardUpdate(id) { Disabled = false };
         return await _store.Update(User.Identity!.Name!, update) != null ? NoContent() : NotFound();
     }
 
@@ -113,7 +112,7 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}/[action]")]
     public async Task<ActionResult> Disable(string id)
     {
-        var update = new CardUpdate(id) { disabled = true };
+        var update = new CardUpdate(id) { Disabled = true };
         return await _store.Update(User.Identity!.Name!, update) != null ? NoContent() : NotFound();
     }
 
@@ -122,12 +121,12 @@ public class CardsController : ControllerBase
         var card = await _store.Read(User.Identity!.Name!, id);
         if (card == null) return NotFound();
         var now = _time.Now;
-        var passedTime = now - card.changeTime;
+        var passedTime = now - card.ChangeTime;
         var update = new CardUpdate(id)
         {
-            state = state,
-            changeTime = now,
-            nextTime = now.Add(passedTime * multiplier)
+            State = state,
+            ChangeTime = now,
+            NextTime = now.Add(passedTime * multiplier)
         };
         return await _store.Update(User.Identity.Name!, update) != null ? NoContent() : NotFound();
     }

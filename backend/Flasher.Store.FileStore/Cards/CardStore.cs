@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -6,11 +6,10 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Options;
-
 using Flasher.Injectables;
 using Flasher.Store.Cards;
 using Flasher.Store.Exceptions;
+using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.Cards;
 
@@ -24,7 +23,7 @@ public class CardStore : ICardStore
     public CardStore(IOptionsMonitor<FileStoreOptions> options, IDateTime time)
     {
         _directory = options.CurrentValue.Directory ?? throw new("Missing configuration 'FileStore:Directory'");
-        _jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+        _jsonOptions = new JsonSerializerOptions { WriteIndented = true, PropertyNameCaseInsensitive = true };
         _jsonOptions.Converters.Add(new JsonStringEnumConverter());
         const int lowestPrimeAboveInitialNumberOfUsers = 2;
         _cardsByUser = new ConcurrentDictionary<string, ConcurrentDictionary<string, CachedCard>>(
@@ -35,10 +34,10 @@ public class CardStore : ICardStore
     public async Task Create(string user, FullCard card)
     {
         var cards = EnsureCache(user);
-        var cachedCard = new CachedCard(card.id, card.prompt, card.solution, card.state,
-            card.changeTime, card.nextTime, card.disabled);
-        if (!cards.TryAdd(card.id, cachedCard))
-            throw new ArgumentException($"The card with id {card.id} already exists!");
+        var cachedCard = new CachedCard(card.Id, card.Prompt, card.Solution, card.State,
+            card.ChangeTime, card.NextTime, card.Disabled);
+        if (!cards.TryAdd(card.Id, cachedCard))
+            throw new ArgumentException($"The card with id {card.Id} already exists!");
         await WriteCards(user);
     }
 
@@ -51,22 +50,22 @@ public class CardStore : ICardStore
     public async Task<FullCard?> Update(string user, CardUpdate update)
     {
         var cards = EnsureCache(user);
-        if (!cards.TryGetValue(update.id, out var card)) return null;
-        if (update.prompt != null) card.prompt = update.prompt;
-        if (update.solution != null) card.solution = update.solution;
-        if (update.state is State state) card.state = state;
-        if (update.changeTime is DateTime changeTime) card.changeTime = changeTime;
-        if (update.nextTime is DateTime nextTime) card.nextTime = nextTime;
-        if (update.disabled is bool disabled) card.disabled = disabled;
+        if (!cards.TryGetValue(update.Id, out var card)) return null;
+        if (update.Prompt != null) card.Prompt = update.Prompt;
+        if (update.Solution != null) card.Solution = update.Solution;
+        if (update.State is State state) card.State = state;
+        if (update.ChangeTime is DateTime changeTime) card.ChangeTime = changeTime;
+        if (update.NextTime is DateTime nextTime) card.NextTime = nextTime;
+        if (update.Disabled is bool disabled) card.Disabled = disabled;
         await WriteCards(user);
         return new FullCard(
-            id: card.id,
-            prompt: card.prompt,
-            solution: card.solution,
-            state: card.state,
-            changeTime: card.changeTime,
-            nextTime: card.nextTime,
-            disabled: card.disabled);
+            Id: card.Id,
+            Prompt: card.Prompt,
+            Solution: card.Solution,
+            State: card.State,
+            ChangeTime: card.ChangeTime,
+            NextTime: card.NextTime,
+            Disabled: card.Disabled);
     }
 
     public async Task<bool> Delete(string user, string id)
@@ -80,18 +79,18 @@ public class CardStore : ICardStore
     {
         var allHits =
             from card in EnsureCache(user).Values
-            where card.prompt != null && card.solution != null &&
-                (card.prompt.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                    card.solution.Contains(searchText, StringComparison.OrdinalIgnoreCase))
-            orderby card.disabled descending, card.nextTime, card.id
+            where card.Prompt != null && card.Solution != null &&
+                (card.Prompt.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                    card.Solution.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+            orderby card.Disabled descending, card.NextTime, card.Id
             select new FullCard(
-                id: card.id,
-                prompt: card.prompt,
-                solution: card.solution,
-                state: card.state,
-                changeTime: card.changeTime,
-                nextTime: card.nextTime,
-                disabled: card.disabled);
+                Id: card.Id,
+                Prompt: card.Prompt,
+                Solution: card.Solution,
+                State: card.State,
+                ChangeTime: card.ChangeTime,
+                NextTime: card.NextTime,
+                Disabled: card.Disabled);
 
         var allHitsArray = allHits.ToArray();
         var result = new FindResponse(allHitsArray.Skip(skip).Take(take), allHitsArray.Length);
@@ -101,8 +100,8 @@ public class CardStore : ICardStore
     public Task<FullCard?> FindNext(string user)
     {
         var result = EnsureCache(user).Values
-            .Where(card => card.nextTime <= _time.Now && !card.disabled)
-            .OrderBy(card => card.nextTime).ThenBy(card => card.id)
+            .Where(card => card.NextTime <= _time.Now && !card.Disabled)
+            .OrderBy(card => card.NextTime).ThenBy(card => card.Id)
             .FirstOrDefault()
             .ToResponse();
         return Task.FromResult(result);
@@ -116,7 +115,7 @@ public class CardStore : ICardStore
             var json = File.ReadAllText(path);
             var deserializedCards = JsonSerializer.Deserialize<IEnumerable<DeserializedCard>>(json, _jsonOptions);
             if (deserializedCards == null) throw new("Deserializing the cards file returned null!");
-            var dictionary = GetCachedCards(deserializedCards).ToDictionary(card => card.id);
+            var dictionary = GetCachedCards(deserializedCards).ToDictionary(card => card.Id);
             return new ConcurrentDictionary<string, CachedCard>(dictionary);
         });
     }
@@ -124,16 +123,16 @@ public class CardStore : ICardStore
     private static IEnumerable<CachedCard> GetCachedCards(IEnumerable<DeserializedCard> deserializedCards)
     {
         foreach (var card in deserializedCards)
-            if (card.id != null && card.prompt != null && card.solution != null && card.state != null &&
-                card.changeTime != null && card.nextTime != null && card.disabled != null)
+            if (card.Id != null && card.Prompt != null && card.Solution != null && card.State != null &&
+                card.ChangeTime != null && card.NextTime != null && card.Disabled != null)
                 yield return new CachedCard(
-                    id: card.id,
-                    prompt: card.prompt,
-                    solution: card.solution,
-                    state: card.state.Value,
-                    changeTime: card.changeTime.Value,
-                    nextTime: card.nextTime.Value,
-                    disabled: card.disabled.Value);
+                    id: card.Id,
+                    prompt: card.Prompt,
+                    solution: card.Solution,
+                    state: card.State.Value,
+                    changeTime: card.ChangeTime.Value,
+                    nextTime: card.NextTime.Value,
+                    disabled: card.Disabled.Value);
     }
 
     private async Task WriteCards(string user)
@@ -162,12 +161,12 @@ public static class Extensions
         return storedCard == null ?
            null :
            new FullCard(
-               id: storedCard.id,
-               prompt: storedCard.prompt,
-               solution: storedCard.solution,
-               state: storedCard.state,
-               changeTime: storedCard.changeTime,
-               nextTime: storedCard.nextTime,
-               disabled: storedCard.disabled);
+               Id: storedCard.Id,
+               Prompt: storedCard.Prompt,
+               Solution: storedCard.Solution,
+               State: storedCard.State,
+               ChangeTime: storedCard.ChangeTime,
+               NextTime: storedCard.NextTime,
+               Disabled: storedCard.Disabled);
     }
 }

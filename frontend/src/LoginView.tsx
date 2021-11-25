@@ -19,7 +19,7 @@ export function LoginView(props: Props) {
       <div className="w3-container w3-green">
         <h2>Login</h2>
       </div>
-      <form className="w3-container">
+      <div className="w3-container">
         <br />
         <label>User Name</label>
         <input
@@ -51,7 +51,7 @@ export function LoginView(props: Props) {
             }
           />
         </ButtonBar>
-      </form>
+      </div>
       <br />
     </div>
   );

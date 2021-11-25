@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 using Flasher.Store.Cards;
 
@@ -6,11 +6,11 @@ namespace Flasher.Store.FileStore.Cards;
 
 public sealed record DeserializedCard
 {
-    public string? id { get; init; }
-    public string? prompt { get; init; }
-    public string? solution { get; init; }
-    public State? state { get; init; }
-    public DateTime? changeTime { get; init; }
-    public DateTime? nextTime { get; init; }
-    public bool? disabled { get; init; }
+    public string? Id { get; init; }
+    public string? Prompt { get; init; }
+    public string? Solution { get; init; }
+    public State? State { get; init; }
+    public DateTime? ChangeTime { get; init; }
+    public DateTime? NextTime { get; init; }
+    public bool? Disabled { get; init; }
 }

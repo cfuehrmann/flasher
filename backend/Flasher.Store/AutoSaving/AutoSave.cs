@@ -1,3 +1,3 @@
-namespace Flasher.Store.AutoSaving;
+﻿namespace Flasher.Store.AutoSaving;
 
-public sealed record AutoSave(string id, string prompt, string solution);
+public sealed record AutoSave(string Id, string Prompt, string Solution);

@@ -1,3 +1,3 @@
-namespace Flasher.Host;
+﻿namespace Flasher.Host;
 
 public sealed record User(string Name);

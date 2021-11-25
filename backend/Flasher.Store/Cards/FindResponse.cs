@@ -1,5 +1,5 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Flasher.Store.Cards;
 
-public sealed record FindResponse(IEnumerable<FullCard> cards, int count);
+public sealed record FindResponse(IEnumerable<FullCard> Cards, int Count);
