@@ -1,0 +1,8 @@
+<Project>
+ <PropertyGroup>
+    <TargetFramework>net6</TargetFramework>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>

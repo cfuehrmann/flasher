@@ -9,12 +9,4 @@
     <ProjectReference Include="..\Flasher.Injectables\Flasher.Injectables.csproj" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <TargetFramework>net6</TargetFramework>
-  </PropertyGroup>
-  
-  <PropertyGroup>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
 </Project>
