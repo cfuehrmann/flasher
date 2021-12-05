@@ -12,7 +12,8 @@ public class AutoSaveStore : IAutoSaveStore
     private readonly string _directory;
 
     public AutoSaveStore(IOptionsMonitor<FileStoreOptions> options) =>
-        _directory = options.CurrentValue.Directory ?? throw new("Missing configuration 'FileStore:Directory'");
+        _directory = options.CurrentValue.Directory ??
+            throw new ArgumentException("Missing configuration 'FileStore:Directory'");
 
     public async Task<AutoSave?> Read(string user)
     {
@@ -20,10 +21,13 @@ public class AutoSaveStore : IAutoSaveStore
         if (!File.Exists(path)) return null;
         using var fs = File.OpenRead(path);
         var deserialized = await JsonSerializer.DeserializeAsync<DeserializedAutoSave>(fs) ??
-            throw new("Deserializing the auto save file returned null!");
-        var id = deserialized.Id ?? throw new($"The Id of the auto save is null!");
-        var prompt = deserialized.Prompt ?? throw new($"The Prompt of the auto save is null!");
-        var solution = deserialized.Solution ?? throw new($"The Solution of the auto save is null!");
+            throw new InvalidOperationException("Deserializing the auto save file returned null!");
+        var id = deserialized.Id ??
+            throw new InvalidOperationException($"The Id of the auto save is null!");
+        var prompt = deserialized.Prompt ??
+            throw new InvalidOperationException($"The Prompt of the auto save is null!");
+        var solution = deserialized.Solution ??
+            throw new InvalidOperationException($"The Solution of the auto save is null!");
         return new AutoSave(id, prompt, solution);
     }
 
@@ -45,7 +49,7 @@ public class AutoSaveStore : IAutoSaveStore
         using var fs = new FileStream(path, FileMode.Create, FileAccess.Write,
             FileShare.None, 131072, true);
         var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
-        await JsonSerializer.SerializeAsync<AutoSave>(fs, autoSave, jsonOptions);
+        await JsonSerializer.SerializeAsync(fs, autoSave, jsonOptions);
     }
 
     private string GetPath(string user) => Path.Combine(_directory, user, "autoSave.json");

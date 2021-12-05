@@ -2,7 +2,8 @@
  <PropertyGroup>
     <TargetFramework>net6</TargetFramework>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
-    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 </Project>

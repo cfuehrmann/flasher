@@ -37,38 +37,44 @@ public class Startup
     // This method gets called by the runtime. Use this method to add services to the container.
     public void ConfigureServices(IServiceCollection services)
     {
-        services.AddControllers().AddJsonOptions(options =>
-        {
-            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-        });
+        _ = services
+                .AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    var item = new JsonStringEnumConverter(JsonNamingPolicy.CamelCase);
+                    options.JsonSerializerOptions.Converters.Add(item);
+                });
+
         var securityKey = new RsaSecurityKey(RSA.Create());
-        services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-        }).AddJwtBearer(options =>
-        {
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                IssuerSigningKey = securityKey,
-                ValidateAudience = false,
-                ValidateIssuer = false
-            };
-        });
-        services.AddAuthorization(options =>
-        {
-            options.AddPolicy("Bearer",
-                    new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme)
-                        .RequireAuthenticatedUser()
-                        .Build()
-                );
-        });
-        services.AddSwaggerGen(c =>
-            c.SwaggerDoc("v1", new OpenApiInfo { Title = "Flasher API", Version = "v1" })
-        );
-        services.AddSingleton(securityKey);
-        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-        services.AddSingleton<IDateTime, SystemDateTime>();
+
+        _ = services
+                .AddAuthentication(options =>
+                    {
+                        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                    })
+                .AddJwtBearer(options =>
+                    {
+                        options.TokenValidationParameters = new TokenValidationParameters
+                        {
+                            IssuerSigningKey = securityKey,
+                            ValidateAudience = false,
+                            ValidateIssuer = false
+                        };
+                    });
+
+        _ = services
+                .AddAuthorization(options =>
+                    options.AddPolicy("Bearer",
+                        new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme)
+                            .RequireAuthenticatedUser()
+                            .Build()))
+                .AddSwaggerGen(c =>
+                    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Flasher API", Version = "v1" }))
+                .AddSingleton(securityKey)
+                .AddScoped<IPasswordHasher<User>, PasswordHasher<User>>()
+                .AddSingleton<IDateTime, SystemDateTime>();
+
         RegisterStoreByConvention(services);
     }
 
@@ -77,7 +83,7 @@ public class Startup
         var hostAssembly = Assembly.GetExecutingAssembly();
         var interfaceAssembly = typeof(ICardStore).Assembly;
         // The line below would need changing if we discovered the implementation assembly dynamically
-        var implementationAssembly = typeof(Flasher.Store.FileStore.Cards.CardStore).Assembly;
+        var implementationAssembly = typeof(Store.FileStore.Cards.CardStore).Assembly;
         var hostAssemblyTypes = hostAssembly.GetExportedTypes();
         var interfaceAssemblyTypes = interfaceAssembly.GetExportedTypes();
         var implementationAssemblyTypes = implementationAssembly.GetExportedTypes();
@@ -91,19 +97,25 @@ public class Startup
     {
         var registrations =
             from interfaceType in interfaceAssemblyTypes
-            where interfaceType.Namespace != null && interfaceType.Namespace.StartsWith("Flasher.Store") &&
+            where
+                interfaceType.Namespace != null &&
+                interfaceType.Namespace.StartsWith("Flasher.Store", StringComparison.Ordinal) &&
                 interfaceType.IsInterface
             let implementations =
                 from type in implementationAssemblyTypes
                 where type.GetInterfaces().Contains(interfaceType)
                 select type
             select (interfaceType, implementations);
+
         foreach (var (interfaceType, implementations) in registrations)
         {
-            int count = implementations.Count();
+            var count = implementations.Count();
+
             if (count != 1)
-                throw new($"There are {count} implementations for {interfaceType.Name}, but exactly one is needed!");
-            services.AddSingleton(interfaceType, implementations.First());
+                throw new InvalidOperationException
+                    ($"There are {count} implementations for {interfaceType.Name}, but exactly one is needed!");
+
+            _ = services.AddSingleton(interfaceType, implementations.First());
         }
     }
 
@@ -111,15 +123,17 @@ public class Startup
     {
         var optionTypes =
             from type in candidateTypes
-            where type.Name.EndsWith("Options")
+            where type.Name.EndsWith("Options", StringComparison.Ordinal)
             let prefix = type.Name[0..^7]
             select (type, prefix);
+
         var configure =
             typeof(OptionsConfigurationServiceCollectionExtensions)
                 .GetMethods()
                 .Single(method => method.GetParameters().Length == 2);
+
         foreach (var (tOptions, prefix) in optionTypes)
-            configure
+            _ = configure
                 .MakeGenericMethod(tOptions)
                 .Invoke(null, new object[] { services, Configuration.GetSection(prefix) });
     }
@@ -127,43 +141,55 @@ public class Startup
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
     public void Configure(IApplicationBuilder app, ILogger<Startup> logger)
     {
-        app.UseExceptionHandler(errorApp =>
-        {
-            errorApp.Run(async context =>
-                {
-                    context.Response.ContentType = "text/html";
-                    var error = context.Features.Get<IExceptionHandlerPathFeature>()?.Error;
-                    if (error is ConflictException)
+        _ = app
+            .UseExceptionHandler(errorApp =>
+                errorApp.Run(async context =>
                     {
-                        context.Response.StatusCode = StatusCodes.Status409Conflict;
-                        string text = error.Message ?? "Conflict while accessing a file!";
-                        await context.Response.WriteAsync(text);
-                        return;
-                    }
-                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                    await context.Response.WriteAsync("Internal server error!");
-                });
-        });
-        app.UseSwagger();
-        app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Flasher API"));
-        app.UseRouting();
-        app.Use(async (context, next) =>
-        {
-            if (context.Request.Cookies.TryGetValue("__Host-jwt", out string? value))
-                context.Request.Headers.Append("Authorization", "Bearer " + value);
-            await next.Invoke();
-        });
-        app.UseAuthentication();
-        app.UseAuthorization();
-        app.Use(async (context, next) =>
-        {
-            var stopWatch = new Stopwatch();
-            stopWatch.Start();
-            await next.Invoke();
-            stopWatch.Stop();
-            logger.LogInformation("Duration for {path}: {duration}ms",
-                    context.Request.Path, stopWatch.ElapsedMilliseconds);
-        });
-        app.UseEndpoints(endpoints => endpoints.MapControllers());
+                        context.Response.ContentType = "text/html";
+                        var error = context.Features.Get<IExceptionHandlerPathFeature>()?.Error;
+                        if (error is ConflictException)
+                        {
+                            context.Response.StatusCode = StatusCodes.Status409Conflict;
+                            var text = error.Message ?? "Conflict while accessing a file!";
+                            await context.Response.WriteAsync(text);
+                            return;
+                        }
+                        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                        await context.Response.WriteAsync("Internal server error!");
+                    }))
+            .UseSwagger()
+            .UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Flasher API"))
+            .UseRouting()
+            .Use(async (context, next) =>
+                {
+                    if (context.Request.Cookies.TryGetValue("__Host-jwt", out var value))
+                        context.Request.Headers.Append("Authorization", "Bearer " + value);
+                    await next.Invoke();
+                })
+            .UseAuthentication()
+            .UseAuthorization()
+            .Use(async (context, next) =>
+                {
+                    var stopWatch = new Stopwatch();
+                    stopWatch.Start();
+                    await next.Invoke();
+                    stopWatch.Stop();
+                    logger.Duration(context.Request.Path, stopWatch.ElapsedMilliseconds);
+                })
+            .UseEndpoints(endpoints => endpoints.MapControllers());
     }
+}
+
+internal static class StartupLoggerExtensions
+{
+    private static readonly Action<ILogger, PathString, long, Exception?> _duration;
+
+    static StartupLoggerExtensions() =>
+        _duration = LoggerMessage.Define<PathString, long>(
+            LogLevel.Information,
+            new EventId(1, nameof(Duration)),
+            "Duration for {Path}: {Duration}ms");
+
+    public static void Duration(this ILogger logger, PathString path, long duration) =>
+        _duration(logger, path, duration, null);
 }

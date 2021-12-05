@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -13,12 +14,13 @@ public class AuthenticationStore : IAuthenticationStore
 
     public AuthenticationStore(IOptionsMonitor<FileStoreOptions> options)
     {
-        if (options.CurrentValue.Directory == null) throw new("Missing configuration 'FileStore:Directory'");
+        if (options.CurrentValue.Directory == null)
+            throw new ArgumentException("Missing configuration 'FileStore:Directory'");
         var json = File.ReadAllText(Path.Combine(options.CurrentValue.Directory, "users.json"));
         _users = JsonSerializer.Deserialize<IDictionary<string, string>>(json)
-            ?? throw new("Deserializing the users file returned null!");
+            ?? throw new InvalidOperationException("Deserializing the users file returned null!");
     }
 
     public Task<string?> GetPasswordHash(string userName) =>
-         Task.FromResult(_users.TryGetValue(userName, out string? result) ? result : null);
+         Task.FromResult(_users.TryGetValue(userName, out var result) ? result : null);
 }

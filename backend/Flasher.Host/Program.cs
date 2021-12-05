@@ -15,17 +15,9 @@ public class Program
     public static IHostBuilder CreateHostBuilder(string[] args) =>
         Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((hostingContext, config) =>
-            {
-                config.AddEnvironmentVariables(prefix: "Flasher_");
-            })
+                _ = config.AddEnvironmentVariables(prefix: "Flasher_"))
             .ConfigureLogging(logging =>
-            {
-                logging.ClearProviders();
-                logging.AddConsole();
-                logging.SetMinimumLevel(LogLevel.Information);
-            })
-            .ConfigureWebHostDefaults(webBuilder =>
-            {
-                webBuilder.UseStartup<Startup>();
-            });
+                _ = logging.ClearProviders().AddConsole().SetMinimumLevel(LogLevel.Information)
+            )
+            .ConfigureWebHostDefaults(webBuilder => _ = webBuilder.UseStartup<Startup>());
 }

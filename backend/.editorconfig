@@ -57,18 +57,28 @@ dotnet_style_prefer_conditional_expression_over_return = true:silent
 # Naming Conventions          #
 ###############################
 # Style Definitions
-#dotnet_naming_style.pascal_case_style.capitalization             = pascal_case
+dotnet_naming_style.pascal_case_style.capitalization             = pascal_case
 # Use PascalCase for constant fields  
-#dotnet_naming_rule.constant_fields_should_be_pascal_case.severity = suggestion
-#dotnet_naming_rule.constant_fields_should_be_pascal_case.symbols  = constant_fields
-#dotnet_naming_rule.constant_fields_should_be_pascal_case.style    = pascal_case_style
-#dotnet_naming_symbols.constant_fields.applicable_kinds            = field
-#dotnet_naming_symbols.constant_fields.applicable_accessibilities  = *
-#dotnet_naming_symbols.constant_fields.required_modifiers          = const
+dotnet_naming_rule.constant_fields_should_be_pascal_case.severity = suggestion
+dotnet_naming_rule.constant_fields_should_be_pascal_case.symbols  = constant_fields
+dotnet_naming_rule.constant_fields_should_be_pascal_case.style    = pascal_case_style
+dotnet_naming_symbols.constant_fields.applicable_kinds            = field
+dotnet_naming_symbols.constant_fields.applicable_accessibilities  = *
+dotnet_naming_symbols.constant_fields.required_modifiers          = const
 ###############################
 # C# Coding Conventions       #
 ###############################
 [*.cs]
+# Style analysis activated by cfuehrmann
+dotnet_analyzer_diagnostic.category-Style.severity = error
+# Add braces
+dotnet_diagnostic.IDE0011.severity = silent
+# Use expression body for constructors
+dotnet_diagnostic.IDE0021.severity = silent
+# Use expression body for methods
+dotnet_diagnostic.IDE0022.severity = silent
+# Convert to block-scoped namespace
+dotnet_diagnostic.IDE0160.severity = silent
 # var preferences
 csharp_style_var_for_built_in_types = true:silent
 csharp_style_var_when_type_is_apparent = true:silent

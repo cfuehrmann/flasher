@@ -67,7 +67,7 @@ public class CardsController : ControllerBase
 
     [HttpGet]
     [Route("/[controller]")]
-    public async Task<Flasher.Store.Cards.FindResponse> Find(string? searchText, int skip)
+    public async Task<FindResponse> Find(string? searchText, int skip)
     {
         var pageSize = _optionsMonitor.CurrentValue.PageSize;
         var take = pageSize < 1 ? 15 : pageSize;
@@ -86,18 +86,30 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}/[action]")]
     public async Task<ActionResult<FullCard>> SetOk(string id)
     {
-        await SetState(id, State.Ok, _optionsMonitor.CurrentValue.OkMultiplier);
-        var result = await _store.FindNext(User.Identity!.Name!);
-        return result != null ? result : NoContent();
+        var setStateResult = await SetState(id, State.Ok, _optionsMonitor.CurrentValue.OkMultiplier);
+
+        if (setStateResult is NoContentResult)
+        {
+            var result = await _store.FindNext(User.Identity!.Name!);
+            return result != null ? result : NoContent();
+        }
+
+        return setStateResult;
     }
 
     [HttpPost]
     [Route("/[controller]/{id}/[action]")]
     public async Task<ActionResult<FullCard>> SetFailed(string id)
     {
-        await SetState(id, State.Failed, _optionsMonitor.CurrentValue.OkMultiplier);
-        var result = await _store.FindNext(User.Identity!.Name!);
-        return result != null ? result : NoContent();
+        var setStateResult = await SetState(id, State.Failed, _optionsMonitor.CurrentValue.OkMultiplier);
+
+        if (setStateResult is NoContentResult)
+        {
+            var result = await _store.FindNext(User.Identity!.Name!);
+            return result != null ? result : NoContent();
+        }
+
+        return setStateResult;
     }
 
     [HttpPost]

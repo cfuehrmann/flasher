@@ -22,7 +22,8 @@ public class CardStore : ICardStore
 
     public CardStore(IOptionsMonitor<FileStoreOptions> options, IDateTime time)
     {
-        _directory = options.CurrentValue.Directory ?? throw new("Missing configuration 'FileStore:Directory'");
+        _directory = options.CurrentValue.Directory ??
+            throw new ArgumentException("Missing configuration 'FileStore:Directory'");
         _jsonOptions = new JsonSerializerOptions { WriteIndented = true, PropertyNameCaseInsensitive = true };
         _jsonOptions.Converters.Add(new JsonStringEnumConverter());
         const int lowestPrimeAboveInitialNumberOfUsers = 2;
@@ -31,14 +32,15 @@ public class CardStore : ICardStore
         _time = time;
     }
 
-    public async Task Create(string user, FullCard card)
+    public Task Create(string user, FullCard card)
     {
+        // Here we handle synchronous stuff early (Sonar recommendation)
         var cards = EnsureCache(user);
         var cachedCard = new CachedCard(card.Id, card.Prompt, card.Solution, card.State,
             card.ChangeTime, card.NextTime, card.Disabled);
-        if (!cards.TryAdd(card.Id, cachedCard))
-            throw new ArgumentException($"The card with id {card.Id} already exists!");
-        await WriteCards(user);
+        return cards.TryAdd(card.Id, cachedCard)
+            ? WriteCards(user)
+            : throw new ArgumentException($"The card with id {card.Id} already exists!");
     }
 
     public Task<FullCard?> Read(string user, string id)
@@ -47,16 +49,22 @@ public class CardStore : ICardStore
         return Task.FromResult(result);
     }
 
-    public async Task<FullCard?> Update(string user, CardUpdate update)
+    public Task<FullCard?> Update(string user, CardUpdate update)
     {
         var cards = EnsureCache(user);
-        if (!cards.TryGetValue(update.Id, out var card)) return null;
+        if (!cards.TryGetValue(update.Id, out var card)) return Task.FromResult<FullCard?>(null);
         if (update.Prompt != null) card.Prompt = update.Prompt;
         if (update.Solution != null) card.Solution = update.Solution;
         if (update.State is State state) card.State = state;
         if (update.ChangeTime is DateTime changeTime) card.ChangeTime = changeTime;
         if (update.NextTime is DateTime nextTime) card.NextTime = nextTime;
         if (update.Disabled is bool disabled) card.Disabled = disabled;
+
+        return Update(user, card);
+    }
+
+    private async Task<FullCard?> Update(string user, CachedCard card)
+    {
         await WriteCards(user);
         return new FullCard(
             Id: card.Id,
@@ -114,7 +122,8 @@ public class CardStore : ICardStore
             var path = GetPath(user);
             var json = File.ReadAllText(path);
             var deserializedCards = JsonSerializer.Deserialize<IEnumerable<DeserializedCard>>(json, _jsonOptions);
-            if (deserializedCards == null) throw new("Deserializing the cards file returned null!");
+            if (deserializedCards == null)
+                throw new InvalidOperationException("Deserializing the cards file returned null!");
             var dictionary = GetCachedCards(deserializedCards).ToDictionary(card => card.Id);
             return new ConcurrentDictionary<string, CachedCard>(dictionary);
         });
@@ -142,8 +151,7 @@ public class CardStore : ICardStore
         {
             using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
 
-            await JsonSerializer.SerializeAsync<ICollection<CachedCard>>(
-                fs, _cardsByUser[user].Values, _jsonOptions);
+            await JsonSerializer.SerializeAsync(fs, _cardsByUser[user].Values, _jsonOptions);
         }
         catch (IOException)
         {
