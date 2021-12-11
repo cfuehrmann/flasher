@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -20,7 +19,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -124,7 +122,7 @@ public class Startup
         var optionTypes =
             from type in candidateTypes
             where type.Name.EndsWith("Options", StringComparison.Ordinal)
-            let prefix = type.Name[0..^7]
+            let prefix = type.Name[..^7]
             select (type, prefix);
 
         var configure =
@@ -139,7 +137,7 @@ public class Startup
     }
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-    public void Configure(IApplicationBuilder app, ILogger<Startup> logger)
+    public void Configure(IApplicationBuilder app)
     {
         _ = app
             .UseExceptionHandler(errorApp =>
@@ -168,28 +166,6 @@ public class Startup
                 })
             .UseAuthentication()
             .UseAuthorization()
-            .Use(async (context, next) =>
-                {
-                    var stopWatch = new Stopwatch();
-                    stopWatch.Start();
-                    await next.Invoke();
-                    stopWatch.Stop();
-                    logger.Duration(context.Request.Path, stopWatch.ElapsedMilliseconds);
-                })
             .UseEndpoints(endpoints => endpoints.MapControllers());
     }
-}
-
-internal static class StartupLoggerExtensions
-{
-    private static readonly Action<ILogger, PathString, long, Exception?> _duration;
-
-    static StartupLoggerExtensions() =>
-        _duration = LoggerMessage.Define<PathString, long>(
-            LogLevel.Information,
-            new EventId(1, nameof(Duration)),
-            "Duration for {Path}: {Duration}ms");
-
-    public static void Duration(this ILogger logger, PathString path, long duration) =>
-        _duration(logger, path, duration, null);
 }
