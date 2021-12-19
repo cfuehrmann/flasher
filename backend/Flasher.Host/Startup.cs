@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 using Flasher.Injectables;
 using Flasher.Store.Cards;
 using Flasher.Store.Exceptions;
+using Flasher.Store.FileStore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -134,6 +135,8 @@ public class Startup
             _ = configure
                 .MakeGenericMethod(tOptions)
                 .Invoke(null, new object[] { services, Configuration.GetSection(prefix) });
+
+        _ = services.AddSingleton<IFileStoreJsonContextProvider, FileStoreJsonContextProvider>();
     }
 
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

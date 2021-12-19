@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Flasher.Store.AutoSaving;
 using Microsoft.Extensions.Options;
@@ -10,25 +11,32 @@ namespace Flasher.Store.FileStore.AutoSaving;
 public class AutoSaveStore : IAutoSaveStore
 {
     private readonly string _directory;
+    private readonly JsonSerializerContext _jsonContext;
 
-    public AutoSaveStore(IOptionsMonitor<FileStoreOptions> options) =>
+    public AutoSaveStore(IOptionsMonitor<FileStoreOptions> options, IFileStoreJsonContextProvider jsonContextProvider)
+    {
+        _jsonContext = jsonContextProvider.Instance;
         _directory = options.CurrentValue.Directory ??
             throw new ArgumentException("Missing configuration 'FileStore:Directory'");
+    }
 
     public async Task<AutoSave?> Read(string user)
     {
         var path = GetPath(user);
         if (!File.Exists(path)) return null;
         using var fs = File.OpenRead(path);
-        var deserialized = await JsonSerializer.DeserializeAsync<DeserializedAutoSave>(fs) ??
+        var type = typeof(SerializableAutoSave);
+        var deserialized = await JsonSerializer.DeserializeAsync(fs, type, _jsonContext);
+        if (deserialized is not SerializableAutoSave typedValue)
             throw new InvalidOperationException("Deserializing the auto save file returned null!");
-        var id = deserialized.Id ??
+        var id = typedValue.Id ??
             throw new InvalidOperationException($"The Id of the auto save is null!");
-        var prompt = deserialized.Prompt ??
+        var prompt = typedValue.Prompt ??
             throw new InvalidOperationException($"The Prompt of the auto save is null!");
-        var solution = deserialized.Solution ??
+        var solution = typedValue.Solution ??
             throw new InvalidOperationException($"The Solution of the auto save is null!");
         return new AutoSave(id, prompt, solution);
+
     }
 
     public Task Delete(string user)
@@ -46,10 +54,10 @@ public class AutoSaveStore : IAutoSaveStore
     public async Task Write(string user, AutoSave autoSave)
     {
         var path = GetPath(user);
-        using var fs = new FileStream(path, FileMode.Create, FileAccess.Write,
-            FileShare.None, 131072, true);
-        var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
-        await JsonSerializer.SerializeAsync(fs, autoSave, jsonOptions);
+        using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
+        var (Id, Prompt, Solution) = autoSave;
+        var s = new SerializableAutoSave { Id = Id, Prompt = Prompt, Solution = Solution };
+        await JsonSerializer.SerializeAsync(fs, s, typeof(SerializableAutoSave), _jsonContext);
     }
 
     private string GetPath(string user) => Path.Combine(_directory, user, "autoSave.json");

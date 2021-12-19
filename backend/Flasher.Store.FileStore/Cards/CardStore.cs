@@ -16,16 +16,16 @@ namespace Flasher.Store.FileStore.Cards;
 public class CardStore : ICardStore
 {
     private readonly string _directory;
-    private readonly JsonSerializerOptions _jsonOptions;
+    private readonly JsonSerializerContext _jsonContext;
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, CachedCard>> _cardsByUser;
     private readonly IDateTime _time;
 
-    public CardStore(IOptionsMonitor<FileStoreOptions> options, IDateTime time)
+    public CardStore(IOptionsMonitor<FileStoreOptions> options, IDateTime time,
+        IFileStoreJsonContextProvider jsonContextProvider)
     {
         _directory = options.CurrentValue.Directory ??
             throw new ArgumentException("Missing configuration 'FileStore:Directory'");
-        _jsonOptions = new JsonSerializerOptions { WriteIndented = true, PropertyNameCaseInsensitive = true };
-        _jsonOptions.Converters.Add(new JsonStringEnumConverter());
+        _jsonContext = jsonContextProvider.Instance;
         const int lowestPrimeAboveInitialNumberOfUsers = 2;
         _cardsByUser = new ConcurrentDictionary<string, ConcurrentDictionary<string, CachedCard>>(
             Environment.ProcessorCount * 2, lowestPrimeAboveInitialNumberOfUsers);
@@ -121,15 +121,16 @@ public class CardStore : ICardStore
         {
             var path = GetPath(user);
             var json = File.ReadAllText(path);
-            var deserializedCards = JsonSerializer.Deserialize<IEnumerable<DeserializedCard>>(json, _jsonOptions);
-            if (deserializedCards == null)
+            var type = typeof(IEnumerable<SerializableCard>);
+            var deserialized = JsonSerializer.Deserialize(json, type, _jsonContext);
+            if (deserialized is not IEnumerable<SerializableCard> typedValue)
                 throw new InvalidOperationException("Deserializing the cards file returned null!");
-            var dictionary = GetCachedCards(deserializedCards).ToDictionary(card => card.Id);
+            var dictionary = GetCachedCards(typedValue).ToDictionary(card => card.Id);
             return new ConcurrentDictionary<string, CachedCard>(dictionary);
         });
     }
 
-    private static IEnumerable<CachedCard> GetCachedCards(IEnumerable<DeserializedCard> deserializedCards)
+    private static IEnumerable<CachedCard> GetCachedCards(IEnumerable<SerializableCard> deserializedCards)
     {
         foreach (var card in deserializedCards)
             if (card.Id != null && card.Prompt != null && card.Solution != null && card.State != null &&
@@ -150,8 +151,9 @@ public class CardStore : ICardStore
         try
         {
             using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
-
-            await JsonSerializer.SerializeAsync(fs, _cardsByUser[user].Values, _jsonOptions);
+            var values = _cardsByUser[user].Values;
+            var type = typeof(IEnumerable<CachedCard>);
+            await JsonSerializer.SerializeAsync(fs, values, type, _jsonContext);
         }
         catch (IOException)
         {
