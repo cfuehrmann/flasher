@@ -9,7 +9,6 @@ using Flasher.Host;
 using Flasher.Injectables;
 using Flasher.Store.Cards;
 using Flasher.Store.Exceptions;
-using Flasher.Store.FileStore;
 using Flasher.Store.FileStore.Cards;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -31,13 +30,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Host
     .ConfigureAppConfiguration((hostingContext, config) =>
-        _ = config.AddEnvironmentVariables(prefix: "Flasher_"))
+        config.AddEnvironmentVariables(prefix: "Flasher_"))
     .ConfigureLogging(logging =>
-        _ = logging.ClearProviders().AddConsole().SetMinimumLevel(LogLevel.Information));
+        logging.ClearProviders().AddConsole().SetMinimumLevel(LogLevel.Information));
 
 var services = builder.Services;
 
-_ = services
+services
     .AddControllers()
     .AddJsonOptions(options =>
     {
@@ -47,7 +46,7 @@ _ = services
 
 var securityKey = new RsaSecurityKey(RSA.Create());
 
-_ = services
+services
     .AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -63,7 +62,7 @@ _ = services
             };
         });
 
-_ = services
+services
     .AddAuthorization(options =>
         options.AddPolicy("Bearer",
             new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme)
@@ -76,19 +75,19 @@ _ = services
     .AddSingleton<IDateTime, SystemDateTime>();
 
 var hostAssembly = Assembly.GetExecutingAssembly();
-var interfaceAssembly = typeof(ICardStore).Assembly;
-// The line below would need changing if we discovered the implementation assembly dynamically
-var implementationAssembly = typeof(CardStore).Assembly;
-var hostAssemblyTypes = hostAssembly.GetExportedTypes();
-var interfaceAssemblyTypes = interfaceAssembly.GetExportedTypes();
-var implementationAssemblyTypes = implementationAssembly.GetExportedTypes();
-RegisterStoreImplementations(services, interfaceAssemblyTypes, implementationAssemblyTypes);
-ConfigureOptionsByConvention(services, hostAssemblyTypes);
-ConfigureOptionsByConvention(services, implementationAssemblyTypes);
+var storeAssembly = typeof(ICardStore).Assembly;
+var fileStoreAssembly = typeof(CardStore).Assembly;
+var hostTypes = hostAssembly.GetExportedTypes();
+var storeTypes = storeAssembly.GetExportedTypes();
+var fileStoreTypes = fileStoreAssembly.GetExportedTypes();
+AddSingletons(storeTypes, fileStoreTypes);
+AddSingletons(fileStoreTypes, fileStoreTypes);
+ConfigureServices(hostTypes);
+ConfigureServices(fileStoreTypes);
 
 var app = builder.Build();
 
-_ = app
+app
     .UseExceptionHandler(errorApp =>
         errorApp.Run(async context =>
             {
@@ -114,20 +113,17 @@ _ = app
             await next.Invoke();
         })
     .UseAuthentication()
-    .UseAuthorization()
-    .UseEndpoints(endpoints => endpoints.MapControllers());
+    .UseAuthorization();
+
+app.MapControllers();
 
 app.Run();
 
-static void RegisterStoreImplementations(IServiceCollection services,
-    IEnumerable<Type> interfaceAssemblyTypes, IEnumerable<Type> implementationAssemblyTypes)
+void AddSingletons(IEnumerable<Type> interfaceAssemblyTypes, IEnumerable<Type> implementationAssemblyTypes)
 {
     var registrations =
         from interfaceType in interfaceAssemblyTypes
-        where
-            interfaceType.Namespace != null &&
-            interfaceType.Namespace.StartsWith("Flasher.Store", StringComparison.Ordinal) &&
-            interfaceType.IsInterface
+        where interfaceType.IsInterface
         let implementations =
             from type in implementationAssemblyTypes
             where type.GetInterfaces().Contains(interfaceType)
@@ -146,10 +142,10 @@ static void RegisterStoreImplementations(IServiceCollection services,
     }
 }
 
-void ConfigureOptionsByConvention(IServiceCollection services, IEnumerable<Type> candidateTypes)
+void ConfigureServices(IEnumerable<Type> optionCandidates)
 {
     var optionTypes =
-        from type in candidateTypes
+        from type in optionCandidates
         where type.Name.EndsWith("Options", StringComparison.Ordinal)
         let prefix = type.Name[..^7]
         select (type, prefix);
@@ -163,8 +159,6 @@ void ConfigureOptionsByConvention(IServiceCollection services, IEnumerable<Type>
         _ = configure
             .MakeGenericMethod(tOptions)
             .Invoke(null, new object[] { services, builder.Configuration.GetSection(prefix) });
-
-    _ = services.AddSingleton<IFileStoreJsonContextProvider, FileStoreJsonContextProvider>();
 }
 
 #pragma warning disable CA1050 
