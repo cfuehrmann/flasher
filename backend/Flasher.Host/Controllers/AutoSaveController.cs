@@ -1,6 +1,8 @@
 ﻿using System.Threading.Tasks;
+
 using Flasher.Host.Model;
 using Flasher.Store.AutoSaving;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

@@ -3,7 +3,9 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+
 using Flasher.Store.AutoSaving;
+
 using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.AutoSaving;
@@ -55,8 +57,8 @@ public class AutoSaveStore : IAutoSaveStore
     {
         var path = GetPath(user);
         using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
-        var (Id, Prompt, Solution) = autoSave;
-        var s = new SerializableAutoSave { Id = Id, Prompt = Prompt, Solution = Solution };
+        var (id, prompt, solution) = autoSave;
+        var s = new SerializableAutoSave { Id = id, Prompt = prompt, Solution = solution };
         await JsonSerializer.SerializeAsync(fs, s, typeof(SerializableAutoSave), _jsonContext);
     }
 

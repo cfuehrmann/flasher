@@ -1,4 +1,5 @@
 ﻿using System;
+
 using Flasher.Store.Cards;
 
 namespace Flasher.Store.FileStore.Cards;

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Text.Json.Serialization;
+
 using Flasher.Store.FileStore.AutoSaving;
 using Flasher.Store.FileStore.Cards;
 

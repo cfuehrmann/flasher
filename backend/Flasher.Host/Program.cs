@@ -5,11 +5,13 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
 using Flasher.Host;
 using Flasher.Injectables;
 using Flasher.Store.Cards;
 using Flasher.Store.Exceptions;
 using Flasher.Store.FileStore.Cards;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -53,13 +55,11 @@ services
             options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
         })
     .AddJwtBearer(options =>
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                IssuerSigningKey = securityKey,
-                ValidateAudience = false,
-                ValidateIssuer = false
-            };
+            IssuerSigningKey = securityKey,
+            ValidateAudience = false,
+            ValidateIssuer = false
         });
 
 services

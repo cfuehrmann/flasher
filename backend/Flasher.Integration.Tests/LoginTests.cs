@@ -1,8 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
+
 using Flasher.Host.Model;
+
 using Microsoft.AspNetCore.Mvc.Testing;
+
 using Xunit;
 
 namespace Flasher.Integration.Tests;

@@ -4,7 +4,9 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+
 using Flasher.Store.Authentication;
+
 using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.Authentication;

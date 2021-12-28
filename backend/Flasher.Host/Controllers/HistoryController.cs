@@ -1,6 +1,8 @@
 ﻿using System.Threading.Tasks;
+
 using Flasher.Injectables;
 using Flasher.Store.Cards;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;

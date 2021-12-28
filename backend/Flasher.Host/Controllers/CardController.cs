@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
+
 using Flasher.Host.Model;
 using Flasher.Injectables;
 using Flasher.Store.AutoSaving;
 using Flasher.Store.Cards;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
