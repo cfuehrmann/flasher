@@ -21,13 +21,13 @@ public class AuthenticationController : ControllerBase
 {
     private readonly IAuthenticationStore _store;
     private readonly IAutoSaveStore _autoSaveStore;
-    private readonly RsaSecurityKey _securityKey;
+    private readonly SecurityKey _securityKey;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly AuthenticationOptions _options;
     private readonly IDateTime _dateTime;
 
     public AuthenticationController(IAuthenticationStore store, IAutoSaveStore autoSaveStore,
-        RsaSecurityKey securityKey, IPasswordHasher<User> passwordHasher,
+        SecurityKey securityKey, IPasswordHasher<User> passwordHasher,
         IOptionsMonitor<AuthenticationOptions> options, IDateTime dateTime)
     {
         _store = store;

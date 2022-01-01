@@ -46,7 +46,14 @@ services
         options.JsonSerializerOptions.Converters.Add(item);
     });
 
-var securityKey = new RsaSecurityKey(RSA.Create());
+services
+    .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<SecurityKey>((options, signingKey) => options.TokenValidationParameters = new TokenValidationParameters
+    {
+        IssuerSigningKey = signingKey,
+        ValidateAudience = false,
+        ValidateIssuer = false
+    });
 
 services
     .AddAuthentication(options =>
@@ -54,13 +61,7 @@ services
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
             options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
         })
-    .AddJwtBearer(options =>
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            IssuerSigningKey = securityKey,
-            ValidateAudience = false,
-            ValidateIssuer = false
-        });
+    .AddJwtBearer();
 
 services
     .AddAuthorization(options =>
@@ -70,9 +71,10 @@ services
                 .Build()))
     .AddSwaggerGen(c =>
         c.SwaggerDoc("v1", new OpenApiInfo { Title = "Flasher API", Version = "v1" }))
-    .AddSingleton(securityKey)
     .AddScoped<IPasswordHasher<User>, PasswordHasher<User>>()
-    .AddSingleton<IDateTime, SystemDateTime>();
+    .AddSingleton<IDateTime, SystemDateTime>()
+    .AddSingleton(_ => RSA.Create())
+    .AddSingleton<SecurityKey>(serviceProvider => new RsaSecurityKey(serviceProvider.GetRequiredService<RSA>()));
 
 var hostAssembly = Assembly.GetExecutingAssembly();
 var storeAssembly = typeof(ICardStore).Assembly;
