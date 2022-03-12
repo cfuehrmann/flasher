@@ -4,5 +4,5 @@ namespace Flasher.Host;
 
 public sealed record AuthenticationOptions
 {
-    public TimeSpan TokenLifetime { get; init; }
+    public TimeSpan TokenLifetime { get; set; }
 }

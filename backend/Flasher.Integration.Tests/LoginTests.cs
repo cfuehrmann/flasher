@@ -1,20 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
+using Flasher.Host;
 using Flasher.Host.Model;
+using Flasher.Store.FileStore;
 
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 using Xunit;
 
 namespace Flasher.Integration.Tests;
 
-public sealed class LoginTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
+public sealed class LoginTests : IDisposable
 {
     private const string UserName = "john@doe";
     private const string Password = "123456";
@@ -23,9 +29,9 @@ public sealed class LoginTests : IClassFixture<WebApplicationFactory<Program>>, 
     private readonly WebApplicationFactory<Program> _factory;
     private readonly string? _fileStoreDirectoryBeforeTest;
 
-    public LoginTests(WebApplicationFactory<Program> factory)
+    public LoginTests()
     {
-        _factory = factory;
+        _factory = new WebApplicationFactory<Program>();
         _fileStoreDirectoryBeforeTest = Environment.GetEnvironmentVariable(FileStoreDirectoryEnvironmentVariable);
         Environment.SetEnvironmentVariable(FileStoreDirectoryEnvironmentVariable, Directory.GetCurrentDirectory());
         CreateDatabase();
@@ -36,16 +42,32 @@ public sealed class LoginTests : IClassFixture<WebApplicationFactory<Program>>, 
         Environment.SetEnvironmentVariable(FileStoreDirectoryEnvironmentVariable, _fileStoreDirectoryBeforeTest);
     }
 
-    [Fact]
-    public async Task LoginWithExistingUser()
+    [Theory]
+    [InlineData(42)]
+    [InlineData(666)]
+    public async Task LoginWithExistingUser(int tokenLifetime)
     {
-        var client = _factory.CreateClient();
+        var client = _factory
+         .WithWebHostBuilder(builder =>
+             builder.ConfigureServices(services =>
+                 services.Configure<AuthenticationOptions>(option =>
+                    option.TokenLifetime = TimeSpan.FromSeconds(tokenLifetime))))
+         .CreateClient();
 
         var loginResponse = await client.Login(UserName, Password);
-        client.AddCookies(loginResponse.GetCookies());
+        IEnumerable<string>? cookies = loginResponse.GetCookies();
+        client.AddCookies(cookies);
         var apiResponse = await client.CallApi();
 
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        string? jwtCookie = cookies.FirstOrDefault(cookie =>
+            cookie.StartsWith("__Host-jwt", StringComparison.Ordinal));
+        Assert.NotNull(jwtCookie);
+        Assert.Matches(new Regex("; Path=/", RegexOptions.IgnoreCase), jwtCookie);
+        Assert.Matches(new Regex("; Secure", RegexOptions.IgnoreCase), jwtCookie);
+        Assert.Matches(new Regex("; HttpOnly", RegexOptions.IgnoreCase), jwtCookie);
+        Assert.Matches(new Regex("; SameSite=strict", RegexOptions.IgnoreCase), jwtCookie);
+        Assert.Matches(new Regex($"; Max-Age={tokenLifetime}", RegexOptions.IgnoreCase), jwtCookie);
         _ = apiResponse.EnsureSuccessStatusCode();
     }
 
@@ -79,6 +101,59 @@ public sealed class LoginTests : IClassFixture<WebApplicationFactory<Program>>, 
         var response = await client.Login(UserName, "123457");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MissingDirectoryOption()
+    {
+        var client = _factory
+            .WithWebHostBuilder(builder =>
+                builder.ConfigureServices(services =>
+                    services.Configure<FileStoreOptions>(option => option.Directory = null)))
+            .CreateClient();
+
+        var response = await client.Login(UserName, Password);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal(MediaTypeHeaderValue.Parse("text/html"), response.Content.Headers.ContentType);
+        string content = await response.Content.ReadAsStringAsync();
+        Assert.Matches(new Regex("store", RegexOptions.IgnoreCase), content);
+        Assert.Matches(new Regex("configuration", RegexOptions.IgnoreCase), content);
+        Assert.Matches(new Regex("filestore", RegexOptions.IgnoreCase), content);
+        Assert.Matches(new Regex("directory", RegexOptions.IgnoreCase), content);
+        Assert.EndsWith("!", content);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+    }
+
+    [Fact]
+    public async Task UsersFileYieldsNoDictionary()
+    {
+        var client = _factory.CreateClient();
+        var usersPath = Path.Combine(FileStoreDirectory, "users.json");
+        File.WriteAllText(usersPath, "null");
+
+        var response = await client.Login(UserName, Password);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        string content = await response.Content.ReadAsStringAsync();
+        Assert.Matches(new Regex("users", RegexOptions.IgnoreCase), content);
+        Assert.Matches(new Regex("dictionary", RegexOptions.IgnoreCase), content);
+        Assert.EndsWith("!", content);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+    }
+
+    [Fact]
+    public async Task OptionsAreInjected()
+    {
+        var client = _factory.CreateClient();
+
+        var loginResponse = await client.Login(UserName, Password);
+        IEnumerable<string>? cookies = loginResponse.GetCookies();
+
+        string? jwtCookie = cookies.FirstOrDefault(cookie =>
+            cookie.StartsWith("__Host-jwt", StringComparison.Ordinal));
+        // Check that the token's Max-Age is not the default TimeSpan
+        Assert.Matches(new Regex("; Max-Age=.*[1..9].*", RegexOptions.IgnoreCase), jwtCookie);
     }
 
     private static void CreateDatabase()

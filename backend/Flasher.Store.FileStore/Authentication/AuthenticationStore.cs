@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 using Flasher.Store.Authentication;
+using Flasher.Store.Exceptions;
 
 using Microsoft.Extensions.Options;
 
@@ -20,13 +21,13 @@ public class AuthenticationStore : IAuthenticationStore
         IFileStoreJsonContextProvider jsonContextProvider)
     {
         if (options.CurrentValue.Directory == null)
-            throw new ArgumentException("Missing configuration 'FileStore:Directory'");
+            throw new StoreConfigurationException("Missing option 'FileStore:Directory'!");
         _jsonContext = jsonContextProvider.Instance;
 
-        var json = File.ReadAllText(Path.Combine(options.CurrentValue.Directory, "users.json"));
-        var type = typeof(IDictionary<string, string>);
+        string json = File.ReadAllText(Path.Combine(options.CurrentValue.Directory, "users.json"));
+        Type type = typeof(IDictionary<string, string>);
         _users = JsonSerializer.Deserialize(json, type, _jsonContext) as IDictionary<string, string>
-            ?? throw new InvalidOperationException("Deserializing the users file returned null!");
+            ?? throw new InvalidOperationException("The users file is not a dictionary!");
     }
 
     public Task<string?> GetPasswordHash(string userName) =>
