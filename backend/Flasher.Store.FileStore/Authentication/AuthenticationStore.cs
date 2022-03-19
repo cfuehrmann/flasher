@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -14,22 +13,26 @@ namespace Flasher.Store.FileStore.Authentication;
 
 public class AuthenticationStore : IAuthenticationStore
 {
-    private readonly IDictionary<string, string> _users;
     private readonly JsonSerializerContext _jsonContext;
+    private readonly string _directory;
 
-    public AuthenticationStore(IOptionsMonitor<FileStoreOptions> options,
-        IFileStoreJsonContextProvider jsonContextProvider)
+    public AuthenticationStore(IOptionsMonitor<FileStoreOptions> options, IFileStoreJsonContextProvider jsonContextProvider)
     {
-        if (options.CurrentValue.Directory == null)
-            throw new StoreConfigurationException("Missing option 'FileStore:Directory'!");
+        _directory = options.CurrentValue.Directory ?? throw new StoreConfigurationException("Missing option 'FileStore:Directory'!");
         _jsonContext = jsonContextProvider.Instance;
-
-        string json = File.ReadAllText(Path.Combine(options.CurrentValue.Directory, "users.json"));
-        Type type = typeof(IDictionary<string, string>);
-        _users = JsonSerializer.Deserialize(json, type, _jsonContext) as IDictionary<string, string>
-            ?? throw new InvalidOperationException("The users file is not a dictionary!");
     }
 
-    public Task<string?> GetPasswordHash(string userName) =>
-         Task.FromResult(_users.TryGetValue(userName, out var result) ? result : null);
+    public Task<string?> GetPasswordHash(string userName)
+    {
+        string path = Path.Combine(_directory, userName, "profile.json");
+
+        if (!File.Exists(path)) return Task.FromResult<string?>(null);
+
+        string json = File.ReadAllText(path);
+
+        var profile = JsonSerializer.Deserialize(json, typeof(Profile), _jsonContext) as Profile
+            ?? throw new InvalidOperationException("The profile file is invalid!");
+
+        return Task.FromResult(profile.PasswordHash);
+    }
 }

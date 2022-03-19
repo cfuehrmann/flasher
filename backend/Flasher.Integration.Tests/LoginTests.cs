@@ -129,15 +129,15 @@ public sealed class LoginTests : IDisposable
     public async Task UsersFileYieldsNoDictionary()
     {
         var client = _factory.CreateClient();
-        var usersPath = Path.Combine(FileStoreDirectory, "users.json");
-        File.WriteAllText(usersPath, "null");
+        var profilePath = Path.Combine(FileStoreDirectory, UserName, "profile.json");
+        File.WriteAllText(profilePath, "null");
 
         var response = await client.Login(UserName, Password);
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         string content = await response.Content.ReadAsStringAsync();
-        Assert.Matches(new Regex("users", RegexOptions.IgnoreCase), content);
-        Assert.Matches(new Regex("dictionary", RegexOptions.IgnoreCase), content);
+        Assert.Matches(new Regex("file", RegexOptions.IgnoreCase), content);
+        Assert.Matches(new Regex("invalid", RegexOptions.IgnoreCase), content);
         Assert.EndsWith("!", content);
         Assert.False(response.Headers.Contains("Set-Cookie"));
     }
@@ -158,18 +158,15 @@ public sealed class LoginTests : IDisposable
 
     private static void CreateDatabase()
     {
-        var usersPath = Path.Combine(FileStoreDirectory, "users.json");
-
         // The hash comes from the password. Don't let this test suite compute the hash, because
-        // these tests should also protect against invalidating the user table by accidental
+        // these tests should also protect against invalidating the password hash by accidental
         // change of the hash algorithm.    
-        var usersFileContent = $"{{ \"{UserName}\": \"AQAAAAEAACcQAAAAECUeTNmWxlWlEkteOikXzkwBM4VBrTYekVb9U+QBZjbcuk9V5ThbD4BfYDjzokwbVQ==\" }}";
+        var usersFileContent = $"{{ \"UserName\": \"{UserName}\", \"PasswordHash\": \"AQAAAAEAACcQAAAAECUeTNmWxlWlEkteOikXzkwBM4VBrTYekVb9U+QBZjbcuk9V5ThbD4BfYDjzokwbVQ==\" }}";
 
-        File.WriteAllText(usersPath, usersFileContent);
         string userPath = Path.Combine(FileStoreDirectory, UserName);
         _ = Directory.CreateDirectory(userPath);
-        string cardsPath = Path.Combine(userPath, "cards.json");
-        File.WriteAllText(cardsPath, "[]");
+        File.WriteAllText(Path.Combine(userPath, "profile.json"), usersFileContent);
+        File.WriteAllText(Path.Combine(userPath, "cards.json"), "[]");
     }
 
     private static async Task<IEnumerable<string>> CookieSignedWithDifferentSecurityKey()
