@@ -71,8 +71,7 @@ public class CardsController : ControllerBase
     [Route("/[controller]")]
     public async Task<FindResponse> Find(string? searchText, int skip)
     {
-        var pageSize = _optionsMonitor.CurrentValue.PageSize;
-        var take = pageSize < 1 ? 15 : pageSize;
+        int take = _optionsMonitor.CurrentValue.PageSize;
         return await _store.Find(User.Identity!.Name!, searchText ?? "", skip, take);
     }
 

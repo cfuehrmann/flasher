@@ -68,14 +68,7 @@ public class CardStore : ICardStore
     private async Task<FullCard?> Update(string user, CachedCard card)
     {
         await WriteCards(user);
-        return new FullCard(
-            Id: card.Id,
-            Prompt: card.Prompt,
-            Solution: card.Solution,
-            State: card.State,
-            ChangeTime: card.ChangeTime,
-            NextTime: card.NextTime,
-            Disabled: card.Disabled);
+        return card.ToResponse();
     }
 
     public async Task<bool> Delete(string user, string id)
@@ -87,20 +80,14 @@ public class CardStore : ICardStore
 
     public Task<FindResponse> Find(string user, string searchText, int skip, int take)
     {
-        var allHits =
-            from card in EnsureCache(user).Values
-            where card.Prompt != null && card.Solution != null &&
-                (card.Prompt.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                    card.Solution.Contains(searchText, StringComparison.OrdinalIgnoreCase))
-            orderby card.Disabled descending, card.NextTime, card.Id
-            select new FullCard(
-                Id: card.Id,
-                Prompt: card.Prompt,
-                Solution: card.Solution,
-                State: card.State,
-                ChangeTime: card.ChangeTime,
-                NextTime: card.NextTime,
-                Disabled: card.Disabled);
+        IEnumerable<FullCard> allHits =
+            EnsureCache(user).Values
+                .Where(card => card.Prompt?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true ||
+                        card.Solution?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true)
+                .OrderBy(card => card.Disabled)
+                .ThenBy(card => card.NextTime)
+                .ThenBy(card => card.Id)
+                .Select(card => card.ToResponse());
 
         var allHitsArray = allHits.ToArray();
         var result = new FindResponse(allHitsArray.Skip(skip).Take(take), allHitsArray.Length);
@@ -112,7 +99,7 @@ public class CardStore : ICardStore
         var result = EnsureCache(user).Values
             .Where(card => card.NextTime <= _time.Now && !card.Disabled)
             .OrderBy(card => card.NextTime).ThenBy(card => card.Id)
-            .FirstOrDefault()
+            .FirstOrDefault()?
             .ToResponse();
         return Task.FromResult(result);
     }
@@ -168,11 +155,9 @@ public class CardStore : ICardStore
 
 public static class Extensions
 {
-    public static FullCard? ToResponse(this CachedCard? storedCard)
+    public static FullCard ToResponse(this CachedCard storedCard)
     {
-        return storedCard == null ?
-           null :
-           new FullCard(
+        return new FullCard(
                Id: storedCard.Id,
                Prompt: storedCard.Prompt,
                Solution: storedCard.Solution,
