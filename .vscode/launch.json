@@ -10,7 +10,7 @@
       "request": "launch",
       "preLaunchTask": "build",
       // If you have changed target frameworks, make sure to update the program path.
-      "program": "${workspaceFolder}/backend/Flasher.Host/bin/Debug/net6.0/Flasher.Host.exe",
+      "program": "${workspaceFolder}/backend/Flasher.Host/bin/Debug/net6.0/Flasher.Host",
       "args": [],
       "cwd": "${workspaceFolder}/backend/Flasher.Host",
       "stopAtEntry": false,
