@@ -53,11 +53,15 @@ public static class Util
         return client;
     }
 
-    public static async Task<HttpResponseMessage> Login(this HttpClient client, string userName, string password) =>
-        await client.PostAsJsonAsync("/Authentication/Login", new LoginRequest { UserName = userName, Password = password });
+    public static async Task<HttpResponseMessage> Login(this HttpClient client, string userName, string password)
+    {
+        return await client.PostAsJsonAsync("/Authentication/Login", new LoginRequest { UserName = userName, Password = password });
+    }
 
-    public static IEnumerable<string> GetCookies(this HttpResponseMessage response) =>
-        response.Headers.GetValues("Set-Cookie");
+    public static IEnumerable<string> GetCookies(this HttpResponseMessage response)
+    {
+        return response.Headers.GetValues("Set-Cookie");
+    }
 
     public static void AddCookies(this HttpClient client, IEnumerable<string> cookies) =>
         client.DefaultRequestHeaders.Add("Cookie", cookies);

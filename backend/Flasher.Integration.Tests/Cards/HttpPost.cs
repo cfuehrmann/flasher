@@ -22,7 +22,7 @@ public sealed class HttpPost : IDisposable
     // these tests should also protect against invalidating the password hash by accidental
     // change of the hash algorithm.    
     private const string PasswordHash =
-        "AQAAAAEAACcQAAAAECUeTNmWxlWlEkteOikXzkwBM4VBrTYekVb9U+QBZjbcuk9V5ThbD4BfYDjzokwbVQ==";
+      "AQAAAAIAAYagAAAAENaCGNNEyy7NIj6ytU5fjbj4ze0Rs10SHU3WAaX+Fw1EV3mix/ytgxvbp7JMVYAsoQ==";
 
     private readonly string _fileStoreDirectory;
 

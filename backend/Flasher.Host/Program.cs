@@ -28,11 +28,8 @@ using Microsoft.OpenApi.Models;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-builder.Host
-    .ConfigureAppConfiguration((hostingContext, config) =>
-        config.AddEnvironmentVariables(prefix: "Flasher_"))
-    .ConfigureLogging(logging =>
-        logging.ClearProviders().AddConsole().SetMinimumLevel(LogLevel.Information));
+builder.Configuration.AddEnvironmentVariables(prefix: "Flasher_");
+builder.Logging.ClearProviders().AddConsole().SetMinimumLevel(LogLevel.Information);
 
 IServiceCollection services = builder.Services;
 

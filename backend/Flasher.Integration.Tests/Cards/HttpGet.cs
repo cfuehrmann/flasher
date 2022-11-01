@@ -18,7 +18,7 @@ using Xunit;
 
 namespace Flasher.Integration.Tests.Cards;
 
-public sealed class HttpGet : IDisposable
+public class HttpGet : IDisposable
 {
     private const string Id0 = "0d305cfd-9a33-46cd-807b-8adefbe57e42";
     private const string Id1 = "1d305cfd-9a33-46cd-807b-8adefbe57e42";
@@ -48,7 +48,7 @@ public sealed class HttpGet : IDisposable
     // these tests should also protect against invalidating the password hash by accidental
     // change of the hash algorithm.    
     private const string PasswordHash =
-        "AQAAAAEAACcQAAAAECUeTNmWxlWlEkteOikXzkwBM4VBrTYekVb9U+QBZjbcuk9V5ThbD4BfYDjzokwbVQ==";
+        "AQAAAAIAAYagAAAAENaCGNNEyy7NIj6ytU5fjbj4ze0Rs10SHU3WAaX+Fw1EV3mix/ytgxvbp7JMVYAsoQ==";
 
     private readonly string _fileStoreDirectory;
 
