@@ -24,26 +24,34 @@ public class AutoSaveStore : IAutoSaveStore
 
     public async Task<AutoSave?> Read(string user)
     {
-        var path = GetPath(user);
-        if (!File.Exists(path)) return null;
-        using var fs = File.OpenRead(path);
+        string path = GetPath(user);
+
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        using FileStream fs = File.OpenRead(path);
         var type = typeof(SerializableAutoSave);
-        var deserialized = await JsonSerializer.DeserializeAsync(fs, type, _jsonContext);
+        object? deserialized = await JsonSerializer.DeserializeAsync(fs, type, _jsonContext);
         if (deserialized is not SerializableAutoSave typedValue)
+
+        {
             throw new InvalidOperationException("Deserializing the auto save file returned null!");
-        var id = typedValue.Id ??
+        }
+
+        string id = typedValue.Id ??
             throw new InvalidOperationException($"The Id of the auto save is null!");
-        var prompt = typedValue.Prompt ??
+        string prompt = typedValue.Prompt ??
             throw new InvalidOperationException($"The Prompt of the auto save is null!");
-        var solution = typedValue.Solution ??
+        string solution = typedValue.Solution ??
             throw new InvalidOperationException($"The Solution of the auto save is null!");
         return new AutoSave(id, prompt, solution);
-
     }
 
     public Task Delete(string user)
     {
-        var path = GetPath(user);
+        string path = GetPath(user);
         try
         {
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read,
@@ -55,12 +63,15 @@ public class AutoSaveStore : IAutoSaveStore
 
     public async Task Write(string user, AutoSave autoSave)
     {
-        var path = GetPath(user);
+        string path = GetPath(user);
         using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
-        var (id, prompt, solution) = autoSave;
+        (string id, string prompt, string solution) = autoSave;
         var s = new SerializableAutoSave { Id = id, Prompt = prompt, Solution = solution };
         await JsonSerializer.SerializeAsync(fs, s, typeof(SerializableAutoSave), _jsonContext);
     }
 
-    private string GetPath(string user) => Path.Combine(_directory, user, "autoSave.json");
+    private string GetPath(string user)
+    {
+        return Path.Combine(_directory, user, "autoSave.json");
+    }
 }

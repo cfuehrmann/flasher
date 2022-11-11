@@ -32,7 +32,10 @@ public sealed class HttpPost : IDisposable
         Util.CreateUserStore(_fileStoreDirectory, UserName, PasswordHash);
     }
 
-    public void Dispose() => Directory.Delete(_fileStoreDirectory, true);
+    public void Dispose()
+    {
+        Directory.Delete(_fileStoreDirectory, true);
+    }
 
     [Fact]
     public async Task Create()

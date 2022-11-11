@@ -26,7 +26,10 @@ public class AuthenticationStore : IAuthenticationStore
     {
         string path = Path.Combine(_directory, userName, "profile.json");
 
-        if (!File.Exists(path)) return Task.FromResult<string?>(null);
+        if (!File.Exists(path))
+        {
+            return Task.FromResult<string?>(null);
+        }
 
         string json = File.ReadAllText(path);
 

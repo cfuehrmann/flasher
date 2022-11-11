@@ -4,7 +4,10 @@ namespace Flasher.Store.Cards;
 
 public record CardUpdate
 {
-    public CardUpdate(string id) => Id = id;
+    public CardUpdate(string id)
+    {
+        Id = id;
+    }
 
     public string Id { get; }
     public string? Prompt { get; init; }

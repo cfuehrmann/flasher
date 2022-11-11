@@ -94,7 +94,10 @@ app
     .Use(async (context, next) =>
         {
             if (context.Request.Cookies.TryGetValue("__Host-jwt", out string? value))
+            {
                 context.Request.Headers.Append("Authorization", "Bearer " + value);
+            }
+
             await next.Invoke();
         })
     .UseAuthentication()

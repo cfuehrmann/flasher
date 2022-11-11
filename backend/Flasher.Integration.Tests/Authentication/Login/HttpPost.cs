@@ -37,7 +37,12 @@ public class HttpPost : IDisposable
         Util.CreateUserStore(_fileStoreDirectory, UserName, PasswordHash);
     }
 
-    public void Dispose() => Directory.Delete(_fileStoreDirectory, true);
+    // We don't suppress the hint because the best way to fix it would be to make the test 
+    // class sealed. But the test runner can't deal with that right now.
+    public void Dispose()
+    {
+        Directory.Delete(_fileStoreDirectory, true);
+    }
 
     [Theory]
     [InlineData(42)]
@@ -60,11 +65,11 @@ public class HttpPost : IDisposable
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
         string? jwtCookie = cookies.FirstOrDefault(cookie => cookie.StartsWith("__Host-jwt", StringComparison.Ordinal));
         Assert.NotNull(jwtCookie);
-        Assert.Matches(new Regex("; Path=/", RegexOptions.IgnoreCase), jwtCookie);
-        Assert.Matches(new Regex("; Secure", RegexOptions.IgnoreCase), jwtCookie);
-        Assert.Matches(new Regex("; HttpOnly", RegexOptions.IgnoreCase), jwtCookie);
-        Assert.Matches(new Regex("; SameSite=strict", RegexOptions.IgnoreCase), jwtCookie);
-        Assert.Matches(new Regex($"; Max-Age={tokenLifetime}", RegexOptions.IgnoreCase), jwtCookie);
+        Assert.Contains("; Path=/", jwtCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("; Secure", jwtCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("; HttpOnly", jwtCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(" SameSite=strict", jwtCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"; Max-Age={tokenLifetime}", jwtCookie, StringComparison.OrdinalIgnoreCase);
         _ = apiResponse.EnsureSuccessStatusCode();
     }
 
@@ -117,10 +122,10 @@ public class HttpPost : IDisposable
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Equal(MediaTypeHeaderValue.Parse("text/html"), response.Content.Headers.ContentType);
         string content = await response.Content.ReadAsStringAsync();
-        Assert.Matches(new Regex("store", RegexOptions.IgnoreCase), content);
-        Assert.Matches(new Regex("configuration", RegexOptions.IgnoreCase), content);
-        Assert.Matches(new Regex("filestore", RegexOptions.IgnoreCase), content);
-        Assert.Matches(new Regex("directory", RegexOptions.IgnoreCase), content);
+        Assert.Contains("store", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("configuration", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("filestore", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("directory", content, StringComparison.OrdinalIgnoreCase);
         Assert.EndsWith("!", content);
         Assert.False(response.Headers.Contains("Set-Cookie"));
     }
@@ -137,8 +142,8 @@ public class HttpPost : IDisposable
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         string content = await response.Content.ReadAsStringAsync();
-        Assert.Matches(new Regex("file", RegexOptions.IgnoreCase), content);
-        Assert.Matches(new Regex("invalid", RegexOptions.IgnoreCase), content);
+        Assert.Contains("file", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("invalid", content, StringComparison.OrdinalIgnoreCase);
         Assert.EndsWith("!", content);
         Assert.False(response.Headers.Contains("Set-Cookie"));
     }
@@ -154,8 +159,12 @@ public class HttpPost : IDisposable
 
         string? jwtCookie = cookies.FirstOrDefault(cookie =>
             cookie.StartsWith("__Host-jwt", StringComparison.Ordinal));
-        // Check that the token's Max-Age is not the default TimeSpan
-        Assert.Matches(new Regex("; Max-Age=.*[1..9].*", RegexOptions.IgnoreCase), jwtCookie);
+        // Check that the token's Max-Age is not 0. Because 0 corresponds to the default
+        // TimeSpan, which would be used if the property were not explicitly configured.
+        // We don't suppress the hint below for now, because the best fix may be to 
+        // heed the hint. That's just not possible right now because it would require 
+        // the test class to be partial, which the test runner currently can't deal with.
+        Assert.Matches(new Regex("; Max-Age=[1..9]", RegexOptions.IgnoreCase), jwtCookie);
     }
 
     private async Task<IEnumerable<string>> CookieSignedWithDifferentSecurityKey()
@@ -166,8 +175,13 @@ public class HttpPost : IDisposable
         return response.GetCookies();
     }
 
-    private WebApplicationFactory<Program> CreateWebApplicationFactory() =>
-        Util.CreateWebApplicationFactory(_fileStoreDirectory);
+    private WebApplicationFactory<Program> CreateWebApplicationFactory()
+    {
+        return Util.CreateWebApplicationFactory(_fileStoreDirectory);
+    }
 
-    private static Task<HttpResponseMessage> CallApi(HttpClient client) => client.GetAsync("/Cards/Next");
+    private static Task<HttpResponseMessage> CallApi(HttpClient client)
+    {
+        return client.GetAsync("/Cards/Next");
+    }
 }

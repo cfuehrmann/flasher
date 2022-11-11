@@ -39,10 +39,12 @@ public static class Util
         File.WriteAllText(Path.Combine(userPath, "cards.json"), $"[{string.Join(", ", cards)}]");
     }
 
-    public static WebApplicationFactory<Program> CreateWebApplicationFactory(string fileStoreDirectory) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+    public static WebApplicationFactory<Program> CreateWebApplicationFactory(string fileStoreDirectory)
+    {
+        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             builder.ConfigureServices(services => services.Configure<FileStoreOptions>(option =>
                 option.Directory = fileStoreDirectory)));
+    }
 
     public static async Task<HttpClient> Login(this WebApplicationFactory<Program> factory, string userName, string password)
     {
@@ -63,8 +65,10 @@ public static class Util
         return response.Headers.GetValues("Set-Cookie");
     }
 
-    public static void AddCookies(this HttpClient client, IEnumerable<string> cookies) =>
+    public static void AddCookies(this HttpClient client, IEnumerable<string> cookies)
+    {
         client.DefaultRequestHeaders.Add("Cookie", cookies);
+    }
 
     public static async Task<T?> ReadJsonAsync<T>(this HttpResponseMessage response)
     {
@@ -73,6 +77,8 @@ public static class Util
         return await response.Content.ReadFromJsonAsync<T>(jsonOptions);
     }
 
-    public static IEnumerable<T> Reverse<T>(bool reverse, T element0, T element1) =>
-        reverse ? new[] { element0, element1 } : new[] { element1, element0 };
+    public static IEnumerable<T> Reverse<T>(bool reverse, T element0, T element1)
+    {
+        return reverse ? new[] { element0, element1 } : new[] { element1, element0 };
+    }
 }

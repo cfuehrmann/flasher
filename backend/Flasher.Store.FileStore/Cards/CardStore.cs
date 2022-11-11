@@ -37,7 +37,7 @@ public class CardStore : ICardStore
     public Task Create(string user, FullCard card)
     {
         // Here we handle synchronous stuff early (Sonar recommendation)
-        var cards = EnsureCache(user);
+        ConcurrentDictionary<string, CachedCard> cards = EnsureCache(user);
         var cachedCard = new CachedCard(card.Id, card.Prompt, card.Solution, card.State,
             card.ChangeTime, card.NextTime, card.Disabled);
         return cards.TryAdd(card.Id, cachedCard)
@@ -47,20 +47,48 @@ public class CardStore : ICardStore
 
     public Task<FullCard?> Read(string user, string id)
     {
-        var result = EnsureCache(user).TryGetValue(id, out var cachedCard) ? cachedCard.ToResponse() : null;
+        FullCard? result = EnsureCache(user).TryGetValue(id, out CachedCard? cachedCard) ? cachedCard.ToResponse() : null;
         return Task.FromResult(result);
     }
 
     public Task<FullCard?> Update(string user, CardUpdate update)
     {
-        var cards = EnsureCache(user);
-        if (!cards.TryGetValue(update.Id, out var card)) return Task.FromResult<FullCard?>(null);
-        if (update.Prompt != null) card.Prompt = update.Prompt;
-        if (update.Solution != null) card.Solution = update.Solution;
-        if (update.State is State state) card.State = state;
-        if (update.ChangeTime is DateTime changeTime) card.ChangeTime = changeTime;
-        if (update.NextTime is DateTime nextTime) card.NextTime = nextTime;
-        if (update.Disabled is bool disabled) card.Disabled = disabled;
+        ConcurrentDictionary<string, CachedCard> cards = EnsureCache(user);
+
+        if (!cards.TryGetValue(update.Id, out CachedCard? card))
+        {
+            return Task.FromResult<FullCard?>(null);
+        }
+
+        if (update.Prompt != null)
+        {
+            card.Prompt = update.Prompt;
+        }
+
+        if (update.Solution != null)
+        {
+            card.Solution = update.Solution;
+        }
+
+        if (update.State is State state)
+        {
+            card.State = state;
+        }
+
+        if (update.ChangeTime is DateTime changeTime)
+        {
+            card.ChangeTime = changeTime;
+        }
+
+        if (update.NextTime is DateTime nextTime)
+        {
+            card.NextTime = nextTime;
+        }
+
+        if (update.Disabled is bool disabled)
+        {
+            card.Disabled = disabled;
+        }
 
         return Update(user, card);
     }
@@ -73,7 +101,7 @@ public class CardStore : ICardStore
 
     public async Task<bool> Delete(string user, string id)
     {
-        var result = EnsureCache(user).TryRemove(id, out _);
+        bool result = EnsureCache(user).TryRemove(id, out _);
         await WriteCards(user);
         return result;
     }
@@ -89,14 +117,14 @@ public class CardStore : ICardStore
                 .ThenBy(card => card.Id)
                 .Select(card => card.ToResponse());
 
-        var allHitsArray = allHits.ToArray();
+        FullCard[] allHitsArray = allHits.ToArray();
         var result = new FindResponse(allHitsArray.Skip(skip).Take(take), allHitsArray.Length);
         return Task.FromResult(result);
     }
 
     public Task<FullCard?> FindNext(string user)
     {
-        var result = EnsureCache(user).Values
+        FullCard? result = EnsureCache(user).Values
             .Where(card => card.NextTime <= _time.Now && !card.Disabled)
             .OrderBy(card => card.NextTime).ThenBy(card => card.Id)
             .FirstOrDefault()?
@@ -108,12 +136,15 @@ public class CardStore : ICardStore
     {
         return _cardsByUser.GetOrAdd(user, user =>
         {
-            var path = GetPath(user);
-            var json = File.ReadAllText(path);
+            string path = GetPath(user);
+            string json = File.ReadAllText(path);
             var type = typeof(IEnumerable<SerializableCard>);
-            var deserialized = JsonSerializer.Deserialize(json, type, _jsonContext);
+            object? deserialized = JsonSerializer.Deserialize(json, type, _jsonContext);
             if (deserialized is not IEnumerable<SerializableCard> typedValue)
+            {
                 throw new InvalidOperationException("Deserializing the cards file returned null!");
+            }
+
             var dictionary = GetCachedCards(typedValue).ToDictionary(card => card.Id);
             return new ConcurrentDictionary<string, CachedCard>(dictionary);
         });
@@ -121,9 +152,11 @@ public class CardStore : ICardStore
 
     private static IEnumerable<CachedCard> GetCachedCards(IEnumerable<SerializableCard> deserializedCards)
     {
-        foreach (var card in deserializedCards)
+        foreach (SerializableCard card in deserializedCards)
+        {
             if (card.Id != null && card.Prompt != null && card.Solution != null && card.State != null &&
                 card.ChangeTime != null && card.NextTime != null && card.Disabled != null)
+            {
                 yield return new CachedCard(
                     id: card.Id,
                     prompt: card.Prompt,
@@ -132,15 +165,17 @@ public class CardStore : ICardStore
                     changeTime: card.ChangeTime.Value,
                     nextTime: card.NextTime.Value,
                     disabled: card.Disabled.Value);
+            }
+        }
     }
 
     private async Task WriteCards(string user)
     {
-        var path = GetPath(user);
+        string path = GetPath(user);
         try
         {
             using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
-            var values = _cardsByUser[user].Values;
+            ICollection<CachedCard> values = _cardsByUser[user].Values;
             var type = typeof(IEnumerable<CachedCard>);
             await JsonSerializer.SerializeAsync(fs, values, type, _jsonContext);
         }
@@ -150,7 +185,10 @@ public class CardStore : ICardStore
         }
     }
 
-    private string GetPath(string user) => Path.Combine(_directory, user, "cards.json");
+    private string GetPath(string user)
+    {
+        return Path.Combine(_directory, user, "cards.json");
+    }
 }
 
 public static class Extensions

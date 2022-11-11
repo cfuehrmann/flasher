@@ -40,13 +40,23 @@ public class AuthenticationController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
     {
-        var hashedPassword = await _store.GetPasswordHash(request.UserName);
-        if (hashedPassword == null) return Challenge();
-        var passwordVerificationResult =
+        string? hashedPassword = await _store.GetPasswordHash(request.UserName);
+
+        if (hashedPassword == null)
+        {
+            return Challenge();
+        }
+
+        PasswordVerificationResult passwordVerificationResult =
             _passwordHasher.VerifyHashedPassword(new User(request.UserName), hashedPassword, request.Password);
-        if (passwordVerificationResult != PasswordVerificationResult.Success) return Challenge();
-        var readAutoSave = _autoSaveStore.Read(request.UserName);
-        var tokenString = GetTokenString(request.UserName);
+
+        if (passwordVerificationResult != PasswordVerificationResult.Success)
+        {
+            return Challenge();
+        }
+
+        Task<AutoSave?> readAutoSave = _autoSaveStore.Read(request.UserName);
+        string tokenString = GetTokenString(request.UserName);
         var options = new CookieOptions
         {
             SameSite = SameSiteMode.Strict,
@@ -56,7 +66,7 @@ public class AuthenticationController : ControllerBase
             MaxAge = _options.TokenLifetime,
         };
         HttpContext.Response.Cookies.Append("__Host-jwt", tokenString, options);
-        var autoSave = await readAutoSave;
+        AutoSave? autoSave = await readAutoSave;
         return new LoginResponse(tokenString) { AutoSave = autoSave };
     }
 

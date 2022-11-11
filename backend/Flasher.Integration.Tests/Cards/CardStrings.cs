@@ -21,5 +21,8 @@ public record CardStrings(string Id, string Prompt, string Solution, string Stat
 
     public FullCard FullCard => new(Id, Prompt, Solution, Enum.Parse<State>(State), GetDateTime(ChangeTime), GetDateTime(NextTime), bool.Parse(Disabled));
 
-    private static DateTime GetDateTime(string dateTimeString) => DateTime.Parse(dateTimeString, CultureInfo.InvariantCulture);
+    private static DateTime GetDateTime(string dateTimeString)
+    {
+        return DateTime.Parse(dateTimeString, CultureInfo.InvariantCulture);
+    }
 }

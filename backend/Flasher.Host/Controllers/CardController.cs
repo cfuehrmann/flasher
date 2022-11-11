@@ -21,16 +21,18 @@ public class CardsController : ControllerBase
     private readonly IOptionsMonitor<CardsOptions> _optionsMonitor;
 
     public CardsController(ICardStore store, IAutoSaveStore autoSaveStore, IDateTime time,
-        IOptionsMonitor<CardsOptions> optionsMonitor) =>
+        IOptionsMonitor<CardsOptions> optionsMonitor)
+    {
         (_store, _autoSaveStore, _time, _optionsMonitor) = (store, autoSaveStore, time, optionsMonitor);
+    }
 
     [HttpPost]
     [Route("/[controller]")]
     public async Task<ActionResult> Create(CreateCardRequest request)
     {
         var id = Guid.NewGuid().ToString();
-        var now = _time.Now;
-        var nextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime);
+        DateTime now = _time.Now;
+        DateTime nextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime);
         var card = new FullCard(
             Id: id,
             Prompt: request.Prompt,
@@ -47,7 +49,7 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}")]
     public async Task<ActionResult<FullCard>> Read(string id)
     {
-        var result = await _store.Read(User.Identity!.Name!, id);
+        FullCard? result = await _store.Read(User.Identity!.Name!, id);
         return result != null ? result : NotFound();
     }
 
@@ -64,8 +66,10 @@ public class CardsController : ControllerBase
 
     [HttpDelete]
     [Route("/[controller]/{id}")]
-    public async Task<ActionResult> Delete(string id) =>
-        await _store.Delete(User.Identity!.Name!, id) ? NoContent() : NotFound();
+    public async Task<ActionResult> Delete(string id)
+    {
+        return await _store.Delete(User.Identity!.Name!, id) ? NoContent() : NotFound();
+    }
 
     [HttpGet]
     [Route("/[controller]")]
@@ -79,7 +83,7 @@ public class CardsController : ControllerBase
     [Route("/[controller]/[action]")]
     public async Task<ActionResult<FullCard>> Next()
     {
-        var result = await _store.FindNext(User.Identity!.Name!);
+        FullCard? result = await _store.FindNext(User.Identity!.Name!);
         return result != null ? result : NoContent();
     }
 
@@ -87,11 +91,11 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}/[action]")]
     public async Task<ActionResult<FullCard>> SetOk(string id)
     {
-        var setStateResult = await SetState(id, State.Ok, _optionsMonitor.CurrentValue.OkMultiplier);
+        ActionResult setStateResult = await SetState(id, State.Ok, _optionsMonitor.CurrentValue.OkMultiplier);
 
         if (setStateResult is NoContentResult)
         {
-            var result = await _store.FindNext(User.Identity!.Name!);
+            FullCard? result = await _store.FindNext(User.Identity!.Name!);
             return result != null ? result : NoContent();
         }
 
@@ -102,11 +106,11 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}/[action]")]
     public async Task<ActionResult<FullCard>> SetFailed(string id)
     {
-        var setStateResult = await SetState(id, State.Failed, _optionsMonitor.CurrentValue.OkMultiplier);
+        ActionResult setStateResult = await SetState(id, State.Failed, _optionsMonitor.CurrentValue.OkMultiplier);
 
         if (setStateResult is NoContentResult)
         {
-            var result = await _store.FindNext(User.Identity!.Name!);
+            FullCard? result = await _store.FindNext(User.Identity!.Name!);
             return result != null ? result : NoContent();
         }
 
@@ -131,10 +135,15 @@ public class CardsController : ControllerBase
 
     private async Task<ActionResult> SetState(string id, State state, double multiplier)
     {
-        var card = await _store.Read(User.Identity!.Name!, id);
-        if (card == null) return NotFound();
-        var now = _time.Now;
-        var passedTime = now - card.ChangeTime;
+        FullCard? card = await _store.Read(User.Identity!.Name!, id);
+
+        if (card == null)
+        {
+            return NotFound();
+        }
+
+        DateTime now = _time.Now;
+        TimeSpan passedTime = now - card.ChangeTime;
         var update = new CardUpdate(id)
         {
             State = state,

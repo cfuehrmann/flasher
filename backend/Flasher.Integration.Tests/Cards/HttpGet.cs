@@ -58,7 +58,10 @@ public class HttpGet : IDisposable
         Util.CreateUserStore(_fileStoreDirectory, UserName, PasswordHash);
     }
 
-    public void Dispose() => Directory.Delete(_fileStoreDirectory, true);
+    public void Dispose()
+    {
+        Directory.Delete(_fileStoreDirectory, true);
+    }
 
     [Fact]
     public async Task NoSearchTextReturnsAll()
@@ -248,15 +251,23 @@ public class HttpGet : IDisposable
         Assert.Equal(new[] { c3.FullCard, c5.FullCard, c7.FullCard }.Take(pageSize), body?.Cards);
     }
 
-    private void WriteCardsFile(params CardStrings[] cardsStrings) =>
+    private void WriteCardsFile(params CardStrings[] cardsStrings)
+    {
         Util.WriteCardsFile(_fileStoreDirectory, UserName, from c in cardsStrings select c.Json);
+    }
 
-    private void WriteCardsFile(IEnumerable<CardStrings> cardsStrings) =>
+    private void WriteCardsFile(IEnumerable<CardStrings> cardsStrings)
+    {
         Util.WriteCardsFile(_fileStoreDirectory, UserName, from c in cardsStrings select c.Json);
+    }
 
-    private WebApplicationFactory<Program> CreateWebApplicationFactory() =>
-        Util.CreateWebApplicationFactory(_fileStoreDirectory);
+    private WebApplicationFactory<Program> CreateWebApplicationFactory()
+    {
+        return Util.CreateWebApplicationFactory(_fileStoreDirectory);
+    }
 
-    private static async Task<HttpClient> Login(WebApplicationFactory<Program> factory) =>
-        await factory.Login(UserName, Password);
+    private static async Task<HttpClient> Login(WebApplicationFactory<Program> factory)
+    {
+        return await factory.Login(UserName, Password);
+    }
 }
