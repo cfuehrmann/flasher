@@ -33,14 +33,16 @@ public class CardsController : ControllerBase
         var id = Guid.NewGuid().ToString();
         DateTime now = _time.Now;
         DateTime nextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime);
-        var card = new FullCard(
-            Id: id,
-            Prompt: request.Prompt,
-            Solution: request.Solution,
-            State: State.New,
-            ChangeTime: now,
-            NextTime: nextTime,
-            Disabled: true);
+        var card = new FullCard
+        {
+            Id = id,
+            Prompt = request.Prompt,
+            Solution = request.Solution,
+            State = State.New,
+            ChangeTime = now,
+            NextTime = nextTime,
+            Disabled = true
+        };
         await _store.Create(User.Identity!.Name!, card);
         return CreatedAtAction(nameof(Read), new { id }, card);
     }
@@ -58,7 +60,7 @@ public class CardsController : ControllerBase
     public async Task<ActionResult<bool>> Update(string id, UpdateCardRequest request)
     {
         _ = _time.Now;
-        var update = new CardUpdate(id) { Prompt = request.Prompt, Solution = request.Solution };
+        var update = new CardUpdate { Id = id, Prompt = request.Prompt, Solution = request.Solution };
         var cardWasFound = await _store.Update(User.Identity!.Name!, update) != null;
         await _autoSaveStore.Delete(User.Identity.Name!);
         return cardWasFound ? Ok() : NotFound();
@@ -121,7 +123,7 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}/[action]")]
     public async Task<ActionResult> Enable(string id)
     {
-        var update = new CardUpdate(id) { Disabled = false };
+        var update = new CardUpdate { Id = id, Disabled = false };
         return await _store.Update(User.Identity!.Name!, update) != null ? NoContent() : NotFound();
     }
 
@@ -129,7 +131,7 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}/[action]")]
     public async Task<ActionResult> Disable(string id)
     {
-        var update = new CardUpdate(id) { Disabled = true };
+        var update = new CardUpdate { Id = id, Disabled = true };
         return await _store.Update(User.Identity!.Name!, update) != null ? NoContent() : NotFound();
     }
 
@@ -144,8 +146,9 @@ public class CardsController : ControllerBase
 
         DateTime now = _time.Now;
         TimeSpan passedTime = now - card.ChangeTime;
-        var update = new CardUpdate(id)
+        var update = new CardUpdate
         {
+            Id = id,
             State = state,
             ChangeTime = now,
             NextTime = now.Add(passedTime * multiplier)

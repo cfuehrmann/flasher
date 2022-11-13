@@ -2,7 +2,6 @@
 
 public sealed record CreateCardRequest
 {
-#nullable disable warnings
-    public string Prompt { get; init; }
-    public string Solution { get; init; }
+    public required string Prompt { get; init; }
+    public required string Solution { get; init; }
 }

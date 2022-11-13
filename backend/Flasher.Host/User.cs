@@ -1,3 +1,6 @@
 ﻿namespace Flasher.Host;
 
-public sealed record User(string Name);
+public sealed record User
+{
+    public required string Name { get; init; }
+}

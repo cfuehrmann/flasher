@@ -38,8 +38,14 @@ public class CardStore : ICardStore
     {
         // Here we handle synchronous stuff early (Sonar recommendation)
         ConcurrentDictionary<string, CachedCard> cards = EnsureCache(user);
-        var cachedCard = new CachedCard(card.Id, card.Prompt, card.Solution, card.State,
-            card.ChangeTime, card.NextTime, card.Disabled);
+        var cachedCard = new CachedCard(
+            card.Id,
+            card.Prompt,
+            card.Solution,
+            card.State,
+            card.ChangeTime,
+            card.NextTime,
+            card.Disabled);
         return cards.TryAdd(card.Id, cachedCard)
             ? WriteCards(user)
             : throw new ArgumentException($"The card with id {card.Id} already exists!");
@@ -118,7 +124,11 @@ public class CardStore : ICardStore
                 .Select(card => card.ToResponse());
 
         FullCard[] allHitsArray = allHits.ToArray();
-        var result = new FindResponse(allHitsArray.Skip(skip).Take(take), allHitsArray.Length);
+        var result = new FindResponse
+        {
+            Cards = allHitsArray.Skip(skip).Take(take),
+            Count = allHitsArray.Length
+        };
         return Task.FromResult(result);
     }
 
@@ -195,13 +205,15 @@ public static class Extensions
 {
     public static FullCard ToResponse(this CachedCard storedCard)
     {
-        return new FullCard(
-               Id: storedCard.Id,
-               Prompt: storedCard.Prompt,
-               Solution: storedCard.Solution,
-               State: storedCard.State,
-               ChangeTime: storedCard.ChangeTime,
-               NextTime: storedCard.NextTime,
-               Disabled: storedCard.Disabled);
+        return new FullCard
+        {
+            Id = storedCard.Id,
+            Prompt = storedCard.Prompt,
+            Solution = storedCard.Solution,
+            State = storedCard.State,
+            ChangeTime = storedCard.ChangeTime,
+            NextTime = storedCard.NextTime,
+            Disabled = storedCard.Disabled
+        };
     }
 }

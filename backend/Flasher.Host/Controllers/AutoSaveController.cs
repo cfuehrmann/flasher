@@ -28,6 +28,8 @@ public class AutoSaveController : ControllerBase
     [HttpPut]
     public async Task Write(WriteAutoSaveRequest request)
     {
-        await _store.Write(User.Identity!.Name!, new AutoSave(request.Id, request.Prompt, request.Solution));
+        await _store.Write(
+            User.Identity!.Name!,
+            new AutoSave { Id = request.Id, Prompt = request.Prompt, Solution = request.Solution });
     }
 }

@@ -2,7 +2,6 @@
 
 public sealed record LoginRequest
 {
-#nullable disable warnings
-    public string UserName { get; init; }
-    public string Password { get; init; }
+    public required string UserName { get; init; }
+    public required string Password { get; init; }
 }

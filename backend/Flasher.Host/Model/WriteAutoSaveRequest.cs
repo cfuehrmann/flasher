@@ -2,8 +2,7 @@
 
 public sealed record WriteAutoSaveRequest
 {
-#nullable disable warnings
-    public string Id { get; init; }
-    public string Prompt { get; init; }
-    public string Solution { get; init; }
+    public required string Id { get; init; }
+    public required string Prompt { get; init; }
+    public required string Solution { get; init; }
 }

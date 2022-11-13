@@ -48,7 +48,10 @@ public class AuthenticationController : ControllerBase
         }
 
         PasswordVerificationResult passwordVerificationResult =
-            _passwordHasher.VerifyHashedPassword(new User(request.UserName), hashedPassword, request.Password);
+            _passwordHasher.VerifyHashedPassword(
+                new User { Name = request.UserName },
+                hashedPassword,
+                request.Password);
 
         if (passwordVerificationResult != PasswordVerificationResult.Success)
         {
@@ -67,7 +70,7 @@ public class AuthenticationController : ControllerBase
         };
         HttpContext.Response.Cookies.Append("__Host-jwt", tokenString, options);
         AutoSave? autoSave = await readAutoSave;
-        return new LoginResponse(tokenString) { AutoSave = autoSave };
+        return new LoginResponse { JsonWebToken = tokenString, AutoSave = autoSave };
     }
 
     private string GetTokenString(string userName)

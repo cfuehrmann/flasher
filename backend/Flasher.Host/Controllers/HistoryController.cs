@@ -27,8 +27,9 @@ public class HistoryController : ControllerBase
     public async Task<ActionResult<FullCard>> Delete(string id)
     {
         DateTime now = _time.Now;
-        var update = new CardUpdate(id)
+        var update = new CardUpdate
         {
+            Id = id,
             State = State.New,
             ChangeTime = now,
             NextTime = now.Add(_optionsMonitor.CurrentValue.NewCardWaitingTime)

@@ -46,7 +46,7 @@ public class AutoSaveStore : IAutoSaveStore
             throw new InvalidOperationException($"The Prompt of the auto save is null!");
         string solution = typedValue.Solution ??
             throw new InvalidOperationException($"The Solution of the auto save is null!");
-        return new AutoSave(id, prompt, solution);
+        return new AutoSave { Id = id, Prompt = prompt, Solution = solution };
     }
 
     public Task Delete(string user)
@@ -65,8 +65,12 @@ public class AutoSaveStore : IAutoSaveStore
     {
         string path = GetPath(user);
         using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
-        (string id, string prompt, string solution) = autoSave;
-        var s = new SerializableAutoSave { Id = id, Prompt = prompt, Solution = solution };
+        var s = new SerializableAutoSave
+        {
+            Id = autoSave.Id,
+            Prompt = autoSave.Prompt,
+            Solution = autoSave.Solution
+        };
         await JsonSerializer.SerializeAsync(fs, s, typeof(SerializableAutoSave), _jsonContext);
     }
 

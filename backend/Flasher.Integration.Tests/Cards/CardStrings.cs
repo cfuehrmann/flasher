@@ -19,7 +19,16 @@ public record CardStrings(string Id, string Prompt, string Solution, string Stat
         }}
         ";
 
-    public FullCard FullCard => new(Id, Prompt, Solution, Enum.Parse<State>(State), GetDateTime(ChangeTime), GetDateTime(NextTime), bool.Parse(Disabled));
+    public FullCard FullCard => new()
+    {
+        Id = Id,
+        Prompt = Prompt,
+        Solution = Solution,
+        State = Enum.Parse<State>(State),
+        ChangeTime = GetDateTime(ChangeTime),
+        NextTime = GetDateTime(NextTime),
+        Disabled = bool.Parse(Disabled)
+    };
 
     private static DateTime GetDateTime(string dateTimeString)
     {

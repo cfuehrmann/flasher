@@ -7,7 +7,13 @@ namespace Flasher.Store.FileStore.Cards;
 public sealed record CachedCard
 {
     public CachedCard(
-        string id, string prompt, string solution, State state, DateTime changeTime, DateTime nextTime, bool disabled)
+        string id,
+        string prompt,
+        string solution,
+        State state,
+        DateTime changeTime,
+        DateTime nextTime,
+        bool disabled)
     {
         Id = id;
         Prompt = prompt;
