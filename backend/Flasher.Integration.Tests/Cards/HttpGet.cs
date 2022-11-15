@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -100,7 +100,7 @@ public class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(new[] { cardStrings1.FullCard }, body?.Cards);
+        Assert.Equal(new[] { cardStrings1.FullCard }, body.Cards);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(new[] { cardStrings1.FullCard }, body?.Cards);
+        Assert.Equal(new[] { cardStrings1.FullCard }, body.Cards);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Empty(body?.Cards);
+        Assert.Empty(body.Cards);
     }
 
     [Theory]
@@ -153,7 +153,7 @@ public class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(new[] { enabledCardStrings.FullCard, disabledCardStrings.FullCard }, body?.Cards);
+        Assert.Equal(new[] { enabledCardStrings.FullCard, disabledCardStrings.FullCard }, body.Cards);
     }
 
     [Theory]
@@ -173,7 +173,7 @@ public class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(new[] { earlyNextTimeCardStrings.FullCard, lateNextTimeCardStrings.FullCard }, body?.Cards);
+        Assert.Equal(new[] { earlyNextTimeCardStrings.FullCard, lateNextTimeCardStrings.FullCard }, body.Cards);
     }
 
     [Theory]
@@ -193,7 +193,7 @@ public class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(new[] { smallIdCardStrings.FullCard, bigIdCardStrings.FullCard }, body?.Cards);
+        Assert.Equal(new[] { smallIdCardStrings.FullCard, bigIdCardStrings.FullCard }, body.Cards);
     }
 
     [Theory]
@@ -216,7 +216,7 @@ public class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(new[] { cardStrings1.FullCard, cardStrings3.FullCard }.Skip(skip), body?.Cards);
+        Assert.Equal(new[] { cardStrings1.FullCard, cardStrings3.FullCard }.Skip(skip), body.Cards);
     }
 
     [Theory]
@@ -248,7 +248,7 @@ public class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(new[] { c3.FullCard, c5.FullCard, c7.FullCard }.Take(pageSize), body?.Cards);
+        Assert.Equal(new[] { c3.FullCard, c5.FullCard, c7.FullCard }.Take(pageSize), body.Cards);
     }
 
     private void WriteCardsFile(params CardStrings[] cardsStrings)
