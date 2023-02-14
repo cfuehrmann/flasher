@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -18,7 +18,7 @@ using Xunit;
 
 namespace Flasher.Integration.Tests.Authentication.Login;
 
-public class HttpPost : IDisposable
+public sealed class HttpPost : IDisposable
 {
     private const string UserName = "john@doe";
     private const string Password = "123456";

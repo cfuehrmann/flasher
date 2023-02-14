@@ -18,7 +18,7 @@ using Xunit;
 
 namespace Flasher.Integration.Tests.Cards;
 
-public class HttpGet : IDisposable
+public sealed class HttpGet : IDisposable
 {
     private const string Id0 = "0d305cfd-9a33-46cd-807b-8adefbe57e42";
     private const string Id1 = "1d305cfd-9a33-46cd-807b-8adefbe57e42";
