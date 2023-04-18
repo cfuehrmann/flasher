@@ -108,7 +108,7 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}/[action]")]
     public async Task<ActionResult<FullCard>> SetFailed(string id)
     {
-        ActionResult setStateResult = await SetState(id, State.Failed, _optionsMonitor.CurrentValue.OkMultiplier);
+        ActionResult setStateResult = await SetState(id, State.Failed, 1 / _optionsMonitor.CurrentValue.OkMultiplier);
 
         if (setStateResult is NoContentResult)
         {
