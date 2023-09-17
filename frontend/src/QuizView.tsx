@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "./Api";
 import {
@@ -114,7 +114,7 @@ export function QuizView(props: ApiHandler & { onGoToGroom: () => void }) {
               }
             })();
           }}
-          onCancel={(clearAutoSaveInterval, startAutoSaveInterval) => {
+          onCancel={(clearAutoSaveInterval) => {
             clearAutoSaveInterval();
             props.handleApi(api.deleteAutoSave)();
             setState({ ...state, mode: "solution" });

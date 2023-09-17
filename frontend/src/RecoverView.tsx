@@ -1,4 +1,3 @@
-import * as React from "react";
 import { api } from "./Api";
 
 import { AbandonButton, ButtonBar, SaveButton } from "./Buttons";

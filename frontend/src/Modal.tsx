@@ -1,4 +1,3 @@
-import * as React from "react";
 import { ButtonBar, CancelButton, OkButton } from "./Buttons";
 
 export function Modal(props: {

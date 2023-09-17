@@ -10,7 +10,7 @@ import { LoginView } from "./LoginView";
 import { RecoverView } from "./RecoverView";
 import { QuizView } from "./QuizView";
 
-export function App() {
+function App() {
   const [state, setState] = useState<AppState>({
     routerState: { route: "Starting" },
     isContactingServer: false,
@@ -34,6 +34,8 @@ export function App() {
     </>
   );
 }
+
+export default App;
 
 function Router(props: { routerState: RouterState } & AppNarratives) {
   const routerState = props.routerState;

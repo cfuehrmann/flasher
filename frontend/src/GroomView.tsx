@@ -1,4 +1,3 @@
-import * as React from "react";
 import { useState } from "react";
 
 import { api } from "./Api";
@@ -188,7 +187,7 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
             id={id}
             prompt={prompt}
             solution={solution}
-            onCancel={(clearAutoSaveInterval, startAutoSaveInterval) => {
+            onCancel={(clearAutoSaveInterval) => {
               clearAutoSaveInterval();
               handleApi(api.deleteAutoSave)();
               setModal({ kind: "view", card: groomCard });

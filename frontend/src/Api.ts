@@ -69,15 +69,15 @@ async function get(url: string) {
   return await sendRequest("GET", url);
 }
 
-async function post(url: string, body?: {}) {
+async function post(url: string, body?: unknown) {
   return await sendRequest("POST", url, body);
 }
 
-async function patch(url: string, body: {}) {
+async function patch(url: string, body: unknown) {
   await sendRequest("PATCH", url, body);
 }
 
-async function put(url: string, body: {}) {
+async function put(url: string, body: unknown) {
   await sendRequest("PUT", url, body);
 }
 
@@ -85,7 +85,7 @@ async function del(url: string) {
   return await sendRequest("DELETE", url);
 }
 
-async function sendRequest(method: string, url: string, body?: {}) {
+async function sendRequest(method: string, url: string, body?: unknown) {
   const [bodyString, headers] = body
     ? [JSON.stringify(body), { "Content-Type": "application/json" }]
     : [undefined, undefined];

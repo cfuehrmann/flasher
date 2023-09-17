@@ -1,5 +1,3 @@
-import * as React from "react";
-
 import { ButtonBar, CancelButton, SaveButton } from "./Buttons";
 import { Card } from "./types";
 import { useAutoSave } from "./useAutoSave";

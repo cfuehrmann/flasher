@@ -1,4 +1,3 @@
-import * as React from "react";
 import { ReactNode } from "react";
 
 type ButtonProps = { key?: string; width?: string; onClick: () => void };
