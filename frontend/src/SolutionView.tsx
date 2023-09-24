@@ -1,7 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import remarkGfm from "remark-gfm";
-import rehypeKatex from "rehype-katex"; // // @ts-ignore
+import rehypeKatex from "rehype-katex";
 
 export function SolutionView(props: { solution: string }) {
   return (
