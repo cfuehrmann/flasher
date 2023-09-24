@@ -2,8 +2,8 @@ import { ButtonBar, CancelButton, OkButton } from "./Buttons";
 
 export function Modal(props: {
   text: string;
-  okAction: () => void;
-  cancelAction: () => void;
+  okAction: () => Promise<void>;
+  cancelAction: () => Promise<void>;
 }) {
   return (
     <div className="w3-modal" style={{ display: "block" }}>
@@ -11,8 +11,10 @@ export function Modal(props: {
         <div className="w3-container">
           <p>{props.text}</p>
           <ButtonBar>
-            <OkButton onClick={props.okAction}></OkButton>
-            <CancelButton onClick={props.cancelAction}></CancelButton>
+            <OkButton onClick={() => void props.okAction()}></OkButton>
+            <CancelButton
+              onClick={() => void props.cancelAction()}
+            ></CancelButton>
           </ButtonBar>
           <br />
         </div>

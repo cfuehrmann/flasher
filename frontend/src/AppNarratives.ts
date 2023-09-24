@@ -1,18 +1,10 @@
 import { toast } from "react-toastify";
 import { api } from "./Api";
-import { AppNarratives, RouterState, SetStateType, AppState } from "./types";
-
-export const initialize = async (setState: SetStateType) =>
-  handleWithState(setState, async () => {
-    setState((prevState: AppState) => ({
-      ...prevState,
-      routerState: { route: "Prompt" },
-    }));
-  })();
+import { AppNarratives, RouterState, SetStateType } from "./types";
 
 export const getNarratives = (setState: SetStateType): AppNarratives => {
   const setPrompt = () =>
-    setState((prevState: AppState) => ({
+    setState((prevState) => ({
       ...prevState,
       routerState: { route: "Prompt" },
     }));
@@ -40,51 +32,46 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
   function handleApi<T extends readonly unknown[]>(
     body: (...args: T) => Promise<void>,
   ) {
-    return handleWithState(setState, body);
+    {
+      return async (...args: T) => {
+        setState((prevState) => ({ ...prevState, isContactingServer: true }));
+
+        try {
+          await body(...args);
+
+          setState((prevState) => ({
+            ...prevState,
+            isContactingServer: false,
+          }));
+        } catch (e) {
+          if (
+            typeof e === "object" &&
+            e !== null &&
+            (e as { status: unknown }).status === 401
+          ) {
+            setState((prevState) => ({
+              ...prevState,
+              routerState: { route: "Login" },
+              isContactingServer: false,
+            }));
+          } else {
+            const message = getErrorMessage(e);
+
+            toast(message, {
+              type: "error",
+              position: "bottom-right",
+            });
+
+            setState((prevState) => ({
+              ...prevState,
+              isContactingServer: false,
+            }));
+          }
+        }
+      };
+    }
   }
 };
-
-function handleWithState<T extends readonly unknown[]>(
-  setState: SetStateType,
-  body: (...args: T) => Promise<void>,
-) {
-  return async (...args: T) => {
-    setState((prevState) => ({ ...prevState, isContactingServer: true }));
-
-    try {
-      await body(...args);
-
-      setState((prevState) => ({
-        ...prevState,
-        isContactingServer: false,
-      }));
-    } catch (e) {
-      if (
-        typeof e === "object" &&
-        e !== null &&
-        (e as { status: unknown }).status === 401
-      ) {
-        setState((prevState) => ({
-          ...prevState,
-          routerState: { route: "Login" },
-          isContactingServer: false,
-        }));
-      } else {
-        const message = getErrorMessage(e);
-
-        toast(message, {
-          type: "error",
-          position: "bottom-right",
-        });
-
-        setState((prevState) => ({
-          ...prevState,
-          isContactingServer: false,
-        }));
-      }
-    }
-  };
-}
 
 function getErrorMessage(error: unknown) {
   const unknownError = "Unknown server error!";

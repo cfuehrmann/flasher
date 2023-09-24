@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 
-type ButtonProps = { key?: string; width?: string; onClick: () => void };
+interface ButtonProps { key?: string; width?: string; onClick: () => void }
 
 export function ButtonBar(props: { children: ReactNode }) {
   return (
@@ -80,7 +80,7 @@ function W3CssButton(
       key={props.key}
       className={"w3-bar-item w3-button " + props.w3CssColor + " w3-border"}
       style={{ width: props.width }}
-      onMouseDown={props.onClick} // onMouseDown because onClick sometime gets swallowed by previous blur
+      onMouseDown={() => void props.onClick()} // onMouseDown because onClick sometime gets swallowed by previous blur
     >
       {props.text}
     </button>

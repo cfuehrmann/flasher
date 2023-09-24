@@ -1,34 +1,54 @@
-import { Api, Card } from "./types";
+import { Api, Card, GroomCard } from "./types";
 
 export const api: Api = {
   login: async (userName: string, password: string) => {
     const response = await post(`Authentication/Login`, { userName, password });
-    return await response.json();
+    const json: unknown = await response.json();
+
+    const autoSave =
+      typeof json === "object" && json !== null && "autoSave" in json
+        ? toCard(json.autoSave)
+        : undefined;
+
+    return { autoSave };
   },
 
   findNextCard: async () => {
     const response = await get("Cards/Next");
-    return response.status === 200 ? await response.json() : undefined;
+
+    if (response.status === 200) {
+      const json: unknown = await response.json();
+      return toCard(json);
+    }
   },
 
   setOk: async (id: string) => {
     const response = await post(`Cards/${id}/SetOk`);
-    return response.status === 200 ? await response.json() : undefined;
+
+    if (response.status === 200) {
+      const json: unknown = await response.json();
+      return toCard(json);
+    }
   },
 
   setFailed: async (id: string) => {
     const response = await post(`Cards/${id}/SetFailed`);
-    return response.status === 200 ? await response.json() : undefined;
+
+    if (response.status === 200) {
+      const json: unknown = await response.json();
+      return toCard(json);
+    }
   },
 
   createCard: async (prompt, solution) => {
     const response = await post(`Cards`, { prompt, solution });
-    return await response.json();
-  },
 
-  readCard: async (id: string) => {
-    const response = await get(`Cards/${id}`);
-    return await response.json();
+    if (response.status === 200) {
+      const json: unknown = await response.json();
+      return toGroomCard(json);
+    }
+
+    throw new Error("Failed to create card!");
   },
 
   updateCard: async (card) => {
@@ -42,7 +62,23 @@ export const api: Api = {
 
   findCards: async (searchText: string, skip: number) => {
     const response = await get(`Cards?searchText=${searchText}&skip=${skip}`);
-    return await response.json();
+    const json: unknown = await response.json();
+    if (
+      typeof json === "object" &&
+      json !== null &&
+      "cards" in json &&
+      "count" in json
+    ) {
+      const cards = json.cards;
+      const count = json.count;
+
+      if (Array.isArray(cards) && typeof count === "number") {
+        const groomCards = cards.map(toGroomCard);
+        return { cards: groomCards, count };
+      }
+    }
+
+    throw new Error("Invalid FindResponse");
   },
 
   enable: async (id: string) => {
@@ -55,10 +91,18 @@ export const api: Api = {
 
   deleteHistory: async (id) => {
     const response = await del(`History/${id}`);
-    return await response.json();
+
+    if (response.status === 200) {
+      const json: unknown = await response.json();
+      return toGroomCard(json);
+    }
+
+    throw new Error("Did not find card from which to delete history!");
   },
 
-  writeAutoSave: async (card: Card) => await put(`AutoSave`, card),
+  writeAutoSave: async (card: Card) => {
+    await put(`AutoSave`, card);
+  },
 
   deleteAutoSave: async () => {
     await del("AutoSave");
@@ -105,4 +149,54 @@ async function sendRequest(method: string, url: string, body?: unknown) {
     });
 
   return response;
+}
+
+function toCard(value: unknown): Card | undefined {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    "prompt" in value &&
+    "solution" in value
+  ) {
+    const id = value.id;
+    const prompt = value.prompt;
+    const solution = value.solution;
+
+    if (
+      typeof id === "string" &&
+      typeof prompt === "string" &&
+      typeof solution === "string"
+    )
+      return { id, prompt, solution };
+  }
+}
+
+function toGroomCard(value: unknown): GroomCard {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    "prompt" in value &&
+    "solution" in value &&
+    "disabled" in value &&
+    "state" in value
+  ) {
+    const id = value.id;
+    const prompt = value.prompt;
+    const solution = value.solution;
+    const disabled = value.disabled;
+    const state = value.state;
+
+    if (
+      typeof id === "string" &&
+      typeof prompt === "string" &&
+      typeof solution === "string" &&
+      typeof disabled === "boolean" &&
+      (state === "new" || state === "ok" || state === "failed")
+    )
+      return { id, prompt, solution, disabled, state };
+  }
+
+  throw new Error("Invalid GroomCard");
 }

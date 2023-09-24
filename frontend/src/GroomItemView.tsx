@@ -16,17 +16,17 @@ import { SolutionView } from "./SolutionView";
 import { GroomCard } from "./types";
 
 type Props = GroomCard & {
-  onDeleteHistory: () => void;
-  onDelete: () => void;
-  onEnable: (id: string) => void;
-  onDisable: (id: string) => void;
+  onDeleteHistory: () => Promise<void>;
+  onDelete: () => Promise<void>;
+  onEnable: (id: string) => Promise<void>;
+  onDisable: (id: string) => Promise<void>;
   onEdit: () => void;
   onBack: () => void;
 };
 
 type ModalMode =
   | { modal: "none" }
-  | { modal: "show"; text: string; action: () => void };
+  | { modal: "show"; text: string; action: () => Promise<void> };
 
 export function GroomItemView(props: Props) {
   const [modalMode, setModalMode] = useState<ModalMode>({ modal: "none" });
@@ -38,7 +38,10 @@ export function GroomItemView(props: Props) {
           <Modal
             text={modalMode.text}
             okAction={modalMode.action}
-            cancelAction={() => setModalMode({ modal: "none" })}
+            cancelAction={async () => {
+              setModalMode({ modal: "none" });
+              return Promise.resolve();
+            }}
           ></Modal>
         ) : (
           ""
@@ -56,9 +59,9 @@ export function GroomItemView(props: Props) {
                 setModalMode({
                   modal: "show",
                   text: "Really delete this card?",
-                  action: () => {
+                  action: async () => {
                     setModalMode({ modal: "none" });
-                    props.onDelete();
+                    await props.onDelete();
                   },
                 })
               }
@@ -70,9 +73,9 @@ export function GroomItemView(props: Props) {
                 setModalMode({
                   modal: "show",
                   text: "Really delete this card's history?",
-                  action: () => {
+                  action: async () => {
                     setModalMode({ modal: "none" });
-                    props.onDeleteHistory();
+                    await props.onDeleteHistory();
                   },
                 })
               }
@@ -81,12 +84,12 @@ export function GroomItemView(props: Props) {
           {props.disabled ? (
             <EnableButton
               width="50%"
-              onClick={() => props.onEnable(props.id)}
+              onClick={() => void props.onEnable(props.id)}
             />
           ) : (
             <DisableButton
               width="50%"
-              onClick={() => props.onDisable(props.id)}
+              onClick={() => void props.onDisable(props.id)}
             />
           )}
         </ButtonBar>

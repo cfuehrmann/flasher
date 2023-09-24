@@ -47,7 +47,7 @@ export function RecoverView(props: Props) {
           <AbandonButton
             onClick={() => {
               clearAutoSaveInterval();
-              props.handleApi(async () => {
+              void props.handleApi(async () => {
                 try {
                   await api.deleteAutoSave();
                   props.onGoToPrompt();
@@ -60,7 +60,7 @@ export function RecoverView(props: Props) {
           <SaveButton
             onClick={() => {
               clearAutoSaveInterval();
-              props.handleApi(async () => {
+              void props.handleApi(async () => {
                 try {
                   await api.updateCard(card);
                   props.onGoToPrompt();

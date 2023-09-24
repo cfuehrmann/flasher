@@ -36,10 +36,12 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
             <TextButton text="Prompt" onClick={props.onGoToPrompt} />
             <TextButton
               text="Create"
-              onClick={handleApi(async () => {
-                const response = await api.createCard("New card", "");
-                setCards([response, ...cards]);
-              })}
+              onClick={() =>
+                void handleApi(async () => {
+                  const response = await api.createCard("New card", "");
+                  setCards([response, ...cards]);
+                })()
+              }
             />
           </div>
           <div className="w3-bar w3-light-grey w3-border">
@@ -53,12 +55,14 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
             />
             <TextButton
               text="Go"
-              onClick={handleApi(async () => {
-                const { cards, count } = await api.findCards(searchText, 0);
-                setActiveSearchText(searchText);
-                setCards(cards);
-                setCount(count);
-              })}
+              onClick={() =>
+                void handleApi(async () => {
+                  const { cards, count } = await api.findCards(searchText, 0);
+                  setActiveSearchText(searchText);
+                  setCards(cards);
+                  setCount(count);
+                })()
+              }
             />
           </div>
           {activeSearchText !== undefined ? (
@@ -104,9 +108,7 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
       <div
         className="w3-card w3-hover-shadow w3-center"
         key={card.id}
-        onClick={handleApi(async () => {
-          setModal({ kind: "view", card });
-        })}
+        onClick={() => setModal({ kind: "view", card })}
       >
         <div className="w3-container">
           <p>{(card.disabled ? "(Disabled) " : "") + card.prompt}</p>
@@ -120,17 +122,19 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
       <TextButton
         text={"Show more"}
         width="100%"
-        onClick={handleApi(async () => {
-          const findResponse = await api.findCards(
-            activeSearchText,
-            cards.length,
-          );
-          const filteredResponse = findResponse.cards.filter(
-            (fc) => !cards.some((c) => c.id === fc.id),
-          );
-          setCards([...cards, ...filteredResponse]);
-          setCount(findResponse.count);
-        })}
+        onClick={() =>
+          void handleApi(async () => {
+            const findResponse = await api.findCards(
+              activeSearchText,
+              cards.length,
+            );
+            const filteredResponse = findResponse.cards.filter(
+              (fc) => !cards.some((c) => c.id === fc.id),
+            );
+            setCards([...cards, ...filteredResponse]);
+            setCount(findResponse.count);
+          })()
+        }
       />
     ) : undefined;
   }
@@ -143,8 +147,8 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
           <GroomItemView
             {...groomCard}
             onBack={() => setModal({ kind: "none" })}
-            onDelete={() => {
-              handleApi(() => api.deleteCard(id))();
+            onDelete={async () => {
+              await handleApi(() => api.deleteCard(id))();
               const newCards = cards.filter((c) => c.id !== id);
               if (newCards.length !== cards.length) setCards(newCards);
               setModal({ kind: "none" });
@@ -155,8 +159,8 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
               setCards(newCards);
               setModal({ kind: "view", card });
             })}
-            onDisable={() => {
-              handleApi(() => api.disable(id))();
+            onDisable={async () => {
+              await handleApi(() => api.disable(id))();
               const newCards = cards.map((c) =>
                 c.id !== id ? c : { ...c, disabled: true },
               );
@@ -164,7 +168,7 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
               setModal({ kind: "none" });
             }}
             onEnable={handleApi(async () => {
-              handleApi(() => api.enable(id))();
+              await handleApi(() => api.enable(id))();
               const newCards = cards.map((c) =>
                 c.id !== id ? c : { ...c, disabled: false },
               );
@@ -187,14 +191,18 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
             id={id}
             prompt={prompt}
             solution={solution}
-            onCancel={(clearAutoSaveInterval) => {
+            onCancel={async (clearAutoSaveInterval) => {
               clearAutoSaveInterval();
-              handleApi(api.deleteAutoSave)();
+              await handleApi(api.deleteAutoSave)();
               setModal({ kind: "view", card: groomCard });
             }}
-            onSave={(card, clearAutoSaveInterval, startAutoSaveInterval) => {
+            onSave={async (
+              card,
+              clearAutoSaveInterval,
+              startAutoSaveInterval,
+            ) => {
               clearAutoSaveInterval();
-              handleApi(async () => {
+              await handleApi(async () => {
                 try {
                   await api.updateCard(card);
                   const newCards = cards.map((c) =>

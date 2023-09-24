@@ -82,17 +82,25 @@ export function QuizView(props: ApiHandler & { onGoToGroom: () => void }) {
               />
               <OkButton
                 width="34%"
-                onClick={props.handleApi(async () => {
-                  const card = await api.setOk(state.card.id);
-                  setState(card ? { mode: "prompt", card } : { mode: "done" });
-                })}
+                onClick={() =>
+                  void props.handleApi(async () => {
+                    const card = await api.setOk(state.card.id);
+                    setState(
+                      card ? { mode: "prompt", card } : { mode: "done" },
+                    );
+                  })()
+                }
               />
               <FailedButton
                 width="33%"
-                onClick={props.handleApi(async () => {
-                  const card = await api.setFailed(state.card.id);
-                  setState(card ? { mode: "prompt", card } : { mode: "done" });
-                })}
+                onClick={() =>
+                  void props.handleApi(async () => {
+                    const card = await api.setFailed(state.card.id);
+                    setState(
+                      card ? { mode: "prompt", card } : { mode: "done" },
+                    );
+                  })()
+                }
               />
             </ButtonBar>
             <br />
@@ -103,9 +111,13 @@ export function QuizView(props: ApiHandler & { onGoToGroom: () => void }) {
       return (
         <EditView
           {...state.card}
-          onSave={(card, clearAutoSaveInterval, startAutoSaveInterval) => {
+          onSave={async (
+            card,
+            clearAutoSaveInterval,
+            startAutoSaveInterval,
+          ) => {
             clearAutoSaveInterval();
-            props.handleApi(async () => {
+            await props.handleApi(async () => {
               try {
                 await api.updateCard(card);
                 setState({ mode: "solution", card });
@@ -114,9 +126,9 @@ export function QuizView(props: ApiHandler & { onGoToGroom: () => void }) {
               }
             })();
           }}
-          onCancel={(clearAutoSaveInterval) => {
+          onCancel={async (clearAutoSaveInterval) => {
             clearAutoSaveInterval();
-            props.handleApi(api.deleteAutoSave)();
+            await props.handleApi(api.deleteAutoSave)();
             setState({ ...state, mode: "solution" });
           }}
           writeAutoSave={props.handleApi(api.writeAutoSave)}
@@ -142,10 +154,9 @@ export function QuizView(props: ApiHandler & { onGoToGroom: () => void }) {
   }
 
   function findNextCard() {
-    props.handleApi(async () => {
+    void props.handleApi(async () => {
       const card = await api.findNextCard();
       setState(card ? { mode: "prompt", card } : { mode: "done" });
-      // setState({ mode: "done" });
     })();
   }
 

@@ -2,11 +2,11 @@ import { useState } from "react";
 
 import { ButtonBar, OkButton } from "./Buttons";
 
-type Props = {
+interface Props {
   userName: string;
   password: string;
-  onOk: (userName: string, password: string) => void;
-};
+  onOk: (userName: string, password: string) => Promise<void>;
+}
 
 export function LoginView(props: Props) {
   const [credentials, setCredentials] = useState({
@@ -47,7 +47,7 @@ export function LoginView(props: Props) {
           <OkButton
             width="26%"
             onClick={() =>
-              props.onOk(credentials.userName, credentials.password)
+              void props.onOk(credentials.userName, credentials.password)
             }
           />
         </ButtonBar>

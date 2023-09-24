@@ -6,12 +6,12 @@ type Props = Card & {
   onCancel: (
     clearAutoSaveInterval: () => void,
     startAutoSaveInterval: () => void,
-  ) => void;
+  ) => Promise<void>;
   onSave: (
     card: Card,
     clearAutoSaveInterval: () => void,
     startAutoSaveInterval: () => void,
-  ) => void;
+  ) => Promise<void>;
   writeAutoSave: (card: Card) => Promise<void>;
 };
 
@@ -49,13 +49,17 @@ export function EditView(props: Props) {
           <CancelButton
             width="50%"
             onClick={() =>
-              props.onCancel(clearAutoSaveInterval, startAutoSaveInterval)
+              void props.onCancel(clearAutoSaveInterval, startAutoSaveInterval)
             }
           />
           <SaveButton
             width="50%"
             onClick={() =>
-              props.onSave(card, clearAutoSaveInterval, startAutoSaveInterval)
+              void props.onSave(
+                card,
+                clearAutoSaveInterval,
+                startAutoSaveInterval,
+              )
             }
           />
         </ButtonBar>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-import { getNarratives, initialize } from "./AppNarratives";
+import { getNarratives } from "./AppNarratives";
 import { CardView } from "./CardView";
 import { GroomView } from "./GroomView";
 import { AppNarratives, AppState, RouterState } from "./types";
@@ -17,7 +17,10 @@ function App() {
   });
 
   useEffect(() => {
-    initialize(setState);
+    setState((prevState) => ({
+      ...prevState,
+      routerState: { route: "Prompt" },
+    }));
   }, []);
 
   const narratives = getNarratives(setState);
