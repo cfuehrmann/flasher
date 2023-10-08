@@ -1,8 +1,8 @@
-export interface Card {
+export type Card = {
   id: string;
   prompt: string;
   solution: string;
-}
+};
 export type CardState = "new" | "ok" | "failed";
 export type GroomCard = Card & { disabled: boolean; state: CardState };
 export interface FindResponse {
