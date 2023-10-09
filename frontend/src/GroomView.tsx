@@ -29,6 +29,13 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
   );
 
   function StickyTop() {
+    const showResults = handleApi(async () => {
+      const { cards, count } = await api.findCards(searchText, 0);
+      setActiveSearchText(searchText);
+      setCards(cards);
+      setCount(count);
+    });
+
     return (
       <>
         <div className="w3-top">
@@ -50,20 +57,16 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
               type="text"
               autoFocus
               onChange={(event) => setSearchText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void showResults();
+                }
+              }}
               value={searchText}
               placeholder="Search..."
             />
-            <TextButton
-              text="Go"
-              onClick={() =>
-                void handleApi(async () => {
-                  const { cards, count } = await api.findCards(searchText, 0);
-                  setActiveSearchText(searchText);
-                  setCards(cards);
-                  setCount(count);
-                })()
-              }
-            />
+            <TextButton text="Go" onClick={() => void showResults()} />
           </div>
           {activeSearchText !== undefined ? (
             <div className="w3-bar w3-light-grey w3-border">

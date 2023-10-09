@@ -40,6 +40,12 @@ export function LoginView(props: Props) {
           onChange={(event) =>
             setPassword((event.target as HTMLInputElement).value)
           }
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void props.onOk(credentials.userName, credentials.password);
+            }
+          }}
           value={credentials.password}
         />
         <br />
