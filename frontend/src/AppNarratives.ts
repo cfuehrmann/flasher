@@ -1,19 +1,23 @@
 import { toast } from "react-toastify";
 import { api } from "./Api";
-import { AppNarratives, RouterState, SetStateType } from "./types";
+import { AppNarratives, AppState, RouterState, SetStateType } from "./types";
 
 export const getNarratives = (setState: SetStateType): AppNarratives => {
   const setPrompt = () =>
-    setState((prevState) => ({
-      ...prevState,
-      routerState: { route: "Prompt" },
-    }));
+    setState(
+      (prevState: AppState): AppState => ({
+        ...prevState,
+        routerState: { route: "Prompt" },
+      }),
+    );
 
   return {
     login: handleApi(async (userName, password) => {
       const { autoSave } = await api.login(userName, password);
-      if (autoSave) setRouterState({ route: "Recover", card: autoSave });
-      else {
+
+      if (autoSave) {
+        setRouterState({ route: "Recover", card: autoSave });
+      } else {
         setPrompt();
       }
     }),
@@ -26,7 +30,9 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
   };
 
   function setRouterState(routerState: RouterState) {
-    setState((prevState) => ({ ...prevState, routerState }));
+    setState(
+      (prevState: AppState): AppState => ({ ...prevState, routerState }),
+    );
   }
 
   function handleApi<T extends readonly unknown[]>(
@@ -34,26 +40,36 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
   ) {
     {
       return async (...args: T) => {
-        setState((prevState) => ({ ...prevState, isContactingServer: true }));
+        setState(
+          (prevState: AppState): AppState => ({
+            ...prevState,
+            isContactingServer: true,
+          }),
+        );
 
         try {
           await body(...args);
 
-          setState((prevState) => ({
-            ...prevState,
-            isContactingServer: false,
-          }));
+          setState(
+            (prevState: AppState): AppState => ({
+              ...prevState,
+              isContactingServer: false,
+            }),
+          );
         } catch (e) {
           if (
             typeof e === "object" &&
             e !== null &&
-            (e as { status: unknown }).status === 401
+            "status" in e &&
+            e.status === 401
           ) {
-            setState((prevState) => ({
-              ...prevState,
-              routerState: { route: "Login" },
-              isContactingServer: false,
-            }));
+            setState(
+              (prevState: AppState): AppState => ({
+                ...prevState,
+                routerState: { route: "Login" },
+                isContactingServer: false,
+              }),
+            );
           } else {
             const message = getErrorMessage(e);
 
@@ -62,10 +78,12 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
               position: "bottom-right",
             });
 
-            setState((prevState) => ({
-              ...prevState,
-              isContactingServer: false,
-            }));
+            setState(
+              (prevState: AppState): AppState => ({
+                ...prevState,
+                isContactingServer: false,
+              }),
+            );
           }
         }
       };
@@ -74,11 +92,12 @@ export const getNarratives = (setState: SetStateType): AppNarratives => {
 };
 
 function getErrorMessage(error: unknown) {
-  const unknownError = "Unknown server error!";
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = error.message;
 
-  if (typeof error !== "object" || error === null) return unknownError;
-
-  const message = (error as { message: unknown }).message;
-
-  return typeof message === "string" ? message : unknownError;
+    if (typeof message === "string") {
+      return message;
+    }
+  }
+  return "Unknown server error!";
 }

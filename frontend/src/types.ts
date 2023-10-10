@@ -47,10 +47,10 @@ export interface ApiHandler {
   ) => (...args: T) => Promise<void>;
 }
 
-export type AppNarratives = ApiHandler & {
+export interface AppNarratives extends ApiHandler {
   login: (userName: string, password: string) => Promise<void>;
   goToPrompt: () => void;
   goToGroom: () => void;
-};
+}
 
 export type SetStateType = React.Dispatch<React.SetStateAction<AppState>>;

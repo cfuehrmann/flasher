@@ -26,9 +26,7 @@ export function LoginView(props: Props) {
           className="w3-input"
           type="text"
           autoComplete="username"
-          onChange={(event) =>
-            setUserName((event.target as HTMLInputElement).value)
-          }
+          onChange={(event) => setUserName(event.target.value)}
           value={credentials.userName}
         />
         <br />
@@ -37,9 +35,7 @@ export function LoginView(props: Props) {
           className="w3-input"
           type="password"
           autoComplete="current-password"
-          onChange={(event) =>
-            setPassword((event.target as HTMLInputElement).value)
-          }
+          onChange={(event) => setPassword(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();
