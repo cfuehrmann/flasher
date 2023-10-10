@@ -1,4 +1,4 @@
-import { Api, Card, GroomCard } from "./types";
+import { Api, Card, FindResponse, GroomCard } from "./types";
 
 export const api: Api = {
   login: async (userName: string, password: string) => {
@@ -16,7 +16,7 @@ export const api: Api = {
   findNextCard: async () => {
     const response = await get("Cards/Next");
 
-    if (response.status === 200) {
+    if (response.ok) {
       const json: unknown = await response.json();
       return toCard(json);
     }
@@ -25,7 +25,7 @@ export const api: Api = {
   setOk: async (id: string) => {
     const response = await post(`Cards/${id}/SetOk`);
 
-    if (response.status === 200) {
+    if (response.ok) {
       const json: unknown = await response.json();
       return toCard(json);
     }
@@ -34,7 +34,7 @@ export const api: Api = {
   setFailed: async (id: string) => {
     const response = await post(`Cards/${id}/SetFailed`);
 
-    if (response.status === 200) {
+    if (response.ok) {
       const json: unknown = await response.json();
       return toCard(json);
     }
@@ -43,7 +43,7 @@ export const api: Api = {
   createCard: async (prompt, solution) => {
     const response = await post(`Cards`, { prompt, solution });
 
-    if (response.status === 200) {
+    if (response.ok) {
       const json: unknown = await response.json();
       return toGroomCard(json);
     }
@@ -51,7 +51,7 @@ export const api: Api = {
     throw new Error("Failed to create card!");
   },
 
-  updateCard: async (card) => {
+  updateCard: async (card): Promise<Card> => {
     await patch(`Cards/${card.id}`, card);
     return { id: "dummy", prompt: "dummy", solution: "dummy" };
   },
@@ -60,7 +60,10 @@ export const api: Api = {
     await del(`Cards/${id}`);
   },
 
-  findCards: async (searchText: string, skip: number) => {
+  findCards: async (
+    searchText: string,
+    skip: number,
+  ): Promise<FindResponse> => {
     const response = await get(`Cards?searchText=${searchText}&skip=${skip}`);
     const json: unknown = await response.json();
     if (
@@ -92,7 +95,7 @@ export const api: Api = {
   deleteHistory: async (id) => {
     const response = await del(`History/${id}`);
 
-    if (response.status === 200) {
+    if (response.ok) {
       const json: unknown = await response.json();
       return toGroomCard(json);
     }
