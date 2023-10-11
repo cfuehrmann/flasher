@@ -16,7 +16,7 @@ export const api: Api = {
   findNextCard: async () => {
     const response = await get("Cards/Next");
 
-    if (response.ok) {
+    if (response.status === 200) {
       const json: unknown = await response.json();
       return toCard(json);
     }
@@ -25,7 +25,7 @@ export const api: Api = {
   setOk: async (id: string) => {
     const response = await post(`Cards/${id}/SetOk`);
 
-    if (response.ok) {
+    if (response.status === 200) {
       const json: unknown = await response.json();
       return toCard(json);
     }
@@ -34,7 +34,7 @@ export const api: Api = {
   setFailed: async (id: string) => {
     const response = await post(`Cards/${id}/SetFailed`);
 
-    if (response.ok) {
+    if (response.status === 200) {
       const json: unknown = await response.json();
       return toCard(json);
     }
@@ -42,13 +42,8 @@ export const api: Api = {
 
   createCard: async (prompt, solution) => {
     const response = await post(`Cards`, { prompt, solution });
-
-    if (response.ok) {
-      const json: unknown = await response.json();
-      return toGroomCard(json);
-    }
-
-    throw new Error("Failed to create card!");
+    const json: unknown = await response.json();
+    return toGroomCard(json);
   },
 
   updateCard: async (card): Promise<Card> => {
@@ -66,6 +61,7 @@ export const api: Api = {
   ): Promise<FindResponse> => {
     const response = await get(`Cards?searchText=${searchText}&skip=${skip}`);
     const json: unknown = await response.json();
+
     if (
       typeof json === "object" &&
       json !== null &&
@@ -94,13 +90,8 @@ export const api: Api = {
 
   deleteHistory: async (id) => {
     const response = await del(`History/${id}`);
-
-    if (response.ok) {
-      const json: unknown = await response.json();
-      return toGroomCard(json);
-    }
-
-    throw new Error("Did not find card from which to delete history!");
+    const json: unknown = await response.json();
+    return toGroomCard(json);
   },
 
   writeAutoSave: async (card: Card) => {
