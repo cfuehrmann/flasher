@@ -1,5 +1,4 @@
 ﻿using System;
-
 using Flasher.Store.Cards;
 
 namespace Flasher.Store.FileStore.Cards;
@@ -13,7 +12,8 @@ public sealed record CachedCard
         State state,
         DateTime changeTime,
         DateTime nextTime,
-        bool disabled)
+        bool disabled
+    )
     {
         Id = id;
         Prompt = prompt;

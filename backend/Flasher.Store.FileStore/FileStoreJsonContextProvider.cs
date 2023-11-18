@@ -9,7 +9,11 @@ public class FileStoreJsonContextProvider : IFileStoreJsonContextProvider
     {
         get
         {
-            var jsonOptions = new JsonSerializerOptions { WriteIndented = true, PropertyNameCaseInsensitive = true };
+            var jsonOptions = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNameCaseInsensitive = true
+            };
             jsonOptions.Converters.Add(new JsonStringEnumConverter());
             return new FileStoreJsonContext(jsonOptions);
         }

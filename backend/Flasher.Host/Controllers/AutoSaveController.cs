@@ -1,8 +1,6 @@
 ﻿using System.Threading.Tasks;
-
 using Flasher.Host.Model;
 using Flasher.Store.AutoSaving;
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -30,6 +28,12 @@ public class AutoSaveController : ControllerBase
     {
         await _store.Write(
             User.Identity!.Name!,
-            new AutoSave { Id = request.Id, Prompt = request.Prompt, Solution = request.Solution });
+            new AutoSave
+            {
+                Id = request.Id,
+                Prompt = request.Prompt,
+                Solution = request.Solution
+            }
+        );
     }
 }

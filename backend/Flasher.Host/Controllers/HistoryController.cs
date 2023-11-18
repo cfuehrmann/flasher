@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
-
 using Flasher.Injectables;
 using Flasher.Store.Cards;
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -17,7 +15,11 @@ public class HistoryController : ControllerBase
     private readonly IDateTime _time;
     private readonly IOptionsMonitor<CardsOptions> _optionsMonitor;
 
-    public HistoryController(ICardStore store, IDateTime time, IOptionsMonitor<CardsOptions> optionsMonitor)
+    public HistoryController(
+        ICardStore store,
+        IDateTime time,
+        IOptionsMonitor<CardsOptions> optionsMonitor
+    )
     {
         (_store, _time, _optionsMonitor) = (store, time, optionsMonitor);
     }

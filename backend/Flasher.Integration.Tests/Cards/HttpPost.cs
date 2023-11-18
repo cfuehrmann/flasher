@@ -4,11 +4,8 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
-
 using Flasher.Host.Model;
-
 using Microsoft.AspNetCore.Mvc.Testing;
-
 using Xunit;
 
 namespace Flasher.Integration.Tests.Cards;
@@ -20,9 +17,9 @@ public sealed class HttpPost : IDisposable
 
     // The hash comes from the password. Don't let this test suite compute the hash, because
     // these tests should also protect against invalidating the password hash by accidental
-    // change of the hash algorithm.    
+    // change of the hash algorithm.
     private const string PasswordHash =
-      "AQAAAAIAAYagAAAAENaCGNNEyy7NIj6ytU5fjbj4ze0Rs10SHU3WAaX+Fw1EV3mix/ytgxvbp7JMVYAsoQ==";
+        "AQAAAAIAAYagAAAAENaCGNNEyy7NIj6ytU5fjbj4ze0Rs10SHU3WAaX+Fw1EV3mix/ytgxvbp7JMVYAsoQ==";
 
     private readonly string _fileStoreDirectory;
 
@@ -40,10 +37,15 @@ public sealed class HttpPost : IDisposable
     [Fact]
     public async Task Create()
     {
-        using WebApplicationFactory<Program> factory = Util.CreateWebApplicationFactory(_fileStoreDirectory);
+        using WebApplicationFactory<Program> factory = Util.CreateWebApplicationFactory(
+            _fileStoreDirectory
+        );
         using HttpClient client = await factory.Login(UserName, Password);
 
-        using HttpResponseMessage response = await client.PostAsJsonAsync("/Cards", new CreateCardRequest { Prompt = "p", Solution = "s" });
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            "/Cards",
+            new CreateCardRequest { Prompt = "p", Solution = "s" }
+        );
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }

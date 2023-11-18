@@ -3,10 +3,8 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-
 using Flasher.Store.Authentication;
 using Flasher.Store.Exceptions;
-
 using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.Authentication;
@@ -16,9 +14,14 @@ public class AuthenticationStore : IAuthenticationStore
     private readonly JsonSerializerContext _jsonContext;
     private readonly string _directory;
 
-    public AuthenticationStore(IOptionsMonitor<FileStoreOptions> options, IFileStoreJsonContextProvider jsonContextProvider)
+    public AuthenticationStore(
+        IOptionsMonitor<FileStoreOptions> options,
+        IFileStoreJsonContextProvider jsonContextProvider
+    )
     {
-        _directory = options.CurrentValue.Directory ?? throw new StoreConfigurationException("Missing option 'FileStore:Directory'!");
+        _directory =
+            options.CurrentValue.Directory
+            ?? throw new StoreConfigurationException("Missing option 'FileStore:Directory'!");
         _jsonContext = jsonContextProvider.Instance;
     }
 
@@ -33,7 +36,8 @@ public class AuthenticationStore : IAuthenticationStore
 
         string json = File.ReadAllText(path);
 
-        var profile = JsonSerializer.Deserialize(json, typeof(Profile), _jsonContext) as Profile
+        var profile =
+            JsonSerializer.Deserialize(json, typeof(Profile), _jsonContext) as Profile
             ?? throw new InvalidOperationException("The profile file is invalid!");
 
         return Task.FromResult(profile.PasswordHash);

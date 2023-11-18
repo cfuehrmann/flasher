@@ -6,10 +6,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-
 using Flasher.Host.Model;
 using Flasher.Store.FileStore;
-
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,29 +22,50 @@ public static class Util
         return Path.Combine(current, subDirectory);
     }
 
-    public static void CreateUserStore(string fileStoreDirectory, string userName, string passwordHash)
+    public static void CreateUserStore(
+        string fileStoreDirectory,
+        string userName,
+        string passwordHash
+    )
     {
         string userPath = Path.Combine(fileStoreDirectory, userName);
         _ = Directory.CreateDirectory(userPath);
-        string usersFileContent = $"{{ \"UserName\": \"{userName}\", \"PasswordHash\": \"{passwordHash}\" }}";
+        string usersFileContent =
+            $"{{ \"UserName\": \"{userName}\", \"PasswordHash\": \"{passwordHash}\" }}";
         File.WriteAllText(Path.Combine(userPath, "profile.json"), usersFileContent);
         File.WriteAllText(Path.Combine(userPath, "cards.json"), "[]");
     }
 
-    public static void WriteCardsFile(string fileStoreDirectory, string userName, IEnumerable<string> cards)
+    public static void WriteCardsFile(
+        string fileStoreDirectory,
+        string userName,
+        IEnumerable<string> cards
+    )
     {
         string userPath = Path.Combine(fileStoreDirectory, userName);
         File.WriteAllText(Path.Combine(userPath, "cards.json"), $"[{string.Join(", ", cards)}]");
     }
 
-    public static WebApplicationFactory<Program> CreateWebApplicationFactory(string fileStoreDirectory)
+    public static WebApplicationFactory<Program> CreateWebApplicationFactory(
+        string fileStoreDirectory
+    )
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => services.Configure<FileStoreOptions>(option =>
-                option.Directory = fileStoreDirectory)));
+        return new WebApplicationFactory<Program>().WithWebHostBuilder(
+            builder =>
+                builder.ConfigureServices(
+                    services =>
+                        services.Configure<FileStoreOptions>(
+                            option => option.Directory = fileStoreDirectory
+                        )
+                )
+        );
     }
 
-    public static async Task<HttpClient> Login(this WebApplicationFactory<Program> factory, string userName, string password)
+    public static async Task<HttpClient> Login(
+        this WebApplicationFactory<Program> factory,
+        string userName,
+        string password
+    )
     {
         HttpClient client = factory.CreateClient();
         using HttpResponseMessage loginResponse = await client.Login(userName, password);
@@ -55,9 +74,16 @@ public static class Util
         return client;
     }
 
-    public static async Task<HttpResponseMessage> Login(this HttpClient client, string userName, string password)
+    public static async Task<HttpResponseMessage> Login(
+        this HttpClient client,
+        string userName,
+        string password
+    )
     {
-        return await client.PostAsJsonAsync("/Authentication/Login", new LoginRequest { UserName = userName, Password = password });
+        return await client.PostAsJsonAsync(
+            "/Authentication/Login",
+            new LoginRequest { UserName = userName, Password = password }
+        );
     }
 
     public static IEnumerable<string> GetCookies(this HttpResponseMessage response)

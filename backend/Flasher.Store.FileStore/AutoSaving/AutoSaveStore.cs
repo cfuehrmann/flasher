@@ -3,9 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-
 using Flasher.Store.AutoSaving;
-
 using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.AutoSaving;
@@ -15,11 +13,15 @@ public class AutoSaveStore : IAutoSaveStore
     private readonly string _directory;
     private readonly JsonSerializerContext _jsonContext;
 
-    public AutoSaveStore(IOptionsMonitor<FileStoreOptions> options, IFileStoreJsonContextProvider jsonContextProvider)
+    public AutoSaveStore(
+        IOptionsMonitor<FileStoreOptions> options,
+        IFileStoreJsonContextProvider jsonContextProvider
+    )
     {
         _jsonContext = jsonContextProvider.Instance;
-        _directory = options.CurrentValue.Directory ??
-            throw new ArgumentException("Missing configuration 'FileStore:Directory'");
+        _directory =
+            options.CurrentValue.Directory
+            ?? throw new ArgumentException("Missing configuration 'FileStore:Directory'");
     }
 
     public async Task<AutoSave?> Read(string user)
@@ -35,18 +37,25 @@ public class AutoSaveStore : IAutoSaveStore
         var type = typeof(SerializableAutoSave);
         object? deserialized = await JsonSerializer.DeserializeAsync(fs, type, _jsonContext);
         if (deserialized is not SerializableAutoSave typedValue)
-
         {
             throw new InvalidOperationException("Deserializing the auto save file returned null!");
         }
 
-        string id = typedValue.Id ??
-            throw new InvalidOperationException($"The Id of the auto save is null!");
-        string prompt = typedValue.Prompt ??
-            throw new InvalidOperationException($"The Prompt of the auto save is null!");
-        string solution = typedValue.Solution ??
-            throw new InvalidOperationException($"The Solution of the auto save is null!");
-        return new AutoSave { Id = id, Prompt = prompt, Solution = solution };
+        string id =
+            typedValue.Id
+            ?? throw new InvalidOperationException($"The Id of the auto save is null!");
+        string prompt =
+            typedValue.Prompt
+            ?? throw new InvalidOperationException($"The Prompt of the auto save is null!");
+        string solution =
+            typedValue.Solution
+            ?? throw new InvalidOperationException($"The Solution of the auto save is null!");
+        return new AutoSave
+        {
+            Id = id,
+            Prompt = prompt,
+            Solution = solution
+        };
     }
 
     public Task Delete(string user)
@@ -54,8 +63,14 @@ public class AutoSaveStore : IAutoSaveStore
         string path = GetPath(user);
         try
         {
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read,
-                FileShare.None, 1, FileOptions.DeleteOnClose);
+            using var fs = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.None,
+                1,
+                FileOptions.DeleteOnClose
+            );
         }
         catch (FileNotFoundException) { }
         return Task.CompletedTask;
@@ -64,7 +79,14 @@ public class AutoSaveStore : IAutoSaveStore
     public async Task Write(string user, AutoSave autoSave)
     {
         string path = GetPath(user);
-        using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
+        using var fs = new FileStream(
+            path,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            131072,
+            true
+        );
         var s = new SerializableAutoSave
         {
             Id = autoSave.Id,

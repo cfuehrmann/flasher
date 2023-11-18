@@ -6,11 +6,9 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-
 using Flasher.Injectables;
 using Flasher.Store.Cards;
 using Flasher.Store.Exceptions;
-
 using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.Cards;
@@ -19,18 +17,27 @@ public class CardStore : ICardStore
 {
     private readonly string _directory;
     private readonly JsonSerializerContext _jsonContext;
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, CachedCard>> _cardsByUser;
+    private readonly ConcurrentDictionary<
+        string,
+        ConcurrentDictionary<string, CachedCard>
+    > _cardsByUser;
     private readonly IDateTime _time;
 
-    public CardStore(IOptionsMonitor<FileStoreOptions> options, IDateTime time,
-        IFileStoreJsonContextProvider jsonContextProvider)
+    public CardStore(
+        IOptionsMonitor<FileStoreOptions> options,
+        IDateTime time,
+        IFileStoreJsonContextProvider jsonContextProvider
+    )
     {
-        _directory = options.CurrentValue.Directory ??
-            throw new ArgumentException("Missing configuration 'FileStore:Directory'");
+        _directory =
+            options.CurrentValue.Directory
+            ?? throw new ArgumentException("Missing configuration 'FileStore:Directory'");
         _jsonContext = jsonContextProvider.Instance;
         const int lowestPrimeAboveInitialNumberOfUsers = 2;
         _cardsByUser = new ConcurrentDictionary<string, ConcurrentDictionary<string, CachedCard>>(
-            Environment.ProcessorCount * 2, lowestPrimeAboveInitialNumberOfUsers);
+            Environment.ProcessorCount * 2,
+            lowestPrimeAboveInitialNumberOfUsers
+        );
         _time = time;
     }
 
@@ -45,7 +52,8 @@ public class CardStore : ICardStore
             card.State,
             card.ChangeTime,
             card.NextTime,
-            card.Disabled);
+            card.Disabled
+        );
         return cards.TryAdd(card.Id, cachedCard)
             ? WriteCards(user)
             : throw new ArgumentException($"The card with id {card.Id} already exists!");
@@ -53,7 +61,9 @@ public class CardStore : ICardStore
 
     public Task<FullCard?> Read(string user, string id)
     {
-        FullCard? result = EnsureCache(user).TryGetValue(id, out CachedCard? cachedCard) ? cachedCard.ToResponse() : null;
+        FullCard? result = EnsureCache(user).TryGetValue(id, out CachedCard? cachedCard)
+            ? cachedCard.ToResponse()
+            : null;
         return Task.FromResult(result);
     }
 
@@ -114,14 +124,18 @@ public class CardStore : ICardStore
 
     public Task<FindResponse> Find(string user, string searchText, int skip, int take)
     {
-        IEnumerable<FullCard> allHits =
-            EnsureCache(user).Values
-                .Where(card => card.Prompt?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true ||
-                        card.Solution?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true)
-                .OrderBy(card => card.Disabled)
-                .ThenBy(card => card.NextTime)
-                .ThenBy(card => card.Id)
-                .Select(card => card.ToResponse());
+        IEnumerable<FullCard> allHits = EnsureCache(user)
+            .Values
+            .Where(
+                card =>
+                    card.Prompt?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true
+                    || card.Solution?.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                        == true
+            )
+            .OrderBy(card => card.Disabled)
+            .ThenBy(card => card.NextTime)
+            .ThenBy(card => card.Id)
+            .Select(card => card.ToResponse());
 
         FullCard[] allHitsArray = allHits.ToArray();
         var result = new FindResponse
@@ -134,38 +148,54 @@ public class CardStore : ICardStore
 
     public Task<FullCard?> FindNext(string user)
     {
-        FullCard? result = EnsureCache(user).Values
+        FullCard? result = EnsureCache(user)
+            .Values
             .Where(card => card.NextTime <= _time.Now && !card.Disabled)
-            .OrderBy(card => card.NextTime).ThenBy(card => card.Id)
-            .FirstOrDefault()?
-            .ToResponse();
+            .OrderBy(card => card.NextTime)
+            .ThenBy(card => card.Id)
+            .FirstOrDefault()
+            ?.ToResponse();
         return Task.FromResult(result);
     }
 
     private ConcurrentDictionary<string, CachedCard> EnsureCache(string user)
     {
-        return _cardsByUser.GetOrAdd(user, user =>
-        {
-            string path = GetPath(user);
-            string json = File.ReadAllText(path);
-            var type = typeof(IEnumerable<SerializableCard>);
-            object? deserialized = JsonSerializer.Deserialize(json, type, _jsonContext);
-            if (deserialized is not IEnumerable<SerializableCard> typedValue)
+        return _cardsByUser.GetOrAdd(
+            user,
+            user =>
             {
-                throw new InvalidOperationException("Deserializing the cards file returned null!");
-            }
+                string path = GetPath(user);
+                string json = File.ReadAllText(path);
+                var type = typeof(IEnumerable<SerializableCard>);
+                object? deserialized = JsonSerializer.Deserialize(json, type, _jsonContext);
+                if (deserialized is not IEnumerable<SerializableCard> typedValue)
+                {
+                    throw new InvalidOperationException(
+                        "Deserializing the cards file returned null!"
+                    );
+                }
 
-            var dictionary = GetCachedCards(typedValue).ToDictionary(card => card.Id);
-            return new ConcurrentDictionary<string, CachedCard>(dictionary);
-        });
+                var dictionary = GetCachedCards(typedValue).ToDictionary(card => card.Id);
+                return new ConcurrentDictionary<string, CachedCard>(dictionary);
+            }
+        );
     }
 
-    private static IEnumerable<CachedCard> GetCachedCards(IEnumerable<SerializableCard> deserializedCards)
+    private static IEnumerable<CachedCard> GetCachedCards(
+        IEnumerable<SerializableCard> deserializedCards
+    )
     {
         foreach (SerializableCard card in deserializedCards)
         {
-            if (card.Id != null && card.Prompt != null && card.Solution != null && card.State != null &&
-                card.ChangeTime != null && card.NextTime != null && card.Disabled != null)
+            if (
+                card.Id != null
+                && card.Prompt != null
+                && card.Solution != null
+                && card.State != null
+                && card.ChangeTime != null
+                && card.NextTime != null
+                && card.Disabled != null
+            )
             {
                 yield return new CachedCard(
                     id: card.Id,
@@ -174,7 +204,8 @@ public class CardStore : ICardStore
                     state: card.State.Value,
                     changeTime: card.ChangeTime.Value,
                     nextTime: card.NextTime.Value,
-                    disabled: card.Disabled.Value);
+                    disabled: card.Disabled.Value
+                );
             }
         }
     }
@@ -184,14 +215,23 @@ public class CardStore : ICardStore
         string path = GetPath(user);
         try
         {
-            using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
+            using var fs = new FileStream(
+                path,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                131072,
+                true
+            );
             ICollection<CachedCard> values = _cardsByUser[user].Values;
             var type = typeof(IEnumerable<CachedCard>);
             await JsonSerializer.SerializeAsync(fs, values, type, _jsonContext);
         }
         catch (IOException)
         {
-            throw new ConflictException("Cannot access the cards file. Did you use Flasher concurrently?");
+            throw new ConflictException(
+                "Cannot access the cards file. Did you use Flasher concurrently?"
+            );
         }
     }
 

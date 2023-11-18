@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Threading.Tasks;
-
 using Flasher.Host.Model;
 using Flasher.Injectables;
 using Flasher.Store.AutoSaving;
 using Flasher.Store.Cards;
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -20,10 +18,19 @@ public class CardsController : ControllerBase
     private readonly IDateTime _time;
     private readonly IOptionsMonitor<CardsOptions> _optionsMonitor;
 
-    public CardsController(ICardStore store, IAutoSaveStore autoSaveStore, IDateTime time,
-        IOptionsMonitor<CardsOptions> optionsMonitor)
+    public CardsController(
+        ICardStore store,
+        IAutoSaveStore autoSaveStore,
+        IDateTime time,
+        IOptionsMonitor<CardsOptions> optionsMonitor
+    )
     {
-        (_store, _autoSaveStore, _time, _optionsMonitor) = (store, autoSaveStore, time, optionsMonitor);
+        (_store, _autoSaveStore, _time, _optionsMonitor) = (
+            store,
+            autoSaveStore,
+            time,
+            optionsMonitor
+        );
     }
 
     [HttpPost]
@@ -60,7 +67,12 @@ public class CardsController : ControllerBase
     public async Task<ActionResult<bool>> Update(string id, UpdateCardRequest request)
     {
         _ = _time.Now;
-        var update = new CardUpdate { Id = id, Prompt = request.Prompt, Solution = request.Solution };
+        var update = new CardUpdate
+        {
+            Id = id,
+            Prompt = request.Prompt,
+            Solution = request.Solution
+        };
         var cardWasFound = await _store.Update(User.Identity!.Name!, update) != null;
         await _autoSaveStore.Delete(User.Identity.Name!);
         return cardWasFound ? Ok() : NotFound();
@@ -93,7 +105,11 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}/SetOk")]
     public async Task<ActionResult<FullCard>> SetOk(string id)
     {
-        ActionResult setStateResult = await SetState(id, State.Ok, _optionsMonitor.CurrentValue.OkMultiplier);
+        ActionResult setStateResult = await SetState(
+            id,
+            State.Ok,
+            _optionsMonitor.CurrentValue.OkMultiplier
+        );
 
         if (setStateResult is NoContentResult)
         {
@@ -108,7 +124,11 @@ public class CardsController : ControllerBase
     [Route("/[controller]/{id}/SetFailed")]
     public async Task<ActionResult<FullCard>> SetFailed(string id)
     {
-        ActionResult setStateResult = await SetState(id, State.Failed, 1 / _optionsMonitor.CurrentValue.OkMultiplier);
+        ActionResult setStateResult = await SetState(
+            id,
+            State.Failed,
+            1 / _optionsMonitor.CurrentValue.OkMultiplier
+        );
 
         if (setStateResult is NoContentResult)
         {

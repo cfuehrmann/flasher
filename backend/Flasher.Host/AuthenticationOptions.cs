@@ -6,3 +6,4 @@ public sealed record AuthenticationOptions
 {
     public TimeSpan TokenLifetime { get; set; }
 }
+
