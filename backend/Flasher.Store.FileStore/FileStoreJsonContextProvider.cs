@@ -14,7 +14,6 @@ public class FileStoreJsonContextProvider : IFileStoreJsonContextProvider
                 WriteIndented = true,
                 PropertyNameCaseInsensitive = true
             };
-            jsonOptions.Converters.Add(new JsonStringEnumConverter());
             return new FileStoreJsonContext(jsonOptions);
         }
     }
