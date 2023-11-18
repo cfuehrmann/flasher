@@ -8,14 +8,9 @@ namespace Flasher.Host.Controllers;
 
 [Authorize]
 [Route("[controller]")]
-public class AutoSaveController : ControllerBase
+public class AutoSaveController(IAutoSaveStore store) : ControllerBase
 {
-    private readonly IAutoSaveStore _store;
-
-    public AutoSaveController(IAutoSaveStore store)
-    {
-        _store = store;
-    }
+    private readonly IAutoSaveStore _store = store;
 
     [HttpDelete]
     public async Task Delete()

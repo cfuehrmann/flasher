@@ -9,21 +9,16 @@ using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.Authentication;
 
-public class AuthenticationStore : IAuthenticationStore
+public class AuthenticationStore(
+    IOptionsMonitor<FileStoreOptions> options,
+    IFileStoreJsonContextProvider jsonContextProvider
+) : IAuthenticationStore
 {
-    private readonly JsonSerializerContext _jsonContext;
-    private readonly string _directory;
+    private readonly JsonSerializerContext _jsonContext = jsonContextProvider.Instance;
 
-    public AuthenticationStore(
-        IOptionsMonitor<FileStoreOptions> options,
-        IFileStoreJsonContextProvider jsonContextProvider
-    )
-    {
-        _directory =
-            options.CurrentValue.Directory
-            ?? throw new StoreConfigurationException("Missing option 'FileStore:Directory'!");
-        _jsonContext = jsonContextProvider.Instance;
-    }
+    private readonly string _directory =
+        options.CurrentValue.Directory
+        ?? throw new StoreConfigurationException("Missing option 'FileStore:Directory'!");
 
     public Task<string?> GetPasswordHash(string userName)
     {

@@ -8,21 +8,16 @@ using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.AutoSaving;
 
-public class AutoSaveStore : IAutoSaveStore
+public class AutoSaveStore(
+    IOptionsMonitor<FileStoreOptions> options,
+    IFileStoreJsonContextProvider jsonContextProvider
+) : IAutoSaveStore
 {
-    private readonly string _directory;
-    private readonly JsonSerializerContext _jsonContext;
+    private readonly string _directory =
+        options.CurrentValue.Directory
+        ?? throw new ArgumentException("Missing configuration 'FileStore:Directory'");
 
-    public AutoSaveStore(
-        IOptionsMonitor<FileStoreOptions> options,
-        IFileStoreJsonContextProvider jsonContextProvider
-    )
-    {
-        _jsonContext = jsonContextProvider.Instance;
-        _directory =
-            options.CurrentValue.Directory
-            ?? throw new ArgumentException("Missing configuration 'FileStore:Directory'");
-    }
+    private readonly JsonSerializerContext _jsonContext = jsonContextProvider.Instance;
 
     public async Task<AutoSave?> Read(string user)
     {
