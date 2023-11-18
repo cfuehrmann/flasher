@@ -90,7 +90,7 @@ public class CardsController : ControllerBase
     }
 
     [HttpPost]
-    [Route("/[controller]/{id}/[action]")]
+    [Route("/[controller]/{id}/SetOk")]
     public async Task<ActionResult<FullCard>> SetOk(string id)
     {
         ActionResult setStateResult = await SetState(id, State.Ok, _optionsMonitor.CurrentValue.OkMultiplier);
@@ -105,7 +105,7 @@ public class CardsController : ControllerBase
     }
 
     [HttpPost]
-    [Route("/[controller]/{id}/[action]")]
+    [Route("/[controller]/{id}/SetFailed")]
     public async Task<ActionResult<FullCard>> SetFailed(string id)
     {
         ActionResult setStateResult = await SetState(id, State.Failed, 1 / _optionsMonitor.CurrentValue.OkMultiplier);
@@ -120,7 +120,7 @@ public class CardsController : ControllerBase
     }
 
     [HttpPost]
-    [Route("/[controller]/{id}/[action]")]
+    [Route("/[controller]/{id}/Enable")]
     public async Task<ActionResult> Enable(string id)
     {
         var update = new CardUpdate { Id = id, Disabled = false };

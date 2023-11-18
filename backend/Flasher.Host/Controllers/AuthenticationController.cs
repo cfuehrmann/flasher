@@ -1,12 +1,10 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Threading.Tasks;
-
 using Flasher.Host.Model;
 using Flasher.Injectables;
 using Flasher.Store.Authentication;
 using Flasher.Store.AutoSaving;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -16,26 +14,21 @@ using Microsoft.IdentityModel.Tokens;
 namespace Flasher.Host.Controllers;
 
 [Route("[controller]/[action]")]
-public class AuthenticationController : ControllerBase
+public class AuthenticationController(
+    IAuthenticationStore store,
+    IAutoSaveStore autoSaveStore,
+    SecurityKey securityKey,
+    IPasswordHasher<User> passwordHasher,
+    IOptionsMonitor<AuthenticationOptions> options,
+    IDateTime dateTime
+) : ControllerBase
 {
-    private readonly IAuthenticationStore _store;
-    private readonly IAutoSaveStore _autoSaveStore;
-    private readonly SecurityKey _securityKey;
-    private readonly IPasswordHasher<User> _passwordHasher;
-    private readonly AuthenticationOptions _options;
-    private readonly IDateTime _dateTime;
-
-    public AuthenticationController(IAuthenticationStore store, IAutoSaveStore autoSaveStore,
-        SecurityKey securityKey, IPasswordHasher<User> passwordHasher,
-        IOptionsMonitor<AuthenticationOptions> options, IDateTime dateTime)
-    {
-        _store = store;
-        _autoSaveStore = autoSaveStore;
-        _securityKey = securityKey;
-        _passwordHasher = passwordHasher;
-        _options = options.CurrentValue;
-        _dateTime = dateTime;
-    }
+    private readonly IAuthenticationStore _store = store;
+    private readonly IAutoSaveStore _autoSaveStore = autoSaveStore;
+    private readonly SecurityKey _securityKey = securityKey;
+    private readonly IPasswordHasher<User> _passwordHasher = passwordHasher;
+    private readonly AuthenticationOptions _options = options.CurrentValue;
+    private readonly IDateTime _dateTime = dateTime;
 
     [HttpPost]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
@@ -51,7 +44,8 @@ public class AuthenticationController : ControllerBase
             _passwordHasher.VerifyHashedPassword(
                 new User { Name = request.UserName },
                 hashedPassword,
-                request.Password);
+                request.Password
+            );
 
         if (passwordVerificationResult != PasswordVerificationResult.Success)
         {
