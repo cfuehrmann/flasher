@@ -14,7 +14,6 @@ using Flasher.Store.FileStore.Cards;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateSlimBuilder(args);
@@ -111,7 +110,7 @@ authenticationGroup
     .Produces(StatusCodes.Status401Unauthorized);
 
 var cardsGroup = app.MapGroup("/Cards").RequireAuthorization();
-
+cardsGroup.MapPost("", CardsHandler.Create);
 cardsGroup.MapGet("", CardsHandler.Find);
 cardsGroup.MapGet("Next", CardsHandler.Next);
 
