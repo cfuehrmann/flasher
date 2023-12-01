@@ -6,11 +6,9 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Flasher.Host;
 using Flasher.Store.Cards;
-using Flasher.Store.FileStore;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace Flasher.Integration.Tests.Cards;
@@ -93,7 +91,7 @@ public sealed class HttpGet : IDisposable
             TrueString
         );
         WriteCardsFile(cardStrings0, cardStrings1, cardStrings2);
-        using WebApplicationFactory<Program> factory = CreateWebApplicationFactory();
+        using WebApplicationFactory<Program> factory = GetApplicationFactory();
         using HttpClient client = await Login(factory);
 
         using HttpResponseMessage response = await client.GetAsync($"/Cards");
@@ -139,7 +137,7 @@ public sealed class HttpGet : IDisposable
             TrueString
         );
         WriteCardsFile(cardStrings0, cardStrings1, cardStrings2);
-        using WebApplicationFactory<Program> factory = CreateWebApplicationFactory();
+        using WebApplicationFactory<Program> factory = GetApplicationFactory();
         using HttpClient client = await Login(factory);
 
         using HttpResponseMessage response = await client.GetAsync(
@@ -183,7 +181,7 @@ public sealed class HttpGet : IDisposable
             TrueString
         );
         WriteCardsFile(cardStrings0, cardStrings1, cardStrings2);
-        using WebApplicationFactory<Program> factory = CreateWebApplicationFactory();
+        using WebApplicationFactory<Program> factory = GetApplicationFactory();
         using HttpClient client = await Login(factory);
 
         using HttpResponseMessage response = await client.GetAsync(
@@ -200,7 +198,7 @@ public sealed class HttpGet : IDisposable
     public async Task FileEmpty()
     {
         WriteCardsFile();
-        using WebApplicationFactory<Program> factory = CreateWebApplicationFactory();
+        using WebApplicationFactory<Program> factory = GetApplicationFactory();
         using HttpClient client = await Login(factory);
 
         using HttpResponseMessage response = await client.GetAsync($"/Cards");
@@ -240,7 +238,7 @@ public sealed class HttpGet : IDisposable
             disabledCardStrings
         );
         WriteCardsFile(cardsStrings);
-        using WebApplicationFactory<Program> factory = CreateWebApplicationFactory();
+        using WebApplicationFactory<Program> factory = GetApplicationFactory();
         using HttpClient client = await Login(factory);
 
         using HttpResponseMessage response = await client.GetAsync($"/Cards");
@@ -283,7 +281,7 @@ public sealed class HttpGet : IDisposable
             lateNextTimeCardStrings
         );
         WriteCardsFile(cardsStrings);
-        using WebApplicationFactory<Program> factory = CreateWebApplicationFactory();
+        using WebApplicationFactory<Program> factory = GetApplicationFactory();
         using HttpClient client = await Login(factory);
 
         using HttpResponseMessage response = await client.GetAsync($"/Cards");
@@ -326,7 +324,7 @@ public sealed class HttpGet : IDisposable
             bigIdCardStrings
         );
         WriteCardsFile(cardsStrings);
-        using WebApplicationFactory<Program> factory = CreateWebApplicationFactory();
+        using WebApplicationFactory<Program> factory = GetApplicationFactory();
         using HttpClient client = await Login(factory);
 
         using HttpResponseMessage response = await client.GetAsync($"/Cards");
@@ -381,7 +379,7 @@ public sealed class HttpGet : IDisposable
             TrueString
         );
         WriteCardsFile(cardStrings0, cardStrings1, cardStrings2, cardStrings3);
-        using WebApplicationFactory<Program> factory = CreateWebApplicationFactory();
+        using WebApplicationFactory<Program> factory = GetApplicationFactory();
         using HttpClient client = await Login(factory);
 
         using HttpResponseMessage response = await client.GetAsync(
@@ -475,18 +473,7 @@ public sealed class HttpGet : IDisposable
             TrueString
         );
         WriteCardsFile(c0, c1, c2, c3, c4, c5, c6, c7);
-        using WebApplicationFactory<Program> factory =
-            new WebApplicationFactory<Program>().WithWebHostBuilder(
-                builder =>
-                    builder.ConfigureServices(
-                        services =>
-                            services
-                                .Configure<CardsOptions>(option => option.PageSize = pageSize)
-                                .Configure<FileStoreOptions>(
-                                    option => option.Directory = _fileStoreDirectory
-                                )
-                    )
-            );
+        using WebApplicationFactory<Program> factory = GetApplicationFactory(pageSize);
         using HttpClient client = await Login(factory);
 
         using HttpResponseMessage response = await client.GetAsync(
@@ -499,6 +486,26 @@ public sealed class HttpGet : IDisposable
         Assert.Equal(new[] { c3.FullCard, c5.FullCard, c7.FullCard }.Take(pageSize), body.Cards);
     }
 
+    private WebApplicationFactory<Program> GetApplicationFactory(int pageSize = 99)
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            { "FileStore:Directory", _fileStoreDirectory },
+            { "Cards:PageSize", $"{pageSize}" },
+        };
+        WebApplicationFactory<Program> factory =
+            new WebApplicationFactory<Program>().WithWebHostBuilder(
+                builder =>
+                    builder.ConfigureAppConfiguration(
+                        (context, conf) =>
+                        {
+                            _ = conf.AddInMemoryCollection(settings);
+                        }
+                    )
+            );
+        return factory;
+    }
+
     private void WriteCardsFile(params CardStrings[] cardsStrings)
     {
         Util.WriteCardsFile(_fileStoreDirectory, UserName, from c in cardsStrings select c.Json);
@@ -507,11 +514,6 @@ public sealed class HttpGet : IDisposable
     private void WriteCardsFile(IEnumerable<CardStrings> cardsStrings)
     {
         Util.WriteCardsFile(_fileStoreDirectory, UserName, from c in cardsStrings select c.Json);
-    }
-
-    private WebApplicationFactory<Program> CreateWebApplicationFactory()
-    {
-        return Util.CreateWebApplicationFactory(_fileStoreDirectory);
     }
 
     private static async Task<HttpClient> Login(WebApplicationFactory<Program> factory)

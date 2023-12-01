@@ -1,0 +1,11 @@
+@Flasher.Host.AOT_HostAddress = http://localhost:5125
+
+GET {{Flasher.Host.AOT_HostAddress}}/todos/
+Accept: application/json
+
+###
+
+GET {{Flasher.Host.AOT_HostAddress}}/todos/1
+Accept: application/json
+
+###

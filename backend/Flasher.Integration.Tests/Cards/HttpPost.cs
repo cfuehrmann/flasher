@@ -1,10 +1,9 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Json;
+using System.Text;
 using System.Threading.Tasks;
-using Flasher.Host.Model;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
@@ -42,9 +41,13 @@ public sealed class HttpPost : IDisposable
         );
         using HttpClient client = await factory.Login(UserName, Password);
 
-        using HttpResponseMessage response = await client.PostAsJsonAsync(
+        using HttpResponseMessage response = await client.PostAsync(
             "/Cards",
-            new CreateCardRequest { Prompt = "p", Solution = "s" }
+            new StringContent(
+                $$"""{ "prompt": "p", "solution": "s" }""",
+                Encoding.UTF8,
+                "application/json"
+            )
         );
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
