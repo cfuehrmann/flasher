@@ -109,15 +109,22 @@ authenticationGroup
     )
     .Produces(StatusCodes.Status401Unauthorized);
 
-var cardsGroup = app.MapGroup("/Cards").RequireAuthorization();
+var cardsGroup = app.MapGroup("Cards").RequireAuthorization();
 cardsGroup.MapPost("", CardsHandler.Create);
 cardsGroup.MapGet("", CardsHandler.Find);
+cardsGroup.MapGet("Read/{id}", CardsHandler.Read);
 cardsGroup.MapGet("Next", CardsHandler.Next);
+
+var testGroup = app.MapGroup("Tests");
+testGroup.MapGet("Test", () => "Test");
 
 app.Run();
 
 [JsonSerializable(typeof(LoginRequest))]
 [JsonSerializable(typeof(LoginResponse))]
+[JsonSerializable(typeof(FullCard))]
+[JsonSerializable(typeof(FindResponse))]
+[JsonSerializable(typeof(CreateCardRequest))]
 internal sealed partial class AppJsonSerializerContext : JsonSerializerContext { }
 
 #pragma warning disable CA1050
