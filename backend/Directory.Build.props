@@ -4,6 +4,5 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
-    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>
