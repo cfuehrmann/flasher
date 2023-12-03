@@ -52,7 +52,7 @@ export function GroomItemView(props: Props) {
         <br />
         <br />
         <ButtonBar>
-          {props.state === "new" ? (
+          {props.state === "New" ? (
             <DeleteButton
               width="50%"
               onClick={() =>
