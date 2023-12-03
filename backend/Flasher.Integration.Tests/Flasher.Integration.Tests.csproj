@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Flasher.Host.AOT\Flasher.Host.AOT.csproj" />
+    <ProjectReference Include="..\Flasher.Host\Flasher.Host.csproj" />
     <ProjectReference Include="..\Flasher.Store.FileStore\Flasher.Store.FileStore.csproj" />
   </ItemGroup>
 

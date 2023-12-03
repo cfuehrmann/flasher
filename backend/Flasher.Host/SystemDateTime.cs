@@ -1,6 +1,6 @@
 ﻿using Flasher.Injectables;
 
-namespace Flasher.Host.AOT;
+namespace Flasher.Host;
 
 public sealed class SystemDateTime : IDateTime
 {

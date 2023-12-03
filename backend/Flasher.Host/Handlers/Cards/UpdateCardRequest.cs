@@ -1,4 +1,4 @@
-﻿namespace Flasher.Host.AOT.Handlers.Cards;
+﻿namespace Flasher.Host.Handlers.Cards;
 
 public sealed record UpdateCardRequest
 {

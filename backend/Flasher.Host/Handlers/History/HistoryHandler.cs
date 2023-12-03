@@ -3,7 +3,7 @@ using Flasher.Store.Cards;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 
-namespace Flasher.Host.AOT.Handlers.History;
+namespace Flasher.Host.Handlers.History;
 
 public static class HistoryHandler
 {

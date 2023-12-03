@@ -1,4 +1,4 @@
-﻿namespace Flasher.Host.AOT;
+﻿namespace Flasher.Host;
 
 public sealed record CardsOptions
 {

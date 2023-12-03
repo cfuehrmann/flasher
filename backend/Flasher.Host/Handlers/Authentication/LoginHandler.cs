@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Flasher.Host.AOT.Handlers.Authentication;
+namespace Flasher.Host.Handlers.Authentication;
 
 public static class LoginHandler
 {

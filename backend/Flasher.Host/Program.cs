@@ -2,11 +2,11 @@
 
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
-using Flasher.Host.AOT;
-using Flasher.Host.AOT.Handlers.Authentication;
-using Flasher.Host.AOT.Handlers.AutoSaving;
-using Flasher.Host.AOT.Handlers.Cards;
-using Flasher.Host.AOT.Handlers.History;
+using Flasher.Host;
+using Flasher.Host.Handlers.Authentication;
+using Flasher.Host.Handlers.AutoSaving;
+using Flasher.Host.Handlers.Cards;
+using Flasher.Host.Handlers.History;
 using Flasher.Injectables;
 using Flasher.Store.Authentication;
 using Flasher.Store.AutoSaving;

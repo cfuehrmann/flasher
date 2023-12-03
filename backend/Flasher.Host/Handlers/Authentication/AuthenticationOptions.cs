@@ -1,4 +1,4 @@
-﻿namespace Flasher.Host.AOT.Handlers.Authentication;
+﻿namespace Flasher.Host.Handlers.Authentication;
 
 public sealed record AuthenticationOptions
 {

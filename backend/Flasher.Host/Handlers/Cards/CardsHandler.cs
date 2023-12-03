@@ -4,7 +4,7 @@ using Flasher.Store.Cards;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 
-namespace Flasher.Host.AOT.Handlers.Cards;
+namespace Flasher.Host.Handlers.Cards;
 
 public static class CardsHandler
 {
