@@ -75,8 +75,6 @@ services.Configure<AuthenticationOptions>(builder.Configuration.GetSection("Auth
 
 services.AddSingleton<IDateTime, SystemDateTime>();
 
-services.AddScoped<LoginHandler, LoginHandler>();
-
 var app = builder.Build();
 
 #if DEBUG
@@ -100,16 +98,7 @@ app.Use(
 
 {
     var group = app.MapGroup("/Authentication");
-    _ = group
-        .MapPost(
-            "/Login",
-            async Task<Results<Ok<LoginResponse>, UnauthorizedHttpResult>> (
-                HttpContext context,
-                LoginRequest request,
-                LoginHandler handler
-            ) => await handler.Login(context, request)
-        )
-        .Produces(StatusCodes.Status401Unauthorized);
+    group.MapPost("/Login", LoginHandler.Login);
 }
 
 
@@ -137,3 +126,7 @@ app.Run();
 [JsonSerializable(typeof(CreateCardRequest))]
 [JsonSerializable(typeof(UpdateCardRequest))]
 internal sealed partial class AppJsonSerializerContext : JsonSerializerContext { }
+
+#pragma warning disable CA1050
+public partial class Program { } // Make public for integration tests, less troublesome than InternalsVisibleTo
+#pragma warning restore CA1050

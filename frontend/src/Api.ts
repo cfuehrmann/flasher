@@ -187,7 +187,7 @@ function toGroomCard(value: unknown): GroomCard {
       typeof prompt === "string" &&
       typeof solution === "string" &&
       typeof disabled === "boolean" &&
-      (state === "new" || state === "ok" || state === "failed")
+      (state === "New" || state === "Ok" || state === "Failed")
     )
       return { id, prompt, solution, disabled, state };
   }

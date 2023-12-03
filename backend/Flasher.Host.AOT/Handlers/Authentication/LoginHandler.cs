@@ -10,21 +10,21 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Flasher.Host.AOT.Handlers.Authentication;
 
-public sealed class LoginHandler(
-    IAuthenticationStore store,
-    IAutoSaveStore autoSaveStore,
-    IPasswordHasher<User> passwordHasher,
-    IDateTime dateTime,
-    IOptionsMonitor<AuthenticationOptions> options,
-    SecurityKey securityKey
-)
+public static class LoginHandler
 {
-    public async Task<Results<Ok<LoginResponse>, UnauthorizedHttpResult>> Login(
-        HttpContext httpContext,
-        LoginRequest request
+    public static async Task<Results<Ok<LoginResponse>, UnauthorizedHttpResult>> Login(
+        LoginRequest request,
+        HttpContext context,
+        IAuthenticationStore authenticationStore,
+        IAutoSaveStore autoSaveStore,
+        IPasswordHasher<User> passwordHasher,
+        IDateTime dateTime,
+        IOptionsMonitor<AuthenticationOptions> options,
+        SecurityKey securityKey
     )
     {
-        string? hashedPassword = await store.GetPasswordHash(request.UserName);
+        string? hashedPassword = await authenticationStore.GetPasswordHash(request.UserName);
+
         if (hashedPassword == null)
         {
             return TypedResults.Unauthorized();
@@ -43,7 +43,13 @@ public sealed class LoginHandler(
 
         Task<AutoSave?> readAutoSave = autoSaveStore.Read(request.UserName);
 
-        string tokenString = GetTokenString(request.UserName);
+        var token = new JwtSecurityToken(
+            claims: new[] { new Claim(ClaimTypes.Name, request.UserName) },
+            expires: dateTime.Now + options.CurrentValue.TokenLifetime,
+            signingCredentials: new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256)
+        );
+
+        string tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
         var cookieOptions = new CookieOptions
         {
@@ -54,7 +60,7 @@ public sealed class LoginHandler(
             MaxAge = options.CurrentValue.TokenLifetime,
         };
 
-        httpContext.Response.Cookies.Append("__Host-jwt", tokenString, cookieOptions);
+        context.Response.Cookies.Append("__Host-jwt", tokenString, cookieOptions);
 
         AutoSave? storedAutoSave = await readAutoSave;
 
@@ -71,15 +77,5 @@ public sealed class LoginHandler(
         var response = new LoginResponse { JsonWebToken = tokenString, AutoSave = autoSaveData };
 
         return TypedResults.Ok(response);
-    }
-
-    private string GetTokenString(string userName)
-    {
-        var token = new JwtSecurityToken(
-            claims: new[] { new Claim(ClaimTypes.Name, userName) },
-            expires: dateTime.Now + options.CurrentValue.TokenLifetime,
-            signingCredentials: new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256)
-        );
-        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
