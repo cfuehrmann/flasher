@@ -4,7 +4,9 @@ using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using Flasher.Host.AOT;
 using Flasher.Host.AOT.Handlers.Authentication;
+using Flasher.Host.AOT.Handlers.AutoSaving;
 using Flasher.Host.AOT.Handlers.Cards;
+using Flasher.Host.AOT.Handlers.History;
 using Flasher.Injectables;
 using Flasher.Store.Authentication;
 using Flasher.Store.AutoSaving;
@@ -12,7 +14,6 @@ using Flasher.Store.Cards;
 using Flasher.Store.FileStore.AutoSaving;
 using Flasher.Store.FileStore.Cards;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 
@@ -105,15 +106,28 @@ app.Use(
 {
     var group = app.MapGroup("/Cards").RequireAuthorization();
     group.MapPost("", CardsHandler.Create);
-    group.MapGet("Read/{id}", CardsHandler.Read);
+    group.MapGet("/Read/{id}", CardsHandler.Read);
     group.MapPatch("/{id}", CardsHandler.Update);
-    group.MapDelete("{id}", CardsHandler.Delete);
+    group.MapDelete("/{id}", CardsHandler.Delete);
     group.MapGet("", CardsHandler.Find);
-    group.MapGet("Next", CardsHandler.Next);
+    group.MapGet("/Next", CardsHandler.Next);
     group.MapPost("/{id}/SetOk", CardsHandler.SetOk);
     group.MapPost("/{id}/SetFailed", CardsHandler.SetFailed);
     group.MapPost("/{id}/Enable", CardsHandler.Enable);
     group.MapPost("/{id}/Disable", CardsHandler.Disable);
+}
+
+
+{
+    var group = app.MapGroup("/AutoSave").RequireAuthorization();
+    group.MapPut("/", AutoSaveHandler.Write);
+    group.MapDelete("/", AutoSaveHandler.Delete);
+}
+
+
+{
+    var group = app.MapGroup("/History").RequireAuthorization();
+    group.MapDelete("/{id}", HistoryHandler.Delete);
 }
 
 app.Run();
@@ -125,6 +139,7 @@ app.Run();
 [JsonSerializable(typeof(FindResponse))]
 [JsonSerializable(typeof(CreateCardRequest))]
 [JsonSerializable(typeof(UpdateCardRequest))]
+[JsonSerializable(typeof(WriteAutoSaveRequest))]
 internal sealed partial class AppJsonSerializerContext : JsonSerializerContext { }
 
 #pragma warning disable CA1050
