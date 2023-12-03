@@ -110,7 +110,7 @@ public static class CardsHandler
         IOptionsMonitor<CardsOptions> optionsMonitor
     )
     {
-        bool results = await SetState(
+        return await SetState(
             id,
             State.Ok,
             optionsMonitor.CurrentValue.OkMultiplier,
@@ -118,17 +118,53 @@ public static class CardsHandler
             store,
             time
         );
-
-        if (results)
-        {
-            FullCard? result = await store.FindNext(context.User.Identity!.Name!);
-            return result != null ? TypedResults.Ok(result) : TypedResults.NoContent();
-        }
-
-        return TypedResults.NotFound();
     }
 
-    private static async Task<bool> SetState(
+    public static async Task<Results<Ok<FullCard>, NotFound, NoContent>> SetFailed(
+        string id,
+        HttpContext context,
+        ICardStore store,
+        IDateTime time,
+        IOptionsMonitor<CardsOptions> optionsMonitor
+    )
+    {
+        return await SetState(
+            id,
+            State.Failed,
+            optionsMonitor.CurrentValue.FailedMultiplier,
+            context,
+            store,
+            time
+        );
+    }
+
+    public static async Task<Results<NoContent, NotFound>> Enable(
+        string id,
+        HttpContext context,
+        ICardStore store
+    )
+    {
+        var update = new CardUpdate { Id = id, Disabled = false };
+
+        return await store.Update(context.User.Identity!.Name!, update) != null
+            ? TypedResults.NoContent()
+            : TypedResults.NotFound();
+    }
+
+    public static async Task<Results<NoContent, NotFound>> Disable(
+        string id,
+        HttpContext context,
+        ICardStore store
+    )
+    {
+        var update = new CardUpdate { Id = id, Disabled = true };
+
+        return await store.Update(context.User.Identity!.Name!, update) != null
+            ? TypedResults.NoContent()
+            : TypedResults.NotFound();
+    }
+
+    private static async Task<Results<Ok<FullCard>, NotFound, NoContent>> SetState(
         string id,
         State state,
         double multiplier,
@@ -141,11 +177,12 @@ public static class CardsHandler
 
         if (card == null)
         {
-            return false;
+            return TypedResults.NotFound();
         }
 
         DateTime now = time.Now;
         TimeSpan passedTime = now - card.ChangeTime;
+
         var update = new CardUpdate
         {
             Id = id,
@@ -153,6 +190,15 @@ public static class CardsHandler
             ChangeTime = now,
             NextTime = now.Add(passedTime * multiplier)
         };
-        return await store.Update(context.User.Identity.Name!, update) != null;
+
+        FullCard? updatedCard = await store.Update(context.User.Identity.Name!, update);
+
+        if (updatedCard == null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        FullCard? result = await store.FindNext(context.User.Identity!.Name!);
+        return result != null ? TypedResults.Ok(result) : TypedResults.NoContent();
     }
 }

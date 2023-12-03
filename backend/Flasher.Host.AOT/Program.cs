@@ -14,7 +14,6 @@ using Flasher.Store.FileStore.Cards;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateSlimBuilder(args);
@@ -98,32 +97,39 @@ app.Use(
     .UseAuthentication()
     .UseAuthorization();
 
-var authenticationGroup = app.MapGroup("/Authentication");
-_ = authenticationGroup
-    .MapPost(
-        "/Login",
-        async Task<Results<Ok<LoginResponse>, UnauthorizedHttpResult>> (
-            HttpContext context,
-            LoginRequest request,
-            LoginHandler handler
-        ) => await handler.Login(context, request)
-    )
-    .Produces(StatusCodes.Status401Unauthorized);
 
-var cardsGroup = app.MapGroup("Cards").RequireAuthorization();
+{
+    var group = app.MapGroup("/Authentication");
+    _ = group
+        .MapPost(
+            "/Login",
+            async Task<Results<Ok<LoginResponse>, UnauthorizedHttpResult>> (
+                HttpContext context,
+                LoginRequest request,
+                LoginHandler handler
+            ) => await handler.Login(context, request)
+        )
+        .Produces(StatusCodes.Status401Unauthorized);
+}
 
-cardsGroup.MapPost("", CardsHandler.Create);
-cardsGroup.MapGet("Read/{id}", CardsHandler.Read);
-cardsGroup.MapPatch("{id}", CardsHandler.Update);
-cardsGroup.MapDelete("{id}", CardsHandler.Delete);
-cardsGroup.MapGet("", CardsHandler.Find);
-cardsGroup.MapGet("Next", CardsHandler.Next);
-cardsGroup.MapPost("{id}/SetOk", CardsHandler.SetOk);
 
-/* cardsGroup.MapPost("{id}/SetFailed", CardsHandler.SetFailed); */
+{
+    var group = app.MapGroup("/Cards").RequireAuthorization();
+    group.MapPost("", CardsHandler.Create);
+    group.MapGet("Read/{id}", CardsHandler.Read);
+    group.MapPatch("/{id}", CardsHandler.Update);
+    group.MapDelete("{id}", CardsHandler.Delete);
+    group.MapGet("", CardsHandler.Find);
+    group.MapGet("Next", CardsHandler.Next);
+    group.MapPost("/{id}/SetOk", CardsHandler.SetOk);
+    group.MapPost("/{id}/SetFailed", CardsHandler.SetFailed);
+    group.MapPost("/{id}/Enable", CardsHandler.Enable);
+    group.MapPost("/{id}/Disable", CardsHandler.Disable);
+}
 
 app.Run();
 
+[JsonSourceGenerationOptions(UseStringEnumConverter = true)]
 [JsonSerializable(typeof(LoginRequest))]
 [JsonSerializable(typeof(LoginResponse))]
 [JsonSerializable(typeof(FullCard))]
@@ -131,7 +137,3 @@ app.Run();
 [JsonSerializable(typeof(CreateCardRequest))]
 [JsonSerializable(typeof(UpdateCardRequest))]
 internal sealed partial class AppJsonSerializerContext : JsonSerializerContext { }
-
-#pragma warning disable CA1050
-public partial class Program { } // Make public for integration tests, less troublesome than InternalsVisibleTo
-#pragma warning restore CA1050
