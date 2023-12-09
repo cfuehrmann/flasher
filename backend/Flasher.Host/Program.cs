@@ -1,6 +1,4 @@
-﻿#pragma warning disable CA1050
-
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using Flasher.Host;
 using Flasher.Host.Handlers.Authentication;
@@ -11,6 +9,7 @@ using Flasher.Injectables;
 using Flasher.Store.Authentication;
 using Flasher.Store.AutoSaving;
 using Flasher.Store.Cards;
+using Flasher.Store.FileStore;
 using Flasher.Store.FileStore.AutoSaving;
 using Flasher.Store.FileStore.Cards;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -28,22 +27,16 @@ var services = builder.Services;
 services.AddEndpointsApiExplorer().AddSwaggerGen();
 #endif
 
-services
-    .AddScoped<IPasswordHasher<User>, PasswordHasher<User>>()
-    .AddSingleton<
-        IAuthenticationStore,
-        Flasher.Store.FileStore.Authentication.AuthenticationStore
-    >()
-    .AddSingleton<ICardStore, CardStore>()
-    .AddSingleton<IAutoSaveStore, AutoSaveStore>()
-    .AddSingleton<
-        Flasher.Store.FileStore.IFileStoreJsonContextProvider,
-        Flasher.Store.FileStore.FileStoreJsonContextProvider
-    >()
-    .Configure<Flasher.Store.FileStore.FileStoreOptions>(
-        builder.Configuration.GetSection("FileStore")
-    )
-    .Configure<CardsOptions>(builder.Configuration.GetSection("Cards"));
+services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+services.AddSingleton<
+    IAuthenticationStore,
+    Flasher.Store.FileStore.Authentication.AuthenticationStore
+>();
+services.AddSingleton<ICardStore, CardStore>();
+services.AddSingleton<IAutoSaveStore, AutoSaveStore>();
+services.AddSingleton<IFileStoreJsonContextProvider, FileStoreJsonContextProvider>();
+services.Configure<FileStoreOptions>(builder.Configuration.GetSection("FileStore"));
+services.Configure<CardsOptions>(builder.Configuration.GetSection("Cards"));
 
 services.ConfigureHttpJsonOptions(options =>
 {
@@ -66,11 +59,11 @@ services
             }
     );
 
-services
-    .AddSingleton(_ => RSA.Create())
-    .AddSingleton<SecurityKey>(
-        serviceProvider => new RsaSecurityKey(serviceProvider.GetRequiredService<RSA>())
-    );
+services.AddSingleton(_ => RSA.Create());
+
+services.AddSingleton<SecurityKey>(
+    serviceProvider => new RsaSecurityKey(serviceProvider.GetRequiredService<RSA>())
+);
 
 services.Configure<AuthenticationOptions>(builder.Configuration.GetSection("Authentication"));
 
@@ -83,18 +76,18 @@ _ = app.UseSwagger().UseSwaggerUI();
 #endif
 
 app.Use(
-        async (context, next) =>
+    async (context, next) =>
+    {
+        if (context.Request.Cookies.TryGetValue("__Host-jwt", out string? value))
         {
-            if (context.Request.Cookies.TryGetValue("__Host-jwt", out string? value))
-            {
-                context.Request.Headers.Append("Authorization", "Bearer " + value);
-            }
-
-            await next.Invoke();
+            context.Request.Headers.Append("Authorization", "Bearer " + value);
         }
-    )
-    .UseAuthentication()
-    .UseAuthorization();
+
+        await next.Invoke();
+    }
+);
+app.UseAuthentication();
+app.UseAuthorization();
 
 
 {
