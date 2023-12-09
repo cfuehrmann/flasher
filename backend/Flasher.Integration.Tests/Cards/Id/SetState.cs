@@ -12,7 +12,7 @@ using Xunit;
 
 namespace Flasher.Integration.Tests.Cards.Id;
 
-public sealed class SetOk : IDisposable
+public sealed class SetState : IDisposable
 {
     private const string UserName = "john@doe";
     private const string Password = "123456";
@@ -22,7 +22,7 @@ public sealed class SetOk : IDisposable
 
     private readonly string _fileStoreDirectory;
 
-    public SetOk()
+    public SetState()
     {
         _fileStoreDirectory = Util.InventFileStoreDirectory();
         Util.CreateUserStore(_fileStoreDirectory, UserName, PasswordHash);
@@ -33,10 +33,12 @@ public sealed class SetOk : IDisposable
         Directory.Delete(_fileStoreDirectory, true);
     }
 
-    [Fact]
-    public async Task Smoke()
+    [Theory]
+    [InlineData("Ok", 1.8)]
+    [InlineData("Failed", 0.5555)]
+    [InlineData("Ok", 0)] // Limit case where the card is immediately due again.
+    public async Task Smoke(string state, double multiplier)
     {
-        var multiplier = 1.8;
         var minWaitingTime = TimeSpan.FromMilliseconds(100);
 
         var settings = new Dictionary<string, string?>
@@ -44,7 +46,7 @@ public sealed class SetOk : IDisposable
             { "FileStore:Directory", _fileStoreDirectory },
             { "Cards:PageSize", "99" },
             { "Cards:NewCardWaitingTime", "00:00:00" },
-            { "Cards:OkMultiplier", $"{multiplier}" }
+            { $"Cards:{state}Multiplier", $"{multiplier}" }
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(
@@ -57,11 +59,11 @@ public sealed class SetOk : IDisposable
                 )
         );
 
-        HttpClient client = factory.CreateClient();
+        var client = factory.CreateClient();
         client.Timeout = TimeSpan.FromSeconds(1);
 
-        using HttpResponseMessage loginResponse = await client.Login(UserName, Password);
-        IEnumerable<string> cookies = loginResponse.GetCookies();
+        using var loginResponse = await client.Login(UserName, Password);
+        var cookies = loginResponse.GetCookies();
         client.AddCookies(cookies);
 
         var postBodyString = $$"""
@@ -71,11 +73,11 @@ public sealed class SetOk : IDisposable
             }
             """;
         var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
-        using HttpResponseMessage postResponse = await client.PostAsync("/Cards", postBodyContent);
+        using var postResponse = await client.PostAsync("/Cards", postBodyContent);
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
-        using JsonDocument doc = JsonDocument.Parse(postResponseString);
-        var cardId = doc.RootElement.GetProperty("id").GetString();
-        var postChangeTime = doc.RootElement.GetProperty("changeTime").GetDateTime();
+        using var document = JsonDocument.Parse(postResponseString);
+        var cardId = document.RootElement.GetProperty("id").GetString();
+        var postChangeTime = document.RootElement.GetProperty("changeTime").GetDateTime();
 
         var enableTask = client.PostAsync($"/Cards/{cardId}/Enable", null);
 
@@ -88,31 +90,33 @@ public sealed class SetOk : IDisposable
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
 
-        using HttpResponseMessage response = await client.PostAsync($"/Cards/{cardId}/SetOk", null);
+        using var response = await client.PostAsync($"/Cards/{cardId}/Set{state}", null);
 
-        var fromPostUntilSetOk = DateTime.Now - postChangeTime;
+        var fromPostUntilSetState = DateTime.Now - postChangeTime;
 
-        Console.WriteLine($"Milliseconds from POST until SetOk responded: {fromPostUntilSetOk}");
+        Console.WriteLine(
+            $"Time elapsed between POST and response of SetState: {fromPostUntilSetState}"
+        );
 
-        var maxWaitingTime = fromPostUntilSetOk * multiplier;
+        var maxWaitingTime = fromPostUntilSetState * multiplier;
 
         Console.WriteLine($"Maximum expected waiting time for the new card is {maxWaitingTime}");
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        // The status code can be NoContent, or OK if the nextTime is so close
+        // that the card is arleady due.
+        Assert.True(response.IsSuccessStatusCode);
 
         await Task.Delay(maxWaitingTime);
 
-        using HttpResponseMessage nextResponse = await client.GetAsync("/Cards/Next");
+        using var nextResponse = await client.GetAsync("/Cards/Next");
 
         Assert.Equal(HttpStatusCode.OK, nextResponse.StatusCode);
 
         var nextResponseString = await nextResponse.Content.ReadAsStringAsync();
-        using JsonDocument nextResponseJson = JsonDocument.Parse(nextResponseString);
+        using var nextResponseJson = JsonDocument.Parse(nextResponseString);
         var changeTime = nextResponseJson.RootElement.GetProperty("changeTime").GetDateTime();
         var nextTime = nextResponseJson.RootElement.GetProperty("nextTime").GetDateTime();
-
-        TimeSpan waitingTime = nextTime - changeTime;
-
+        var waitingTime = nextTime - changeTime;
         Console.WriteLine($"Waiting time of the new card: {waitingTime})");
 
         Assert.True(minWaitingTime * multiplier <= waitingTime);
