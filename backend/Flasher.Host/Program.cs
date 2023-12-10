@@ -10,6 +10,7 @@ using Flasher.Store.Authentication;
 using Flasher.Store.AutoSaving;
 using Flasher.Store.Cards;
 using Flasher.Store.FileStore;
+using Flasher.Store.FileStore.Authentication;
 using Flasher.Store.FileStore.AutoSaving;
 using Flasher.Store.FileStore.Cards;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -18,9 +19,6 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateSlimBuilder(args);
 
-builder.Configuration.AddEnvironmentVariables(prefix: "Flasher_");
-builder.Logging.ClearProviders().AddConsole().SetMinimumLevel(LogLevel.Information);
-
 var services = builder.Services;
 
 #if DEBUG
@@ -28,24 +26,32 @@ services.AddEndpointsApiExplorer().AddSwaggerGen();
 #endif
 
 services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-services.AddSingleton<
-    IAuthenticationStore,
-    Flasher.Store.FileStore.Authentication.AuthenticationStore
->();
+services.AddSingleton<IAuthenticationStore, AuthenticationStore>();
 services.AddSingleton<ICardStore, CardStore>();
 services.AddSingleton<IAutoSaveStore, AutoSaveStore>();
 services.AddSingleton<IFileStoreJsonContextProvider, FileStoreJsonContextProvider>();
 services.Configure<FileStoreOptions>(builder.Configuration.GetSection("FileStore"));
 services.Configure<CardsOptions>(builder.Configuration.GetSection("Cards"));
 
+// The following method call is needed for AOT only. I see no way to cover it
+// by automated tests.
 services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
 });
 
-services.AddAuthorization();
+var authorizationBuilder = services.AddAuthorizationBuilder();
 
-services.AddAuthentication("Bearer").AddJwtBearer();
+authorizationBuilder.AddFallbackPolicy(
+    "", // The name matters nowhere, so it cannot be covered by tests.
+    policy =>
+    {
+        policy.RequireAuthenticatedUser();
+    }
+);
+
+var authenticationBuilder = services.AddAuthentication("Bearer");
+authenticationBuilder.AddJwtBearer();
 
 services
     .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -92,14 +98,14 @@ app.UseAuthorization();
 
 {
     var group = app.MapGroup("/Authentication");
-    group.MapPost("/Login", LoginHandler.Login);
+    var handler = group.MapPost("/Login", LoginHandler.Login);
+    handler.AllowAnonymous();
 }
 
 
 {
-    var group = app.MapGroup("/Cards").RequireAuthorization();
+    var group = app.MapGroup("/Cards");
     group.MapPost("", CardsHandler.Create);
-    group.MapGet("/Read/{id}", CardsHandler.Read);
     group.MapPatch("/{id}", CardsHandler.Update);
     group.MapDelete("/{id}", CardsHandler.Delete);
     group.MapGet("", CardsHandler.Find);
@@ -112,14 +118,14 @@ app.UseAuthorization();
 
 
 {
-    var group = app.MapGroup("/AutoSave").RequireAuthorization();
-    group.MapPut("/", AutoSaveHandler.Write);
-    group.MapDelete("/", AutoSaveHandler.Delete);
+    var group = app.MapGroup("/AutoSave");
+    group.MapPut("", AutoSaveHandler.Write);
+    group.MapDelete("", AutoSaveHandler.Delete);
 }
 
 
 {
-    var group = app.MapGroup("/History").RequireAuthorization();
+    var group = app.MapGroup("/History");
     group.MapDelete("/{id}", HistoryHandler.Delete);
 }
 
@@ -136,5 +142,6 @@ app.Run();
 internal sealed partial class AppJsonSerializerContext : JsonSerializerContext { }
 
 #pragma warning disable CA1050
-public partial class Program { } // Make public for integration tests, less troublesome than InternalsVisibleTo
+// Make public for automated tests, less troublesome than InternalsVisibleTo
+public partial class Program { }
 #pragma warning restore CA1050

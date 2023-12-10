@@ -33,16 +33,6 @@ public static class CardsHandler
         return TypedResults.Created(nameof(Created), card);
     }
 
-    public static async Task<Results<Ok<FullCard>, NotFound>> Read(
-        string id,
-        HttpContext context,
-        ICardStore store
-    )
-    {
-        FullCard? result = await store.Read(context.User.Identity!.Name!, id);
-        return result != null ? TypedResults.Ok(result) : TypedResults.NotFound();
-    }
-
     public static async Task<Results<Ok, NotFound>> Update(
         string id,
         UpdateCardRequest request,

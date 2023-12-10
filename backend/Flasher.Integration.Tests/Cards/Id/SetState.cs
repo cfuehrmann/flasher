@@ -44,7 +44,6 @@ public sealed class SetState : IDisposable
         var settings = new Dictionary<string, string?>
         {
             { "FileStore:Directory", _fileStoreDirectory },
-            { "Cards:PageSize", "99" },
             { "Cards:NewCardWaitingTime", "00:00:00" },
             { $"Cards:{state}Multiplier", $"{multiplier}" }
         };
@@ -81,9 +80,12 @@ public sealed class SetState : IDisposable
 
         var enableTask = client.PostAsync($"/Cards/{cardId}/Enable", null);
 
-        await Task.WhenAll(
-            [enableTask, Task.Delay(postChangeTime + minWaitingTime - DateTime.Now)]
-        );
+        // For  reasons I don't understand, the (provably tiny) optimization
+        // in the disabled line below makes the test sporadically fail.
+        // TimeSpan delay = postChangeTime + minWaitingTime - DateTime.Now;
+        TimeSpan delay = minWaitingTime;
+
+        await Task.WhenAll([enableTask, Task.Delay(delay)]);
 
         var enableResponse = await enableTask;
 
@@ -103,7 +105,7 @@ public sealed class SetState : IDisposable
         Console.WriteLine($"Maximum expected waiting time for the new card is {maxWaitingTime}");
 
         // The status code can be NoContent, or OK if the nextTime is so close
-        // that the card is arleady due.
+        // that the card is already due.
         Assert.True(response.IsSuccessStatusCode);
 
         await Task.Delay(maxWaitingTime);
