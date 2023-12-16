@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -71,5 +72,17 @@ public sealed class Delete : IDisposable
         using HttpResponseMessage response = await client.DeleteAsync("/AutoSave");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var loginResponse2 = await client.Login(UserName, Password);
+        var loginResponse2String = await loginResponse2.Content.ReadAsStringAsync();
+        Console.WriteLine(loginResponse2String);
+        using var document = JsonDocument.Parse(loginResponse2String);
+
+        var hasAutoSave = document.RootElement.TryGetProperty("autoSave", out var autoSave);
+
+        if (hasAutoSave)
+        {
+            Assert.Equal(JsonValueKind.Null, autoSave.ValueKind);
+        }
     }
 }

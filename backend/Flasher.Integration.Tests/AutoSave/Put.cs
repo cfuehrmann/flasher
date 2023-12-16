@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -57,15 +58,31 @@ public sealed class Put : IDisposable
         var cookies = loginResponse.GetCookies();
         client.AddCookies(cookies);
 
+        var cardId = "someCardId";
+        var prompt = "somePrompt";
+        var solution = "someSolution";
+
         using HttpResponseMessage response = await client.PutAsync(
             "/AutoSave",
             new StringContent(
-                $$"""{ "id": "some-id", "prompt": "p", "solution": "s" }""",
+                $$"""{ "id": "{{cardId}}", "prompt": "{{prompt}}", "solution": "{{solution}}" }""",
                 Encoding.UTF8,
                 "application/json"
             )
         );
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var loginResponse2 = await client.Login(UserName, Password);
+        var loginResponse2String = await loginResponse2.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(loginResponse2String);
+
+        var autoSave = document.RootElement.GetProperty("autoSave");
+        var autoSaveId = autoSave.GetProperty("id").GetString();
+        Assert.Equal(cardId, autoSaveId);
+        var autoSavePrompt = autoSave.GetProperty("prompt").GetString();
+        Assert.Equal(prompt, autoSavePrompt);
+        var autoSaveSolution = autoSave.GetProperty("solution").GetString();
+        Assert.Equal(solution, autoSaveSolution);
     }
 }
