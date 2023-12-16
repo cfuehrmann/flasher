@@ -39,7 +39,7 @@ public sealed class SetState : IDisposable
     [InlineData("Ok", 0)] // Limit case where the card is immediately due again.
     public async Task Smoke(string state, double multiplier)
     {
-        var minWaitingTime = TimeSpan.FromMilliseconds(100);
+        var delay = TimeSpan.FromMilliseconds(100);
 
         var settings = new Dictionary<string, string?>
         {
@@ -74,54 +74,35 @@ public sealed class SetState : IDisposable
         var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
         using var postResponse = await client.PostAsync("/Cards", postBodyContent);
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
-        using var document = JsonDocument.Parse(postResponseString);
-        var cardId = document.RootElement.GetProperty("id").GetString();
-        var postChangeTime = document.RootElement.GetProperty("changeTime").GetDateTime();
+        using var postResponseJson = JsonDocument.Parse(postResponseString);
+        var cardId = postResponseJson.RootElement.GetProperty("id").GetString();
+        var postChangeTime = postResponseJson.RootElement.GetProperty("changeTime").GetDateTime();
 
-        var enableTask = client.PostAsync($"/Cards/{cardId}/Enable", null);
-
-        // For  reasons I don't understand, the (provably tiny) optimization
-        // in the disabled line below makes the test sporadically fail.
-        // TimeSpan delay = postChangeTime + minWaitingTime - DateTime.Now;
-        TimeSpan delay = minWaitingTime;
-
-        await Task.WhenAll([enableTask, Task.Delay(delay)]);
-
-        var enableResponse = await enableTask;
-
+        var enableResponse = await client.PostAsync($"/Cards/{cardId}/Enable", null);
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
 
+        await Task.Delay(delay);
+
         using var response = await client.PostAsync($"/Cards/{cardId}/Set{state}", null);
-
-        var fromPostUntilSetState = DateTime.Now - postChangeTime;
-
-        Console.WriteLine(
-            $"Time elapsed between POST and response of SetState: {fromPostUntilSetState}"
-        );
-
-        var maxWaitingTime = fromPostUntilSetState * multiplier;
-
-        Console.WriteLine($"Maximum expected waiting time for the new card is {maxWaitingTime}");
-
         // The status code can be NoContent, or OK if the nextTime is so close
         // that the card is already due.
         Assert.True(response.IsSuccessStatusCode);
 
-        await Task.Delay(maxWaitingTime);
+        using var getResponse = await client.GetAsync("/Cards");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var getResponseString = await getResponse.Content.ReadAsStringAsync();
+        using var getResponseJson = JsonDocument.Parse(getResponseString);
+        var getCard = getResponseJson.RootElement.GetProperty("cards")[0];
+        var getChangeTime = getCard.GetProperty("changeTime").GetDateTime();
+        var getNextTime = getCard.GetProperty("nextTime").GetDateTime();
 
-        using var nextResponse = await client.GetAsync("/Cards/Next");
+        TimeSpan passedTime = getChangeTime - postChangeTime;
 
-        Assert.Equal(HttpStatusCode.OK, nextResponse.StatusCode);
+        Assert.True(passedTime >= delay);
 
-        var nextResponseString = await nextResponse.Content.ReadAsStringAsync();
-        using var nextResponseJson = JsonDocument.Parse(nextResponseString);
-        var changeTime = nextResponseJson.RootElement.GetProperty("changeTime").GetDateTime();
-        var nextTime = nextResponseJson.RootElement.GetProperty("nextTime").GetDateTime();
-        var waitingTime = nextTime - changeTime;
-        Console.WriteLine($"Waiting time of the new card: {waitingTime})");
+        var waitingTime = getNextTime - getChangeTime;
 
-        Assert.True(minWaitingTime * multiplier <= waitingTime);
-        Assert.True(waitingTime <= maxWaitingTime);
+        Assert.Equal(passedTime * multiplier, waitingTime);
     }
 }
