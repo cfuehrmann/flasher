@@ -12,7 +12,7 @@ using Xunit;
 
 namespace Flasher.Integration.Tests.Cards.Id;
 
-public sealed class Disable : IDisposable
+public sealed class Enable : IDisposable
 {
     private const string UserName = "john@doe";
     private const string Password = "123456";
@@ -22,7 +22,7 @@ public sealed class Disable : IDisposable
 
     private readonly string _fileStoreDirectory;
 
-    public Disable()
+    public Enable()
     {
         _fileStoreDirectory = Util.InventFileStoreDirectory();
         Util.CreateUserStore(_fileStoreDirectory, UserName, PasswordHash);
@@ -34,7 +34,7 @@ public sealed class Disable : IDisposable
     }
 
     [Fact]
-    public async Task ShouldDisableCard()
+    public async Task ShouldEnableCard()
     {
         var settings = new Dictionary<string, string?>
         {
@@ -78,15 +78,12 @@ public sealed class Disable : IDisposable
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
 
-        using var response = await client.PostAsync($"Cards/{postResponseId}/Disable", null);
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-
         using var getResponse = await client.GetAsync("/Cards");
         var getResponseString = await getResponse.Content.ReadAsStringAsync();
         using var getResponseDocument = JsonDocument.Parse(getResponseString);
         var getCard = getResponseDocument.RootElement.GetProperty("cards")[0];
         var getDisabled = getCard.GetProperty("disabled").GetBoolean();
-        Assert.True(getDisabled);
+        Assert.False(getDisabled);
     }
 
     [Fact]
@@ -114,7 +111,7 @@ public sealed class Disable : IDisposable
         var cookies = loginResponse.GetCookies();
         client.AddCookies(cookies);
 
-        var response = await client.PostAsync($"/Cards/nonExistingId/Disable", null);
+        var response = await client.PostAsync($"/Cards/nonExistingId/Enable", null);
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

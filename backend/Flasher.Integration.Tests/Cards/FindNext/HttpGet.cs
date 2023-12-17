@@ -73,10 +73,13 @@ public sealed class HttpGet : IDisposable
         var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
         using var postResponse = await client.PostAsync("/Cards", postBodyContent);
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
-        using var postResponseJson = JsonDocument.Parse(postResponseString);
-        var postId = postResponseJson.RootElement.GetProperty("id").GetString();
-        var postChangeTime = postResponseJson.RootElement.GetProperty("changeTime").GetDateTime();
-        var postNextTime = postResponseJson.RootElement.GetProperty("nextTime").GetDateTime();
+        using var postResponseDocument = JsonDocument.Parse(postResponseString);
+        var postId = postResponseDocument.RootElement.GetProperty("id").GetString();
+        var postChangeTime = postResponseDocument
+            .RootElement
+            .GetProperty("changeTime")
+            .GetDateTime();
+        var postNextTime = postResponseDocument.RootElement.GetProperty("nextTime").GetDateTime();
 
         var enableResponse = await client.PostAsync($"/Cards/{postId}/Enable", null);
         // To prevent Stryker timeouts
@@ -93,8 +96,8 @@ public sealed class HttpGet : IDisposable
                 Assert.True(now <= postNextTime + delay + TimeSpan.FromMilliseconds(10));
 
                 var responseString = await response.Content.ReadAsStringAsync();
-                using var responseJson = JsonDocument.Parse(responseString);
-                var card = responseJson.RootElement;
+                using var responseDocument = JsonDocument.Parse(responseString);
+                var card = responseDocument.RootElement;
 
                 var id = card.GetProperty("id").GetString();
                 Assert.Equal(postId, id);

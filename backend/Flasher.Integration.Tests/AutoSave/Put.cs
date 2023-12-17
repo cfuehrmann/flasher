@@ -34,7 +34,7 @@ public sealed class Put : IDisposable
     }
 
     [Fact]
-    public async Task Smoke()
+    public async Task ShouldPutAutoSaveInLoginResponse()
     {
         var settings = new Dictionary<string, string?>
         {

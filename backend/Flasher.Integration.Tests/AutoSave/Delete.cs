@@ -34,7 +34,7 @@ public sealed class Delete : IDisposable
     }
 
     [Fact]
-    public async Task Smoke()
+    public async Task ShouldRemoveAutoSaveFromLoginResponse()
     {
         var settings = new Dictionary<string, string?>
         {

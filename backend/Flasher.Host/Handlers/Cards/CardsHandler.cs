@@ -181,12 +181,7 @@ public static class CardsHandler
             NextTime = now.Add(passedTime * multiplier)
         };
 
-        FullCard? updatedCard = await store.Update(context.User.Identity.Name!, update);
-
-        if (updatedCard == null)
-        {
-            return TypedResults.NotFound();
-        }
+        _ = await store.Update(context.User.Identity.Name!, update);
 
         FullCard? result = await store.FindNext(context.User.Identity!.Name!);
         return result != null ? TypedResults.Ok(result) : TypedResults.NoContent();

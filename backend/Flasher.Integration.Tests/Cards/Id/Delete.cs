@@ -34,7 +34,7 @@ public sealed class Delete : IDisposable
     }
 
     [Fact]
-    public async Task Smoke()
+    public async Task ShouldMakeCardUnfindable()
     {
         var settings = new Dictionary<string, string?>
         {
@@ -73,5 +73,13 @@ public sealed class Delete : IDisposable
         using var response = await client.DeleteAsync($"Cards/{cardId}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var getResponse = await client.GetAsync("/Cards");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var getResponseString = await getResponse.Content.ReadAsStringAsync();
+        using var getResponseDocument = JsonDocument.Parse(getResponseString);
+        var getCards = getResponseDocument.RootElement.GetProperty("cards");
+        Assert.Equal(JsonValueKind.Array, getCards.ValueKind);
+        Assert.Equal(0, getCards.GetArrayLength());
     }
 }

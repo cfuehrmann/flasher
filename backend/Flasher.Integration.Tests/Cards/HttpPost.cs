@@ -77,8 +77,8 @@ public sealed class HttpPost : IDisposable
         using var getResponse = await client.GetAsync("/Cards");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         var getResponseString = await getResponse.Content.ReadAsStringAsync();
-        using var getResponseJson = JsonDocument.Parse(getResponseString);
-        var getCard = getResponseJson.RootElement.GetProperty("cards")[0];
+        using var getResponseDocument = JsonDocument.Parse(getResponseString);
+        var getCard = getResponseDocument.RootElement.GetProperty("cards")[0];
 
         var getId = getCard.GetProperty("id").GetString();
         Assert.NotNull(getId);
