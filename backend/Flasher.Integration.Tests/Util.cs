@@ -1,15 +1,14 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using Flasher.Host.Model;
-using Flasher.Store.FileStore;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 namespace Flasher.Integration.Tests;
 
@@ -50,15 +49,23 @@ public static class Util
         string fileStoreDirectory
     )
     {
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(
-            builder =>
-                builder.ConfigureServices(
-                    services =>
-                        services.Configure<FileStoreOptions>(
-                            option => option.Directory = fileStoreDirectory
-                        )
-                )
-        );
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            { "FileStore:Directory", fileStoreDirectory }
+        };
+
+        using WebApplicationFactory<Program> factory =
+            new WebApplicationFactory<Program>().WithWebHostBuilder(
+                builder =>
+                    builder.ConfigureAppConfiguration(
+                        (context, conf) =>
+                        {
+                            _ = conf.AddInMemoryCollection(inMemorySettings);
+                        }
+                    )
+            );
+
+        return factory;
     }
 
     public static async Task<HttpClient> Login(
@@ -80,9 +87,13 @@ public static class Util
         string password
     )
     {
-        return await client.PostAsJsonAsync(
+        return await client.PostAsync(
             "/Authentication/Login",
-            new LoginRequest { UserName = userName, Password = password }
+            new StringContent(
+                $$"""{ "userName": "{{userName}}", "password": "{{password}}" }""",
+                Encoding.UTF8,
+                "application/json"
+            )
         );
     }
 

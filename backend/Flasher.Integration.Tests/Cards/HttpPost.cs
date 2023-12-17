@@ -1,11 +1,13 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
-using Flasher.Host.Model;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace Flasher.Integration.Tests.Cards;
@@ -37,57 +39,67 @@ public sealed class HttpPost : IDisposable
     [Fact]
     public async Task Create()
     {
-        using WebApplicationFactory<Program> factory = Util.CreateWebApplicationFactory(
-            _fileStoreDirectory
-        );
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            { "FileStore:Directory", _fileStoreDirectory },
+            { "Cards:NewCardWaitingTime", "00:00:42" }
+        };
+
+        using WebApplicationFactory<Program> factory =
+            new WebApplicationFactory<Program>().WithWebHostBuilder(
+                builder =>
+                    builder.ConfigureAppConfiguration(
+                        (context, conf) =>
+                        {
+                            _ = conf.AddInMemoryCollection(inMemorySettings);
+                        }
+                    )
+            );
+
         using HttpClient client = await factory.Login(UserName, Password);
 
-        using HttpResponseMessage response = await client.PostAsJsonAsync(
+        var prompt = "somePrompt";
+        var solution = "someSolution";
+
+        var now = DateTime.Now;
+
+        using HttpResponseMessage response = await client.PostAsync(
             "/Cards",
-            new CreateCardRequest { Prompt = "p", Solution = "s" }
+            new StringContent(
+                $$"""{ "prompt": "{{prompt}}", "solution": "{{solution}}" }""",
+                Encoding.UTF8,
+                "application/json"
+            )
         );
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        using var getResponse = await client.GetAsync("/Cards");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var getResponseString = await getResponse.Content.ReadAsStringAsync();
+        using var getResponseDocument = JsonDocument.Parse(getResponseString);
+        var getCard = getResponseDocument.RootElement.GetProperty("cards")[0];
+
+        var getId = getCard.GetProperty("id").GetString();
+        Assert.NotNull(getId);
+        Assert.True(getId.Length > 0);
+
+        var getPrompt = getCard.GetProperty("prompt").GetString();
+        Assert.Equal(prompt, getPrompt);
+
+        var getSolution = getCard.GetProperty("solution").GetString();
+        Assert.Equal(solution, getSolution);
+
+        var getState = getCard.GetProperty("state").GetString();
+        Assert.Equal("New", getState);
+
+        var getChangeTime = getCard.GetProperty("changeTime").GetDateTime();
+        Assert.True(getChangeTime >= now);
+
+        var getNextTime = getCard.GetProperty("nextTime").GetDateTime();
+        Assert.Equal(getChangeTime.AddSeconds(42), getNextTime);
+
+        var getDisabled = getCard.GetProperty("disabled").GetBoolean();
+        Assert.True(getDisabled);
     }
-
-    // [Fact]
-    // public async Task CreateThenFind()
-    // {
-    //     // Arrange
-
-    //     var client = new WebApplicationFactory<Program>().CreateClient();
-    //     var loginResponse = await client.Login(Util.UserName, Util.Password);
-    //     IEnumerable<string>? cookies = loginResponse.GetCookies();
-    //     client.AddCookies(cookies);
-
-    //     // Act
-
-    //     var createResponse = await client.PostAsJsonAsync("/Cards", new CreateCardRequest { Prompt = "p", Solution = "s" });
-
-    //     var client2 = new WebApplicationFactory<Program>().CreateClient();
-    //     var loginResponse2 = await client2.Login(Util.UserName, Util.Password);
-    //     IEnumerable<string>? cookies2 = loginResponse2.GetCookies();
-    //     client2.AddCookies(cookies2);
-    //     var findResponse = await client2.GetAsync("/Cards?skip=0&searchText=p");
-    //     var findResponse2 = await client2.GetAsync("/Cards?skip=0&searchText=s");
-
-    //     // Assert
-
-    //     _ = createResponse.EnsureSuccessStatusCode();
-    //     _ = findResponse.EnsureSuccessStatusCode();
-    //     _ = findResponse2.EnsureSuccessStatusCode();
-
-    //     var jsonOptions = new JsonSerializerOptions { WriteIndented = true, PropertyNameCaseInsensitive = true };
-    //     jsonOptions.Converters.Add(new JsonStringEnumConverter());
-
-    //     var findResponseBody = await findResponse.Content.ReadFromJsonAsync<FindResponse>(jsonOptions);
-    //     Assert.NotNull(findResponseBody);
-    //     _ = Assert.Single(findResponseBody?.Cards);
-    //     Assert.NotNull(findResponseBody?.Cards);
-
-    //     var findResponseBody2 = await findResponse2.Content.ReadFromJsonAsync<FindResponse>(jsonOptions);
-    //     Assert.NotNull(findResponseBody2);
-    //     _ = Assert.Single(findResponseBody2?.Cards);
-    //     Assert.NotNull(findResponseBody?.Cards);
-    // }
 }

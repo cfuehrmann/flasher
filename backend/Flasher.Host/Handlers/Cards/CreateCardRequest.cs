@@ -1,4 +1,4 @@
-﻿namespace Flasher.Host.Model;
+﻿namespace Flasher.Host.Handlers.Cards;
 
 public sealed record CreateCardRequest
 {

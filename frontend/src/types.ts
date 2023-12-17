@@ -3,7 +3,7 @@ export interface Card {
   prompt: string;
   solution: string;
 }
-export type CardState = "new" | "ok" | "failed";
+export type CardState = "New" | "Ok" | "Failed";
 export type GroomCard = Card & { disabled: boolean; state: CardState };
 export interface FindResponse {
   cards: GroomCard[];

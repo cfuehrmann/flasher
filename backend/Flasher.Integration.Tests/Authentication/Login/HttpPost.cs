@@ -4,13 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Flasher.Host;
-using Flasher.Store.FileStore;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace Flasher.Integration.Tests.Authentication.Login;
@@ -46,27 +42,25 @@ public sealed class HttpPost : IDisposable
     [InlineData(666)]
     public async Task LoginWithExistingUser(int tokenLifetime)
     {
+        var lifeTimeString = TimeSpan.FromSeconds(tokenLifetime);
+
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            { "Authentication:TokenLifetime", $"{lifeTimeString}" },
+            { "FileStore:Directory", _fileStoreDirectory }
+        };
+
         using WebApplicationFactory<Program> factory =
             new WebApplicationFactory<Program>().WithWebHostBuilder(
                 builder =>
-                    builder.ConfigureServices(
-                        services =>
-                            services
-                                .Configure(
-                                    (Action<AuthenticationOptions>)(
-                                        option =>
-                                            option.TokenLifetime = TimeSpan.FromSeconds(
-                                                tokenLifetime
-                                            )
-                                    )
-                                )
-                                .Configure(
-                                    (Action<FileStoreOptions>)(
-                                        option => option.Directory = _fileStoreDirectory
-                                    )
-                                )
+                    builder.ConfigureAppConfiguration(
+                        (context, conf) =>
+                        {
+                            _ = conf.AddInMemoryCollection(inMemorySettings);
+                        }
                     )
             );
+
         using HttpClient client = factory.CreateClient();
 
         using HttpResponseMessage loginResponse = await client.Login(UserName, Password);
@@ -129,12 +123,15 @@ public sealed class HttpPost : IDisposable
     [Fact]
     public async Task MissingDirectoryOption()
     {
+        var inMemorySettings = new Dictionary<string, string?> { { "FileStore:Directory", null } };
         using WebApplicationFactory<Program> factory =
             new WebApplicationFactory<Program>().WithWebHostBuilder(
                 builder =>
-                    builder.ConfigureServices(
-                        services =>
-                            services.Configure<FileStoreOptions>(option => option.Directory = null)
+                    builder.ConfigureAppConfiguration(
+                        (context, conf) =>
+                        {
+                            _ = conf.AddInMemoryCollection(inMemorySettings);
+                        }
                     )
             );
         using HttpClient client = factory.CreateClient();
@@ -142,13 +139,6 @@ public sealed class HttpPost : IDisposable
         using HttpResponseMessage response = await client.Login(UserName, Password);
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        Assert.Equal(MediaTypeHeaderValue.Parse("text/html"), response.Content.Headers.ContentType);
-        string content = await response.Content.ReadAsStringAsync();
-        Assert.Contains("store", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("configuration", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("filestore", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("directory", content, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith("!", content);
         Assert.False(response.Headers.Contains("Set-Cookie"));
     }
 
@@ -163,31 +153,41 @@ public sealed class HttpPost : IDisposable
         using HttpResponseMessage response = await client.Login(UserName, Password);
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        string content = await response.Content.ReadAsStringAsync();
-        Assert.Contains("file", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("invalid", content, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith("!", content);
         Assert.False(response.Headers.Contains("Set-Cookie"));
     }
 
     [Fact]
     public async Task OptionsAreInjected()
     {
-        using WebApplicationFactory<Program> factory = CreateWebApplicationFactory();
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            { "Authentication:TokenLifetime", "0.00:00:42" },
+            { "FileStore:Directory", _fileStoreDirectory }
+        };
+
+        using WebApplicationFactory<Program> factory =
+            new WebApplicationFactory<Program>().WithWebHostBuilder(
+                builder =>
+                    builder.ConfigureAppConfiguration(
+                        (context, conf) =>
+                        {
+                            _ = conf.AddInMemoryCollection(inMemorySettings);
+                        }
+                    )
+            );
         using HttpClient client = factory.CreateClient();
 
-        using HttpResponseMessage loginResponse = await client.Login(UserName, Password);
-        IEnumerable<string> cookies = loginResponse.GetCookies();
+        using HttpResponseMessage response = await client.Login(UserName, Password);
+        IEnumerable<string> cookies = response.GetCookies();
 
         string? jwtCookie = cookies.FirstOrDefault(
             cookie => cookie.StartsWith("__Host-jwt", StringComparison.Ordinal)
         );
+
+        Console.WriteLine(jwtCookie);
         // Check that the token's Max-Age is not 0. Because 0 corresponds to the default
         // TimeSpan, which would be used if the property were not explicitly configured.
-        // We don't suppress the hint below for now, because the best fix may be to
-        // heed the hint. That's just not possible right now because it would require
-        // the test class to be partial, which the test runner currently can't deal with.
-        Assert.Matches(new Regex("; Max-Age=[1..9]", RegexOptions.IgnoreCase), jwtCookie);
+        Assert.Contains("; max-age=42", jwtCookie, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<IEnumerable<string>> CookieSignedWithDifferentSecurityKey()

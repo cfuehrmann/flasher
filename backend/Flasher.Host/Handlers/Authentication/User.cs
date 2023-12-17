@@ -1,4 +1,4 @@
-﻿namespace Flasher.Host;
+﻿namespace Flasher.Host.Handlers.Authentication;
 
 public sealed record User
 {

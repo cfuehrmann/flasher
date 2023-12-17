@@ -1,4 +1,4 @@
-﻿namespace Flasher.Host.Model;
+﻿namespace Flasher.Host.Handlers.AutoSaving;
 
 public sealed record WriteAutoSaveRequest
 {

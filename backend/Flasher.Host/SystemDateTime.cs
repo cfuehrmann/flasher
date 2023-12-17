@@ -1,5 +1,4 @@
-﻿using System;
-using Flasher.Injectables;
+﻿using Flasher.Injectables;
 
 namespace Flasher.Host;
 
