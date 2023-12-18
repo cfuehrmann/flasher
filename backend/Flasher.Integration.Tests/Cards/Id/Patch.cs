@@ -67,16 +67,19 @@ public sealed class Patch : IDisposable
         var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
         using var postResponse = await client.PostAsync("/Cards", postBodyContent);
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
-        using var document = JsonDocument.Parse(postResponseString);
-        var cardId = document.RootElement.GetProperty("id").GetString();
+        using var postResponseDocument = JsonDocument.Parse(postResponseString);
+        var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
 
-        var patchBodyString = $$"""{}""";
-        var patchBodyContent = new StringContent(
-            patchBodyString,
+        var patchRequestString = $$"""{}""";
+        var patchRequestContent = new StringContent(
+            patchRequestString,
             Encoding.UTF8,
             "application/json"
         );
-        using var response = await client.PatchAsync($"Cards/{cardId}", patchBodyContent);
+        using var response = await client.PatchAsync(
+            $"Cards/{postResponseId}",
+            patchRequestContent
+        );
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -112,11 +115,29 @@ public sealed class Patch : IDisposable
                 "solution": "solution"
             }
             """;
-        var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
-        using var postResponse = await client.PostAsync("/Cards", postBodyContent);
+        var postRequestContent = new StringContent(
+            postBodyString,
+            Encoding.UTF8,
+            "application/json"
+        );
+        using var postResponse = await client.PostAsync("/Cards", postRequestContent);
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
-        using var document = JsonDocument.Parse(postResponseString);
-        var cardId = document.RootElement.GetProperty("id").GetString();
+        using var postResponseDocument = JsonDocument.Parse(postResponseString);
+        var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
+        var postResponsePrompt = postResponseDocument.RootElement.GetProperty("prompt").GetString();
+        var postResponseSolution = postResponseDocument
+            .RootElement.GetProperty("solution")
+            .GetString();
+        var postResponseState = postResponseDocument.RootElement.GetProperty("state").GetString();
+        var postResponseChangeTime = postResponseDocument
+            .RootElement.GetProperty("changeTime")
+            .GetDateTime();
+        var postResponseNextTime = postResponseDocument
+            .RootElement.GetProperty("nextTime")
+            .GetDateTime();
+        var postResponseDisabled = postResponseDocument
+            .RootElement.GetProperty("disabled")
+            .GetBoolean();
 
         using HttpResponseMessage autoSaveResponse = await client.PutAsync(
             "/AutoSave",
@@ -128,19 +149,21 @@ public sealed class Patch : IDisposable
         );
         Assert.Equal(HttpStatusCode.OK, autoSaveResponse.StatusCode);
 
-        var patchBodyString = $$"""{}""";
-        var patchBodyContent = new StringContent(
-            patchBodyString,
+        var patchRequestString = $$"""{}""";
+        var patchRequestContent = new StringContent(
+            patchRequestString,
             Encoding.UTF8,
             "application/json"
         );
-        using var response = await client.PatchAsync($"Cards/{cardId}", patchBodyContent);
+        using var response = await client.PatchAsync(
+            $"Cards/{postResponseId}",
+            patchRequestContent
+        );
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var loginResponse2 = await client.Login(UserName, Password);
         var loginResponse2String = await loginResponse2.Content.ReadAsStringAsync();
-        Console.WriteLine(loginResponse2String);
         using var autoSaveDocument = JsonDocument.Parse(loginResponse2String);
 
         var hasAutoSave = autoSaveDocument.RootElement.TryGetProperty("autoSave", out var autoSave);
@@ -149,5 +172,32 @@ public sealed class Patch : IDisposable
         {
             Assert.Equal(JsonValueKind.Null, autoSave.ValueKind);
         }
+
+        using var getResponse = await client.GetAsync("/Cards");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var getResponseString = await getResponse.Content.ReadAsStringAsync();
+        using var getResponseDocument = JsonDocument.Parse(getResponseString);
+        var getResponseCard = getResponseDocument.RootElement.GetProperty("cards")[0];
+
+        var getResponseId = getResponseCard.GetProperty("id").GetString();
+        Assert.Equal(postResponseId, getResponseId);
+
+        var getResponsePrompt = getResponseCard.GetProperty("prompt").GetString();
+        Assert.Equal(postResponsePrompt, getResponsePrompt);
+
+        var getResponseSolution = getResponseCard.GetProperty("solution").GetString();
+        Assert.Equal(postResponseSolution, getResponseSolution);
+
+        var getResponseState = getResponseCard.GetProperty("state").GetString();
+        Assert.Equal(postResponseState, getResponseState);
+
+        var getResponseChangeTime = getResponseCard.GetProperty("changeTime").GetDateTime();
+        Assert.Equal(postResponseChangeTime, getResponseChangeTime);
+
+        var getResponseNextTime = getResponseCard.GetProperty("nextTime").GetDateTime();
+        Assert.Equal(postResponseNextTime, getResponseNextTime);
+
+        var getResponseDisabled = getResponseCard.GetProperty("disabled").GetBoolean();
+        Assert.Equal(postResponseDisabled, getResponseDisabled);
     }
 }

@@ -75,9 +75,9 @@ public sealed class Put : IDisposable
 
         using var loginResponse2 = await client.Login(UserName, Password);
         var loginResponse2String = await loginResponse2.Content.ReadAsStringAsync();
-        using var document = JsonDocument.Parse(loginResponse2String);
+        using var loginResponse2Document = JsonDocument.Parse(loginResponse2String);
 
-        var autoSave = document.RootElement.GetProperty("autoSave");
+        var autoSave = loginResponse2Document.RootElement.GetProperty("autoSave");
         var autoSaveId = autoSave.GetProperty("id").GetString();
         Assert.Equal(cardId, autoSaveId);
         var autoSavePrompt = autoSave.GetProperty("prompt").GetString();

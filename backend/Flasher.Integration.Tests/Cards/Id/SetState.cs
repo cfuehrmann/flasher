@@ -71,23 +71,26 @@ public sealed class SetState : IDisposable
                 "solution": "solution"
             }
             """;
-        var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
-        using var postResponse = await client.PostAsync("/Cards", postBodyContent);
+        var postRequestContent = new StringContent(
+            postBodyString,
+            Encoding.UTF8,
+            "application/json"
+        );
+        using var postResponse = await client.PostAsync("/Cards", postRequestContent);
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
         using var postResponseDocument = JsonDocument.Parse(postResponseString);
-        var cardId = postResponseDocument.RootElement.GetProperty("id").GetString();
-        var postChangeTime = postResponseDocument
-            .RootElement
-            .GetProperty("changeTime")
+        var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
+        var postResponseChangeTime = postResponseDocument
+            .RootElement.GetProperty("changeTime")
             .GetDateTime();
 
-        var enableResponse = await client.PostAsync($"/Cards/{cardId}/Enable", null);
+        var enableResponse = await client.PostAsync($"/Cards/{postResponseId}/Enable", null);
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
 
         await Task.Delay(delay);
 
-        using var response = await client.PostAsync($"/Cards/{cardId}/Set{state}", null);
+        using var response = await client.PostAsync($"/Cards/{postResponseId}/Set{state}", null);
         // The status code can be NoContent, or OK if the nextTime is so close
         // that the card is already due.
         Assert.True(response.IsSuccessStatusCode);
@@ -100,7 +103,7 @@ public sealed class SetState : IDisposable
         var getChangeTime = getCard.GetProperty("changeTime").GetDateTime();
         var getNextTime = getCard.GetProperty("nextTime").GetDateTime();
 
-        TimeSpan passedTime = getChangeTime - postChangeTime;
+        TimeSpan passedTime = getChangeTime - postResponseChangeTime;
 
         Assert.True(passedTime >= delay);
 

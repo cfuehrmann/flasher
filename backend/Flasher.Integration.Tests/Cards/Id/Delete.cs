@@ -67,10 +67,10 @@ public sealed class Delete : IDisposable
         var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
         using var postResponse = await client.PostAsync("/Cards", postBodyContent);
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
-        using var document = JsonDocument.Parse(postResponseString);
-        var cardId = document.RootElement.GetProperty("id").GetString();
+        using var postResponseDocument = JsonDocument.Parse(postResponseString);
+        var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
 
-        using var response = await client.DeleteAsync($"Cards/{cardId}");
+        using var response = await client.DeleteAsync($"Cards/{postResponseId}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 

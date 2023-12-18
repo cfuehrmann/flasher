@@ -76,9 +76,12 @@ public sealed class Delete : IDisposable
         using var loginResponse2 = await client.Login(UserName, Password);
         var loginResponse2String = await loginResponse2.Content.ReadAsStringAsync();
         Console.WriteLine(loginResponse2String);
-        using var document = JsonDocument.Parse(loginResponse2String);
+        using var loginResponse2Document = JsonDocument.Parse(loginResponse2String);
 
-        var hasAutoSave = document.RootElement.TryGetProperty("autoSave", out var autoSave);
+        var hasAutoSave = loginResponse2Document.RootElement.TryGetProperty(
+            "autoSave",
+            out var autoSave
+        );
 
         if (hasAutoSave)
         {
