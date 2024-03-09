@@ -46,14 +46,13 @@ public sealed class HttpPost : IDisposable
         };
 
         using WebApplicationFactory<Program> factory =
-            new WebApplicationFactory<Program>().WithWebHostBuilder(
-                builder =>
-                    builder.ConfigureAppConfiguration(
-                        (context, conf) =>
-                        {
-                            _ = conf.AddInMemoryCollection(inMemorySettings);
-                        }
-                    )
+            new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+                builder.ConfigureAppConfiguration(
+                    (context, conf) =>
+                    {
+                        _ = conf.AddInMemoryCollection(inMemorySettings);
+                    }
+                )
             );
 
         using HttpClient client = await factory.Login(UserName, Password);

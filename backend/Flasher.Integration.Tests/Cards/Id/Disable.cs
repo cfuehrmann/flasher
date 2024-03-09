@@ -41,14 +41,13 @@ public sealed class Disable : IDisposable
             { "FileStore:Directory", _fileStoreDirectory }
         };
 
-        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(
-            builder =>
-                builder.ConfigureAppConfiguration(
-                    (context, conf) =>
-                    {
-                        _ = conf.AddInMemoryCollection(settings);
-                    }
-                )
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
         );
 
         var client = factory.CreateClient();
@@ -97,14 +96,13 @@ public sealed class Disable : IDisposable
             { "FileStore:Directory", _fileStoreDirectory }
         };
 
-        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(
-            builder =>
-                builder.ConfigureAppConfiguration(
-                    (context, conf) =>
-                    {
-                        _ = conf.AddInMemoryCollection(settings);
-                    }
-                )
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
         );
 
         var client = factory.CreateClient();

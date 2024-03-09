@@ -125,12 +125,9 @@ public class CardStore : ICardStore
     public Task<FindResponse> Find(string user, string searchText, int skip, int take)
     {
         IEnumerable<FullCard> allHits = EnsureCache(user)
-            .Values
-            .Where(
-                card =>
-                    card.Prompt?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true
-                    || card.Solution?.Contains(searchText, StringComparison.OrdinalIgnoreCase)
-                        == true
+            .Values.Where(card =>
+                card.Prompt?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true
+                || card.Solution?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true
             )
             .OrderBy(card => card.Disabled)
             .ThenBy(card => card.NextTime)
@@ -149,8 +146,7 @@ public class CardStore : ICardStore
     public Task<FullCard?> FindNext(string user)
     {
         FullCard? result = EnsureCache(user)
-            .Values
-            .Where(card => card.NextTime <= _time.Now && !card.Disabled)
+            .Values.Where(card => card.NextTime <= _time.Now && !card.Disabled)
             .OrderBy(card => card.NextTime)
             .ThenBy(card => card.Id)
             .FirstOrDefault()

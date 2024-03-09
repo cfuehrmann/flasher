@@ -67,9 +67,9 @@ services
 
 services.AddSingleton(_ => RSA.Create());
 
-services.AddSingleton<SecurityKey>(
-    serviceProvider => new RsaSecurityKey(serviceProvider.GetRequiredService<RSA>())
-);
+services.AddSingleton<SecurityKey>(serviceProvider => new RsaSecurityKey(
+    serviceProvider.GetRequiredService<RSA>()
+));
 
 services.Configure<AuthenticationOptions>(builder.Configuration.GetSection("Authentication"));
 

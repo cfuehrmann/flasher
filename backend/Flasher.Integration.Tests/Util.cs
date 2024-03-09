@@ -55,14 +55,13 @@ public static class Util
         };
 
         using WebApplicationFactory<Program> factory =
-            new WebApplicationFactory<Program>().WithWebHostBuilder(
-                builder =>
-                    builder.ConfigureAppConfiguration(
-                        (context, conf) =>
-                        {
-                            _ = conf.AddInMemoryCollection(inMemorySettings);
-                        }
-                    )
+            new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+                builder.ConfigureAppConfiguration(
+                    (context, conf) =>
+                    {
+                        _ = conf.AddInMemoryCollection(inMemorySettings);
+                    }
+                )
             );
 
         return factory;

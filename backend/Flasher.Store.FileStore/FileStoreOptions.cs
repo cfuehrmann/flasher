@@ -4,4 +4,3 @@ public sealed record FileStoreOptions
 {
     public string? Directory { get; set; }
 }
-

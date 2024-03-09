@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Flasher.Store.Exceptions;
 
@@ -10,4 +10,3 @@ public class StoreConfigurationException : Exception
     public StoreConfigurationException(string message)
         : base(message) { }
 }
-

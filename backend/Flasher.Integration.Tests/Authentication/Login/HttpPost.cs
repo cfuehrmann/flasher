@@ -51,14 +51,13 @@ public sealed class HttpPost : IDisposable
         };
 
         using WebApplicationFactory<Program> factory =
-            new WebApplicationFactory<Program>().WithWebHostBuilder(
-                builder =>
-                    builder.ConfigureAppConfiguration(
-                        (context, conf) =>
-                        {
-                            _ = conf.AddInMemoryCollection(inMemorySettings);
-                        }
-                    )
+            new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+                builder.ConfigureAppConfiguration(
+                    (context, conf) =>
+                    {
+                        _ = conf.AddInMemoryCollection(inMemorySettings);
+                    }
+                )
             );
 
         using HttpClient client = factory.CreateClient();
@@ -69,8 +68,8 @@ public sealed class HttpPost : IDisposable
         using HttpResponseMessage apiResponse = await CallApi(client);
 
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
-        string? jwtCookie = cookies.FirstOrDefault(
-            cookie => cookie.StartsWith("__Host-jwt", StringComparison.Ordinal)
+        string? jwtCookie = cookies.FirstOrDefault(cookie =>
+            cookie.StartsWith("__Host-jwt", StringComparison.Ordinal)
         );
         Assert.NotNull(jwtCookie);
         Assert.Contains("; Path=/", jwtCookie, StringComparison.OrdinalIgnoreCase);
@@ -125,14 +124,13 @@ public sealed class HttpPost : IDisposable
     {
         var inMemorySettings = new Dictionary<string, string?> { { "FileStore:Directory", null } };
         using WebApplicationFactory<Program> factory =
-            new WebApplicationFactory<Program>().WithWebHostBuilder(
-                builder =>
-                    builder.ConfigureAppConfiguration(
-                        (context, conf) =>
-                        {
-                            _ = conf.AddInMemoryCollection(inMemorySettings);
-                        }
-                    )
+            new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+                builder.ConfigureAppConfiguration(
+                    (context, conf) =>
+                    {
+                        _ = conf.AddInMemoryCollection(inMemorySettings);
+                    }
+                )
             );
         using HttpClient client = factory.CreateClient();
 
@@ -166,22 +164,21 @@ public sealed class HttpPost : IDisposable
         };
 
         using WebApplicationFactory<Program> factory =
-            new WebApplicationFactory<Program>().WithWebHostBuilder(
-                builder =>
-                    builder.ConfigureAppConfiguration(
-                        (context, conf) =>
-                        {
-                            _ = conf.AddInMemoryCollection(inMemorySettings);
-                        }
-                    )
+            new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+                builder.ConfigureAppConfiguration(
+                    (context, conf) =>
+                    {
+                        _ = conf.AddInMemoryCollection(inMemorySettings);
+                    }
+                )
             );
         using HttpClient client = factory.CreateClient();
 
         using HttpResponseMessage response = await client.Login(UserName, Password);
         IEnumerable<string> cookies = response.GetCookies();
 
-        string? jwtCookie = cookies.FirstOrDefault(
-            cookie => cookie.StartsWith("__Host-jwt", StringComparison.Ordinal)
+        string? jwtCookie = cookies.FirstOrDefault(cookie =>
+            cookie.StartsWith("__Host-jwt", StringComparison.Ordinal)
         );
 
         Console.WriteLine(jwtCookie);

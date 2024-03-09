@@ -494,14 +494,13 @@ public sealed class HttpGet : IDisposable
             { "Cards:PageSize", $"{pageSize}" },
         };
         WebApplicationFactory<Program> factory =
-            new WebApplicationFactory<Program>().WithWebHostBuilder(
-                builder =>
-                    builder.ConfigureAppConfiguration(
-                        (context, conf) =>
-                        {
-                            _ = conf.AddInMemoryCollection(settings);
-                        }
-                    )
+            new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+                builder.ConfigureAppConfiguration(
+                    (context, conf) =>
+                    {
+                        _ = conf.AddInMemoryCollection(settings);
+                    }
+                )
             );
         return factory;
     }

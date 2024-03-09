@@ -16,16 +16,16 @@ public record CardStrings(
 {
     public string Json =>
         $$"""
-        {
-            "Id": "{{Id}}",
-            "Prompt": "{{Prompt}}",
-            "Solution": "{{Solution}}",
-            "State": "{{State}}",
-            "ChangeTime": "{{ChangeTime}}",
-            "NextTime": "{{NextTime}}",
-            "Disabled": {{Disabled}}
-        }
-        """;
+            {
+                "Id": "{{Id}}",
+                "Prompt": "{{Prompt}}",
+                "Solution": "{{Solution}}",
+                "State": "{{State}}",
+                "ChangeTime": "{{ChangeTime}}",
+                "NextTime": "{{NextTime}}",
+                "Disabled": {{Disabled}}
+            }
+            """;
 
     public FullCard FullCard =>
         new()

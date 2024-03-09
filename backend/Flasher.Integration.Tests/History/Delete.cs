@@ -44,14 +44,13 @@ public sealed class Delete : IDisposable
             { "Cards:NewCardWaitingTime", newCardWaitingTime.ToString() }
         };
 
-        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(
-            builder =>
-                builder.ConfigureAppConfiguration(
-                    (context, conf) =>
-                    {
-                        _ = conf.AddInMemoryCollection(settings);
-                    }
-                )
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
         );
 
         var client = factory.CreateClient();

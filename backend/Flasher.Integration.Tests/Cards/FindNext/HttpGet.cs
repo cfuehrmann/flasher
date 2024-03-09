@@ -44,14 +44,13 @@ public sealed class HttpGet : IDisposable
             { "Cards:NewCardWaitingTime", "00:00:00.100" }
         };
 
-        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(
-            builder =>
-                builder.ConfigureAppConfiguration(
-                    (context, conf) =>
-                    {
-                        _ = conf.AddInMemoryCollection(settings);
-                    }
-                )
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
         );
 
         var client = factory.CreateClient();
@@ -76,8 +75,7 @@ public sealed class HttpGet : IDisposable
         using var postResponseDocument = JsonDocument.Parse(postResponseString);
         var postId = postResponseDocument.RootElement.GetProperty("id").GetString();
         var postChangeTime = postResponseDocument
-            .RootElement
-            .GetProperty("changeTime")
+            .RootElement.GetProperty("changeTime")
             .GetDateTime();
         var postNextTime = postResponseDocument.RootElement.GetProperty("nextTime").GetDateTime();
 
@@ -138,14 +136,13 @@ public sealed class HttpGet : IDisposable
             { "Cards:NewCardWaitingTime", "00:00:00" }
         };
 
-        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(
-            builder =>
-                builder.ConfigureAppConfiguration(
-                    (context, conf) =>
-                    {
-                        _ = conf.AddInMemoryCollection(settings);
-                    }
-                )
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
         );
 
         var client = factory.CreateClient();
@@ -178,14 +175,13 @@ public sealed class HttpGet : IDisposable
             { "FileStore:Directory", _fileStoreDirectory }
         };
 
-        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(
-            builder =>
-                builder.ConfigureAppConfiguration(
-                    (context, conf) =>
-                    {
-                        _ = conf.AddInMemoryCollection(settings);
-                    }
-                )
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
         );
 
         var client = factory.CreateClient();
