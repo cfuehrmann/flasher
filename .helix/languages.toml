@@ -10,3 +10,58 @@ indent = { tab-width = 4, unit = "\t" }
 language-servers = [ { name = "csharp-ls", except-features = [ "format" ] }, "gpt" ]
 formatter = { command = "dotnet-csharpier" }
 auto-format = true
+
+[[language]]
+name = "javascript"
+scope = "source.js"
+injection-regex = "(js|javascript)"
+language-id = "javascript"
+file-types = ["js", "mjs", "cjs", "rules", "es6", "pac", { glob = "jakefile" }]
+shebangs = ["node"]
+comment-token = "//"
+block-comment-tokens = { start = "/*", end = "*/" }
+language-servers = [ { name = "typescript-language-server", except-features = [ "format" ] }, "eslint", "gpt" ]
+indent = { tab-width = 2, unit = "  " }
+formatter = { command = "prettier", args = ["--parser", "typescript"] }
+auto-format = true
+
+[[language]]
+name = "jsx"
+scope = "source.jsx"
+injection-regex = "jsx"
+language-id = "javascriptreact"
+file-types = ["jsx"]
+comment-token = "//"
+block-comment-tokens = { start = "/*", end = "*/" }
+language-servers = [ { name = "typescript-language-server", except-features = [ "format" ] }, "eslint", "gpt" ]
+indent = { tab-width = 2, unit = "  " }
+grammar = "javascript"
+formatter = { command = "prettier", args = ["--parser", "typescript"] }
+auto-format = true
+
+[[language]]
+name = "typescript"
+scope = "source.ts"
+injection-regex = "(ts|typescript)"
+file-types = ["ts", "mts", "cts"]
+language-id = "typescript"
+shebangs = ["deno", "ts-node"]
+comment-token = "//"
+block-comment-tokens = { start = "/*", end = "*/" }
+language-servers = [ { name = "typescript-language-server", except-features = [ "format" ] }, "eslint", "gpt" ]
+indent = { tab-width = 2, unit = "  " }
+formatter = { command = "prettier", args = ["--parser", "typescript"] }
+auto-format = true
+
+[[language]]
+name = "tsx"
+scope = "source.tsx"
+injection-regex = "(tsx)" # |typescript
+language-id = "typescriptreact"
+file-types = ["tsx"]
+comment-token = "//"
+block-comment-tokens = { start = "/*", end = "*/" }
+language-servers = [ { name = "typescript-language-server", except-features = [ "format" ] }, "eslint", "gpt" ]
+indent = { tab-width = 2, unit = "  " }
+formatter = { command = "prettier", args = ["--parser", "typescript"] }
+auto-format = true
