@@ -1,0 +1,33 @@
+layout {
+    tab name="Helix" focus=true {
+        pane split_direction="vertical" {
+            pane focus=true size="20%" command="broot" {
+                args "-g" "--conf" "hx-ide/broot/conf.hjson;/home/carsten/.config/broot/conf.hjson"
+            } 
+            pane size="80%" command="hx"
+        }
+    }
+    tab name="Serve/Prompt" {
+        pane split_direction="vertical" {
+            pane split_direction="horizontal" {
+                pane command="backend/Flasher.Host/bin/Debug/net8.0/Flasher.Host" start_suspended=true {
+                }
+                pane cwd="backend" command="dotnet" start_suspended=true {
+                    args "test"
+                }
+            }
+            pane split_direction="horizontal" {
+                pane cwd="frontend" command="npm" start_suspended=true {
+                    args "run" "dev"
+                }
+                pane command="fish" {
+                }
+            }
+        }
+    }
+    tab name="Diff" {
+        pane borderless=true command="git" {
+            args "diff"
+        }
+    }
+}

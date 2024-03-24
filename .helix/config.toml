@@ -1,0 +1,2 @@
+[keys.normal.space]
+t = ":pipe-to hx-ide --project-dir '/home/carsten/flasher' run-tests-in-stdin"
