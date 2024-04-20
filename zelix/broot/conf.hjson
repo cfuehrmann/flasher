@@ -4,7 +4,7 @@ verbs: [
         shortcut: e
         key: enter
         apply_to: text_file
-        execution: "zx --project-dir ~/flasher find --path {file}"
+        execution: "zx find ~/flasher {file}"
         leave_broot: false
     }
 ]
