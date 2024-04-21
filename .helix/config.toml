@@ -1,2 +1,0 @@
-[keys.normal.space]
-t = ":pipe-to zx run-tests-in-stdin '/home/carsten/flasher'"

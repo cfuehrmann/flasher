@@ -1,0 +1,10 @@
+keybinds {
+    normal {
+        bind "Alt t" {
+            WriteChars ":pipe-to zx run-xunit --test-dir ~/flasher/backend ~/flasher ";
+            Write 18;
+            WriteChars "%";
+        }
+    }
+}
+
