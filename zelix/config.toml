@@ -1,3 +1,2 @@
 session = "flasher"
-test-dir = "/home/carsten/flasher/backend"
-terminal = [ "alacritty", "--command" ]
+terminal = []
