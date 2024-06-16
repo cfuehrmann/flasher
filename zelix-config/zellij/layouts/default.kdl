@@ -6,7 +6,7 @@ layout {
     tab name="Helix" focus=true {
         pane split_direction="vertical" {
             pane focus=true size="22%" command="broot" {
-                args "-g" "--conf" "zelix/broot/conf.hjson;../.config/broot/conf.hjson"
+                args "-g" "--conf" "zelix-config/broot/conf.hjson;../.config/broot/conf.hjson"
             } 
             pane size="78%" command="hx"
         }

@@ -4,7 +4,7 @@ verbs: [
         shortcut: e
         key: enter
         apply_to: text_file
-        execution: "zx find ~/flasher {file}"
+        execution: "zelix find ~/flasher {file}"
         leave_broot: false
     }
 ]

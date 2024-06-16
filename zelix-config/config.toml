@@ -1,0 +1,13 @@
+session = "flasher"
+
+[open]
+
+# terminal = [] 
+# terminal = ["alacritty", "--command"]
+# terminal = ["kitty"]
+# terminal = [ "foot", "--" ]
+# terminal = [ "footclient", "--" ]
+# terminal = ["wezterm", "start", "--"]
+
+[find]
+# hidden-method = "picker"
