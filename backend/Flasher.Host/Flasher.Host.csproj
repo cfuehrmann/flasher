@@ -6,7 +6,11 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot>
+    <!-- Running AOT-published binaries on another machine stopped working 
+    for me, with an error message stating that the ISA level of the target
+    machine is too low. I found no solution for that allows keeping AOT.
+    It should be monitored across .NET updates if this problem goes away. --> 
+    <!-- <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot> -->
   </PropertyGroup>
 
   <ItemGroup>
