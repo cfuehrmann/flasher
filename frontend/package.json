@@ -12,8 +12,8 @@
   "dependencies": {
     "eslint-plugin-react": "^7.33.2",
     "github-markdown-css": "^5.2.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-markdown": "^9.0.0",
     "react-toastify": "^10.0.4",
     "rehype-katex": "^7.0.0",
@@ -22,8 +22,8 @@
     "w3-css": "^4.1.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.61",
-    "@types/react-dom": "^18.2.19",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^7.1.0",
     "@typescript-eslint/parser": "^7.1.0",
     "@vitejs/plugin-react-swc": "^3.6.0",
