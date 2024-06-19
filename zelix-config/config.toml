@@ -10,4 +10,4 @@ session = "flasher"
 # terminal = ["wezterm", "start", "--"]
 
 [find]
-# hidden-method = "picker"
+hidden-method = "picker"
