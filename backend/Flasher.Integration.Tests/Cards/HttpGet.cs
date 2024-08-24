@@ -147,7 +147,7 @@ public sealed class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(new[] { cardStrings1.FullCard }, body.Cards);
+        Assert.Equal([cardStrings1.FullCard], body.Cards);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public sealed class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(new[] { cardStrings1.FullCard }, body.Cards);
+        Assert.Equal([cardStrings1.FullCard], body.Cards);
     }
 
     [Fact]
@@ -246,10 +246,7 @@ public sealed class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(
-            new[] { enabledCardStrings.FullCard, disabledCardStrings.FullCard },
-            body.Cards
-        );
+        Assert.Equal([enabledCardStrings.FullCard, disabledCardStrings.FullCard], body.Cards);
     }
 
     [Theory]
@@ -290,7 +287,7 @@ public sealed class HttpGet : IDisposable
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
         Assert.Equal(
-            new[] { earlyNextTimeCardStrings.FullCard, lateNextTimeCardStrings.FullCard },
+            [earlyNextTimeCardStrings.FullCard, lateNextTimeCardStrings.FullCard],
             body.Cards
         );
     }
@@ -332,7 +329,7 @@ public sealed class HttpGet : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         FindResponse? body = await response.ReadJsonAsync<FindResponse>();
         Assert.NotNull(body);
-        Assert.Equal(new[] { smallIdCardStrings.FullCard, bigIdCardStrings.FullCard }, body.Cards);
+        Assert.Equal([smallIdCardStrings.FullCard, bigIdCardStrings.FullCard], body.Cards);
     }
 
     [Theory]

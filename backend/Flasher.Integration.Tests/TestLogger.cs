@@ -10,7 +10,7 @@ public class TestLogger : ILogger
 {
     private readonly ConcurrentQueue<Entry> _entries = new();
 
-    public IReadOnlyList<Entry> Entries => _entries.ToList();
+    public IReadOnlyList<Entry> Entries => [.. _entries];
 
     public IDisposable? BeginScope<TState>(TState state)
         where TState : notnull
@@ -37,7 +37,7 @@ public class TestLogger : ILogger
                 LogLevel = logLevel,
                 EventId = eventId,
                 Exception = exception,
-                Message = formatter(state, exception)
+                Message = formatter(state, exception),
             }
         );
     }

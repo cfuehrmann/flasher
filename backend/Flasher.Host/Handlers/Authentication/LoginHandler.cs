@@ -44,7 +44,7 @@ public static class LoginHandler
         Task<AutoSave?> readAutoSave = autoSaveStore.Read(request.UserName);
 
         var token = new JwtSecurityToken(
-            claims: new[] { new Claim(ClaimTypes.Name, request.UserName) },
+            claims: [new Claim(ClaimTypes.Name, request.UserName)],
             expires: dateTime.Now + options.CurrentValue.TokenLifetime,
             signingCredentials: new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256)
         );

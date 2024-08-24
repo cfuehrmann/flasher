@@ -51,7 +51,7 @@ public static class Util
     {
         var inMemorySettings = new Dictionary<string, string?>
         {
-            { "FileStore:Directory", fileStoreDirectory }
+            { "FileStore:Directory", fileStoreDirectory },
         };
 
         using WebApplicationFactory<Program> factory =
@@ -115,6 +115,6 @@ public static class Util
 
     public static IEnumerable<T> Reverse<T>(bool reverse, T element0, T element1)
     {
-        return reverse ? new[] { element0, element1 } : new[] { element1, element0 };
+        return reverse ? [element0, element1] : [element1, element0];
     }
 }

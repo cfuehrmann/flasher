@@ -15,6 +15,7 @@ using Flasher.Store.FileStore.AutoSaving;
 using Flasher.Store.FileStore.Cards;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Routing.Constraints;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateSlimBuilder(args);
@@ -24,6 +25,10 @@ var services = builder.Services;
 #if DEBUG
 services.AddEndpointsApiExplorer().AddSwaggerGen();
 #endif
+
+services.Configure<RouteOptions>(static options =>
+    options.SetParameterPolicy<RegexInlineRouteConstraint>("regex")
+);
 
 services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 services.AddSingleton<IAuthenticationStore, AuthenticationStore>();
@@ -35,7 +40,7 @@ services.Configure<CardsOptions>(builder.Configuration.GetSection("Cards"));
 
 // The following method call is needed for AOT only. I see no way to cover it
 // by automated tests.
-services.ConfigureHttpJsonOptions(options =>
+services.ConfigureHttpJsonOptions(static options =>
 {
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
 });
@@ -44,7 +49,7 @@ var authorizationBuilder = services.AddAuthorizationBuilder();
 
 authorizationBuilder.AddFallbackPolicy(
     "", // The name matters nowhere, so it cannot be covered by tests.
-    policy =>
+    static policy =>
     {
         policy.RequireAuthenticatedUser();
     }
@@ -56,18 +61,18 @@ authenticationBuilder.AddJwtBearer();
 services
     .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
     .Configure<SecurityKey>(
-        (options, signingKey) =>
+        static (options, signingKey) =>
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 IssuerSigningKey = signingKey,
                 ValidateAudience = false,
-                ValidateIssuer = false
+                ValidateIssuer = false,
             }
     );
 
-services.AddSingleton(_ => RSA.Create());
+services.AddSingleton(static _ => RSA.Create());
 
-services.AddSingleton<SecurityKey>(serviceProvider => new RsaSecurityKey(
+services.AddSingleton<SecurityKey>(static serviceProvider => new RsaSecurityKey(
     serviceProvider.GetRequiredService<RSA>()
 ));
 
@@ -82,7 +87,7 @@ _ = app.UseSwagger().UseSwaggerUI();
 #endif
 
 app.Use(
-    async (context, next) =>
+    static async (context, next) =>
     {
         if (context.Request.Cookies.TryGetValue("__Host-jwt", out string? value))
         {
