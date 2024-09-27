@@ -121,7 +121,7 @@ export function QuizView(props: ApiHandler & { onGoToGroom: () => void }) {
               try {
                 await api.updateCard(card);
                 setState({ mode: "solution", card });
-              } catch (_) {
+              } catch {
                 startAutoSaveInterval();
               }
             })();

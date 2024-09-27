@@ -51,7 +51,7 @@ export function RecoverView(props: Props) {
                 try {
                   await api.deleteAutoSave();
                   props.onGoToPrompt();
-                } catch (_) {
+                } catch {
                   startAutoSaveInterval();
                 }
               })();
@@ -64,7 +64,7 @@ export function RecoverView(props: Props) {
                 try {
                   await api.updateCard(card);
                   props.onGoToPrompt();
-                } catch (_) {
+                } catch {
                   startAutoSaveInterval();
                 }
               })();

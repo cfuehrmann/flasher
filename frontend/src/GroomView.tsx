@@ -213,7 +213,7 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
                   );
                   setCards(newCards);
                   setModal({ kind: "view", card: { ...groomCard, ...card } });
-                } catch (_) {
+                } catch {
                   startAutoSaveInterval();
                 }
               })();
