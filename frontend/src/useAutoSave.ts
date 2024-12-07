@@ -9,7 +9,7 @@ export function useAutoSave(
 
   const isSaving = useRef(false);
   const cardRef = useRef(card);
-  const interval = useRef<number>();
+  const interval = useRef<number>(undefined);
 
   useEffect(() => {
     cardRef.current = card;
