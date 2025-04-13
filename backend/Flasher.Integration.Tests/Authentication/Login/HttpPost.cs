@@ -1,13 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc.Testing;
+﻿using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace Flasher.Integration.Tests.Authentication.Login;
 
@@ -47,7 +39,7 @@ public sealed class HttpPost : IDisposable
         var inMemorySettings = new Dictionary<string, string?>
         {
             { "Authentication:TokenLifetime", $"{lifeTimeString}" },
-            { "FileStore:Directory", _fileStoreDirectory }
+            { "FileStore:Directory", _fileStoreDirectory },
         };
 
         using WebApplicationFactory<Program> factory =
@@ -67,21 +59,10 @@ public sealed class HttpPost : IDisposable
         client.AddCookies(cookies);
         using HttpResponseMessage apiResponse = await CallApi(client);
 
-        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
-        string? jwtCookie = cookies.FirstOrDefault(cookie =>
-            cookie.StartsWith("__Host-jwt", StringComparison.Ordinal)
-        );
-        Assert.NotNull(jwtCookie);
-        Assert.Contains("; Path=/", jwtCookie, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("; Secure", jwtCookie, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("; HttpOnly", jwtCookie, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(" SameSite=strict", jwtCookie, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(
-            $"; Max-Age={tokenLifetime}",
-            jwtCookie,
-            StringComparison.OrdinalIgnoreCase
-        );
-        _ = apiResponse.EnsureSuccessStatusCode();
+        _ = await Verify(loginResponse)
+            .AppendValue("apiResponse", apiResponse)
+            .UseParameters(tokenLifetime)
+            .ScrubHostJwt();
     }
 
     [Fact]
@@ -94,7 +75,7 @@ public sealed class HttpPost : IDisposable
         client.AddCookies(cookies);
         using HttpResponseMessage response = await CallApi(client);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        _ = await Verify(response).ScrubHostJwt();
     }
 
     [Fact]
@@ -105,7 +86,7 @@ public sealed class HttpPost : IDisposable
 
         using HttpResponseMessage response = await client.Login("jane@doe", Password);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        _ = await Verify(response);
     }
 
     [Fact]
@@ -116,7 +97,7 @@ public sealed class HttpPost : IDisposable
 
         using HttpResponseMessage response = await client.Login(UserName, "123457");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        _ = await Verify(response);
     }
 
     [Fact]
@@ -136,8 +117,7 @@ public sealed class HttpPost : IDisposable
 
         using HttpResponseMessage response = await client.Login(UserName, Password);
 
-        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        Assert.False(response.Headers.Contains("Set-Cookie"));
+        _ = await Verify(response);
     }
 
     [Fact]
@@ -150,8 +130,7 @@ public sealed class HttpPost : IDisposable
 
         using HttpResponseMessage response = await client.Login(UserName, Password);
 
-        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        Assert.False(response.Headers.Contains("Set-Cookie"));
+        _ = await Verify(response);
     }
 
     [Fact]
@@ -160,7 +139,7 @@ public sealed class HttpPost : IDisposable
         var inMemorySettings = new Dictionary<string, string?>
         {
             { "Authentication:TokenLifetime", "0.00:00:42" },
-            { "FileStore:Directory", _fileStoreDirectory }
+            { "FileStore:Directory", _fileStoreDirectory },
         };
 
         using WebApplicationFactory<Program> factory =
@@ -175,16 +154,10 @@ public sealed class HttpPost : IDisposable
         using HttpClient client = factory.CreateClient();
 
         using HttpResponseMessage response = await client.Login(UserName, Password);
-        IEnumerable<string> cookies = response.GetCookies();
 
-        string? jwtCookie = cookies.FirstOrDefault(cookie =>
-            cookie.StartsWith("__Host-jwt", StringComparison.Ordinal)
-        );
-
-        Console.WriteLine(jwtCookie);
         // Check that the token's Max-Age is not 0. Because 0 corresponds to the default
         // TimeSpan, which would be used if the property were not explicitly configured.
-        Assert.Contains("; max-age=42", jwtCookie, StringComparison.OrdinalIgnoreCase);
+        _ = await Verify(response).ScrubHostJwt();
     }
 
     private async Task<IEnumerable<string>> CookieSignedWithDifferentSecurityKey()

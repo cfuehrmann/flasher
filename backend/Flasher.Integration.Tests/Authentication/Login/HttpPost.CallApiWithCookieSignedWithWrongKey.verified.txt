@@ -1,0 +1,31 @@
+﻿{
+  Version: 1.1,
+  Content: {
+    Headers: []
+  },
+  StatusCode: Unauthorized,
+  ReasonPhrase: Unauthorized,
+  Headers: [
+    {
+      WWW-Authenticate: [
+        Bearer error="invalid_token", error_description="The signature key was not found"
+      ]
+    }
+  ],
+  TrailingHeaders: [],
+  RequestMessage: {
+    Version: 1.1,
+    Method: {
+      Method: GET
+    },
+    RequestUri: http://localhost/Cards/Next,
+    Headers: [
+      {
+        Cookie: [
+          __Host-jwt=scrubbed; max-age=86400; path=/; secure; samesite=strict; httponly
+        ]
+      }
+    ]
+  },
+  IsSuccessStatusCode: false
+}
