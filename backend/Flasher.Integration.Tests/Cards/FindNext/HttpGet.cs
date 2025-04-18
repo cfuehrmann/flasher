@@ -87,18 +87,20 @@ public sealed class HttpGet : IDisposable
             {
                 DateTime now = DateTime.Now;
 
-                Assert.InRange(
-                    now,
-                    postNextTime,
-                    postNextTime + delay + TimeSpan.FromMilliseconds(10)
+                _ = await Verify(
+                    new
+                    {
+                        postResponse,
+                        NextTimeInRange = postNextTime <= now
+                            && now <= postNextTime + delay + TimeSpan.FromMilliseconds(10),
+                        response,
+                    }
                 );
-
-                _ = await Verify(new { postResponse, response });
 
                 return;
             }
 
-            Assert.True(response.StatusCode is HttpStatusCode.NoContent);
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
             await Task.Delay(delay);
         }

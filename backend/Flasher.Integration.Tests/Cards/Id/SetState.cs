@@ -86,10 +86,6 @@ public sealed class SetState : IDisposable
 
         using var response = await client.PostAsync($"/Cards/{postResponseId}/Set{state}", null);
 
-        // The status code can be NoContent, or OK if the nextTime is so close
-        // that the card is already due.
-        Assert.True(response.IsSuccessStatusCode);
-
         using var getResponse = await client.GetAsync("/Cards");
         var getResponseString = await getResponse.Content.ReadAsStringAsync();
         using var getResponseDocument = JsonDocument.Parse(getResponseString);
@@ -98,12 +94,7 @@ public sealed class SetState : IDisposable
         var getNextTime = getCard.GetProperty("nextTime").GetDateTime();
 
         TimeSpan passedTime = getChangeTime - postResponseChangeTime;
-
-        Assert.True(passedTime >= delay);
-
-        var waitingTime = getNextTime - getChangeTime;
-
-        Assert.Equal(passedTime * multiplier, waitingTime);
+        TimeSpan waitingTime = getNextTime - getChangeTime;
 
         _ = await Verify(
                 new
@@ -111,6 +102,8 @@ public sealed class SetState : IDisposable
                     postResponse,
                     response,
                     getResponse,
+                    PassedTimeOk = passedTime >= delay,
+                    WaitingTimeOk = waitingTime == passedTime * multiplier,
                 }
             )
             .UseParameters(state, multiplier);

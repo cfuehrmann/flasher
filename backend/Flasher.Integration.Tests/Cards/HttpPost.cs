@@ -66,16 +66,20 @@ public sealed class HttpPost : IDisposable
 
         using var getResponse = await client.GetAsync("/Cards");
 
-        _ = await Verify(new { response, getResponse });
-
         var getResponseString = await getResponse.Content.ReadAsStringAsync();
         using var getResponseDocument = JsonDocument.Parse(getResponseString);
         var getCard = getResponseDocument.RootElement.GetProperty("cards")[0];
-
         var getChangeTime = getCard.GetProperty("changeTime").GetDateTime();
-        Assert.True(getChangeTime >= now);
-
         var getNextTime = getCard.GetProperty("nextTime").GetDateTime();
-        Assert.Equal(getChangeTime.AddSeconds(42), getNextTime);
+
+        _ = await Verify(
+            new
+            {
+                response,
+                getResponse,
+                ChangeTimeOk = getChangeTime >= now,
+                NextTimeOk = getNextTime == getChangeTime.AddSeconds(42),
+            }
+        );
     }
 }

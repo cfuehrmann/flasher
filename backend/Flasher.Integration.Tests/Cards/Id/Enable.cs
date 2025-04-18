@@ -67,14 +67,14 @@ public sealed class Enable : IDisposable
         using var postResponseDocument = JsonDocument.Parse(postResponseString);
         var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
 
-        var enableResponse = await client.PostAsync($"/Cards/{postResponseId}/Enable", null);
+        var response = await client.PostAsync($"/Cards/{postResponseId}/Enable", null);
 
         // To prevent Stryker timeouts
-        Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         using var getResponse = await client.GetAsync("/Cards");
 
-        _ = await Verify(new { enableResponse, getResponse });
+        _ = await Verify(new { response, getResponse });
     }
 
     [Fact]

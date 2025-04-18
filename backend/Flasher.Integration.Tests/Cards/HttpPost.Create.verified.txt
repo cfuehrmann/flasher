@@ -40,5 +40,7 @@
         count: 1
       }
     }
-  }
+  },
+  ChangeTimeOk: true,
+  NextTimeOk: true
 }

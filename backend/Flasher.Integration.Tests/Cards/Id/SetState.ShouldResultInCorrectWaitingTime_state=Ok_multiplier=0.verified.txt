@@ -57,5 +57,7 @@
         count: 1
       }
     }
-  }
+  },
+  PassedTimeOk: true,
+  WaitingTimeOk: true
 }

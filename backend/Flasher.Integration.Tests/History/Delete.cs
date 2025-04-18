@@ -71,16 +71,20 @@ public sealed class Delete : IDisposable
 
         var timeAfterDelete = DateTime.Now;
 
-        _ = await Verify(new { postResponse, response });
-
         var responseString = await response.Content.ReadAsStringAsync();
         using var responseDocument = JsonDocument.Parse(responseString);
         var card = responseDocument.RootElement;
-
         var changeTime = card.GetProperty("changeTime").GetDateTime();
-        Assert.InRange(changeTime, timeBeforeDelete, timeAfterDelete);
-
         var nextTime = card.GetProperty("nextTime").GetDateTime();
-        Assert.Equal(changeTime + newCardWaitingTime, nextTime);
+
+        _ = await Verify(
+            new
+            {
+                postResponse,
+                response,
+                ChangeTimeOk = timeBeforeDelete <= changeTime && changeTime <= timeAfterDelete,
+                NextTimeOk = nextTime == changeTime + newCardWaitingTime,
+            }
+        );
     }
 }

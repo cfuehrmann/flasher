@@ -59,7 +59,19 @@ public sealed class HttpPost : IDisposable
         client.AddCookies(cookies);
         using HttpResponseMessage apiResponse = await CallApi(client);
 
-        _ = await Verify(new { loginResponse, apiResponse }).UseParameters(tokenLifetime);
+        _ = await Verify(
+                new
+                {
+                    loginResponse,
+                    JwtOk = cookies.Any(c =>
+                        c.Contains(
+                            $"; max-age={tokenLifetime}; path=/; secure; samesite=strict; httponly"
+                        )
+                    ),
+                    apiResponse,
+                }
+            )
+            .UseParameters(tokenLifetime);
     }
 
     [Fact]
@@ -128,39 +140,6 @@ public sealed class HttpPost : IDisposable
         using HttpResponseMessage response = await client.Login(UserName, Password);
 
         _ = await Verify(new { response });
-    }
-
-    [Fact]
-    public async Task OptionsAreInjected()
-    {
-        var inMemorySettings = new Dictionary<string, string?>
-        {
-            { "Authentication:TokenLifetime", "0.00:00:42" },
-            { "FileStore:Directory", _fileStoreDirectory },
-        };
-
-        using WebApplicationFactory<Program> factory =
-            new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-                builder.ConfigureAppConfiguration(
-                    (context, conf) =>
-                    {
-                        _ = conf.AddInMemoryCollection(inMemorySettings);
-                    }
-                )
-            );
-        using HttpClient client = factory.CreateClient();
-
-        using HttpResponseMessage response = await client.Login(UserName, Password);
-
-        // Check that the token's Max-Age is not 0. Because 0 corresponds to the default
-        // TimeSpan, which would be used if the property were not explicitly configured.
-        IEnumerable<string> cookies = response.GetCookies();
-
-        string? jwtCookie = cookies.FirstOrDefault(cookie =>
-            cookie.StartsWith("__Host-jwt", StringComparison.Ordinal)
-        );
-
-        Assert.Contains("; max-age=42", jwtCookie, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<IEnumerable<string>> CookieSignedWithDifferentSecurityKey()
