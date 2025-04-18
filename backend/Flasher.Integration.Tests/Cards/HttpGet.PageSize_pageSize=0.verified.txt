@@ -1,0 +1,13 @@
+﻿{
+  response: {
+    Status: 200 OK,
+    Content: {
+      Headers: {
+        Content-Type: application/json; charset=utf-8
+      },
+      Value: {
+        count: 4
+      }
+    }
+  }
+}

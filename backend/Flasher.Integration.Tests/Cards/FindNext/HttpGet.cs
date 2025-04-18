@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Net.Http;
+﻿using System.Net;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace Flasher.Integration.Tests.Cards.FindNext;
 
@@ -41,7 +35,7 @@ public sealed class HttpGet : IDisposable
         var settings = new Dictionary<string, string?>
         {
             { "FileStore:Directory", _fileStoreDirectory },
-            { "Cards:NewCardWaitingTime", "00:00:00.100" }
+            { "Cards:NewCardWaitingTime", "00:00:00.100" },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -71,15 +65,17 @@ public sealed class HttpGet : IDisposable
             """;
         var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
         using var postResponse = await client.PostAsync("/Cards", postBodyContent);
+
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
         using var postResponseDocument = JsonDocument.Parse(postResponseString);
         var postId = postResponseDocument.RootElement.GetProperty("id").GetString();
-        var postChangeTime = postResponseDocument
-            .RootElement.GetProperty("changeTime")
-            .GetDateTime();
-        var postNextTime = postResponseDocument.RootElement.GetProperty("nextTime").GetDateTime();
+
+        var postNextTime = postResponseDocument
+            .RootElement.GetProperty("nextTime")
+            .GetDateTimeOffset();
 
         var enableResponse = await client.PostAsync($"/Cards/{postId}/Enable", null);
+
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
 
@@ -90,33 +86,14 @@ public sealed class HttpGet : IDisposable
             if (response.StatusCode == HttpStatusCode.OK)
             {
                 DateTime now = DateTime.Now;
-                Assert.True(postNextTime <= now);
-                Assert.True(now <= postNextTime + delay + TimeSpan.FromMilliseconds(10));
 
-                var responseString = await response.Content.ReadAsStringAsync();
-                using var responseDocument = JsonDocument.Parse(responseString);
-                var card = responseDocument.RootElement;
+                Assert.InRange(
+                    now,
+                    postNextTime,
+                    postNextTime + delay + TimeSpan.FromMilliseconds(10)
+                );
 
-                var id = card.GetProperty("id").GetString();
-                Assert.Equal(postId, id);
-
-                var prompt = card.GetProperty("prompt").GetString();
-                Assert.Equal(postPrompt, prompt);
-
-                var solution = card.GetProperty("solution").GetString();
-                Assert.Equal(postSolution, solution);
-
-                var state = card.GetProperty("state").GetString();
-                Assert.Equal("New", state);
-
-                var changeTime = card.GetProperty("changeTime").GetDateTime();
-                Assert.Equal(postChangeTime, changeTime);
-
-                var nextTime = card.GetProperty("nextTime").GetDateTime();
-                Assert.Equal(postNextTime, nextTime);
-
-                var disabled = card.GetProperty("disabled").GetBoolean();
-                Assert.False(disabled);
+                _ = await Verify(new { postResponse, response });
 
                 return;
             }
@@ -133,7 +110,7 @@ public sealed class HttpGet : IDisposable
         var settings = new Dictionary<string, string?>
         {
             { "FileStore:Directory", _fileStoreDirectory },
-            { "Cards:NewCardWaitingTime", "00:00:00" }
+            { "Cards:NewCardWaitingTime", "00:00:00" },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -162,7 +139,8 @@ public sealed class HttpGet : IDisposable
         using var postResponse = await client.PostAsync("/Cards", postBodyContent);
 
         using var response = await client.GetAsync("/Cards/Next");
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        _ = await Verify(new { response });
     }
 
     [Fact]
@@ -172,7 +150,7 @@ public sealed class HttpGet : IDisposable
 
         var settings = new Dictionary<string, string?>
         {
-            { "FileStore:Directory", _fileStoreDirectory }
+            { "FileStore:Directory", _fileStoreDirectory },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -192,6 +170,7 @@ public sealed class HttpGet : IDisposable
         client.AddCookies(cookies);
 
         using var response = await client.GetAsync("/Cards/Next");
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        _ = await Verify(new { response });
     }
 }

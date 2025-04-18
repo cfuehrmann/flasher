@@ -1,0 +1,35 @@
+﻿{
+  ExpectedCards: [
+    {
+      Id: Guid_1,
+      Prompt: fooPROMPTbar,
+      Solution: fooSOLUTIONbar,
+      State: Ok,
+      ChangeTime: DateTime_1,
+      NextTime: DateTime_2,
+      Disabled: true
+    }
+  ],
+  response: {
+    Status: 200 OK,
+    Content: {
+      Headers: {
+        Content-Type: application/json; charset=utf-8
+      },
+      Value: {
+        cards: [
+          {
+            id: Guid_1,
+            prompt: fooPROMPTbar,
+            solution: fooSOLUTIONbar,
+            state: Ok,
+            changeTime: DateTimeOffset_1,
+            nextTime: DateTimeOffset_2,
+            disabled: true
+          }
+        ],
+        count: 4
+      }
+    }
+  }
+}

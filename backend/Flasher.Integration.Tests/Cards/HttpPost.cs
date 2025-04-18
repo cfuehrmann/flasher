@@ -1,14 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Net.Http;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace Flasher.Integration.Tests.Cards;
 
@@ -42,7 +35,7 @@ public sealed class HttpPost : IDisposable
         var inMemorySettings = new Dictionary<string, string?>
         {
             { "FileStore:Directory", _fileStoreDirectory },
-            { "Cards:NewCardWaitingTime", "00:00:42" }
+            { "Cards:NewCardWaitingTime", "00:00:42" },
         };
 
         using WebApplicationFactory<Program> factory =
@@ -71,34 +64,18 @@ public sealed class HttpPost : IDisposable
             )
         );
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
         using var getResponse = await client.GetAsync("/Cards");
-        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+        _ = await Verify(new { response, getResponse });
+
         var getResponseString = await getResponse.Content.ReadAsStringAsync();
         using var getResponseDocument = JsonDocument.Parse(getResponseString);
         var getCard = getResponseDocument.RootElement.GetProperty("cards")[0];
-
-        var getId = getCard.GetProperty("id").GetString();
-        Assert.NotNull(getId);
-        Assert.True(getId.Length > 0);
-
-        var getPrompt = getCard.GetProperty("prompt").GetString();
-        Assert.Equal(prompt, getPrompt);
-
-        var getSolution = getCard.GetProperty("solution").GetString();
-        Assert.Equal(solution, getSolution);
-
-        var getState = getCard.GetProperty("state").GetString();
-        Assert.Equal("New", getState);
 
         var getChangeTime = getCard.GetProperty("changeTime").GetDateTime();
         Assert.True(getChangeTime >= now);
 
         var getNextTime = getCard.GetProperty("nextTime").GetDateTime();
         Assert.Equal(getChangeTime.AddSeconds(42), getNextTime);
-
-        var getDisabled = getCard.GetProperty("disabled").GetBoolean();
-        Assert.True(getDisabled);
     }
 }

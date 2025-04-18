@@ -1,0 +1,44 @@
+﻿{
+  loginResponse: {
+    Status: 200 OK,
+    Cookies: {
+      __Host-jwt: {Scrubbed}
+    },
+    Content: {
+      Headers: {
+        Content-Type: application/json; charset=utf-8
+      },
+      Value: {
+        jsonWebToken: {Scrubbed},
+        autoSave: null
+      }
+    }
+  },
+  putResponse: {
+    Status: 200 OK,
+    Content: {
+      Headers: {}
+    }
+  },
+  response: {
+    Status: 200 OK,
+    Content: {
+      Headers: {}
+    }
+  },
+  loginResponse2: {
+    Status: 200 OK,
+    Cookies: {
+      __Host-jwt: {Scrubbed}
+    },
+    Content: {
+      Headers: {
+        Content-Type: application/json; charset=utf-8
+      },
+      Value: {
+        jsonWebToken: {Scrubbed},
+        autoSave: null
+      }
+    }
+  }
+}

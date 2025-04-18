@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Net.Http;
+﻿using System.Net;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace Flasher.Integration.Tests.Cards.Id;
 
@@ -38,7 +32,7 @@ public sealed class Enable : IDisposable
     {
         var settings = new Dictionary<string, string?>
         {
-            { "FileStore:Directory", _fileStoreDirectory }
+            { "FileStore:Directory", _fileStoreDirectory },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -74,15 +68,13 @@ public sealed class Enable : IDisposable
         var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
 
         var enableResponse = await client.PostAsync($"/Cards/{postResponseId}/Enable", null);
+
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
 
         using var getResponse = await client.GetAsync("/Cards");
-        var getResponseString = await getResponse.Content.ReadAsStringAsync();
-        using var getResponseDocument = JsonDocument.Parse(getResponseString);
-        var getCard = getResponseDocument.RootElement.GetProperty("cards")[0];
-        var getDisabled = getCard.GetProperty("disabled").GetBoolean();
-        Assert.False(getDisabled);
+
+        _ = await Verify(new { enableResponse, getResponse });
     }
 
     [Fact]
@@ -90,7 +82,7 @@ public sealed class Enable : IDisposable
     {
         var settings = new Dictionary<string, string?>
         {
-            { "FileStore:Directory", _fileStoreDirectory }
+            { "FileStore:Directory", _fileStoreDirectory },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -110,7 +102,7 @@ public sealed class Enable : IDisposable
         client.AddCookies(cookies);
 
         var response = await client.PostAsync($"/Cards/nonExistingId/Enable", null);
-        // To prevent Stryker timeouts
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        _ = await Verify(new { response });
     }
 }

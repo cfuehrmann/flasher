@@ -1,15 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Threading.Tasks;
+﻿using System.Globalization;
 using Flasher.Store.Cards;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace Flasher.Integration.Tests.Cards;
 
@@ -96,14 +88,18 @@ public sealed class HttpGet : IDisposable
 
         using HttpResponseMessage response = await client.GetAsync($"/Cards");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        FindResponse? body = await response.ReadJsonAsync<FindResponse>();
-        Assert.NotNull(body);
-        IEnumerable<FullCard> cards = body!.Cards;
-        Assert.Equal(3, cards.Count());
-        Assert.Contains(cardStrings0.FullCard, cards);
-        Assert.Contains(cardStrings1.FullCard, cards);
-        Assert.Contains(cardStrings2.FullCard, cards);
+        _ = await Verify(
+            new
+            {
+                ExpectedCards = new FullCard[]
+                {
+                    cardStrings0.FullCard,
+                    cardStrings1.FullCard,
+                    cardStrings2.FullCard,
+                },
+                response,
+            }
+        );
     }
 
     [Fact]
@@ -144,10 +140,7 @@ public sealed class HttpGet : IDisposable
             $"/Cards?searchText={PromptSubString}"
         );
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        FindResponse? body = await response.ReadJsonAsync<FindResponse>();
-        Assert.NotNull(body);
-        Assert.Equal([cardStrings1.FullCard], body.Cards);
+        _ = await Verify(new { ExpectedCard = cardStrings1.FullCard, response });
     }
 
     [Fact]
@@ -188,10 +181,7 @@ public sealed class HttpGet : IDisposable
             $"/Cards?searchText={SolutionSubstring}"
         );
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        FindResponse? body = await response.ReadJsonAsync<FindResponse>();
-        Assert.NotNull(body);
-        Assert.Equal([cardStrings1.FullCard], body.Cards);
+        _ = await Verify(new { ExpectedCard = cardStrings1.FullCard, response });
     }
 
     [Fact]
@@ -203,10 +193,7 @@ public sealed class HttpGet : IDisposable
 
         using HttpResponseMessage response = await client.GetAsync($"/Cards");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        FindResponse? body = await response.ReadJsonAsync<FindResponse>();
-        Assert.NotNull(body);
-        Assert.Empty(body.Cards);
+        _ = await Verify(new { response });
     }
 
     [Theory]
@@ -243,10 +230,18 @@ public sealed class HttpGet : IDisposable
 
         using HttpResponseMessage response = await client.GetAsync($"/Cards");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        FindResponse? body = await response.ReadJsonAsync<FindResponse>();
-        Assert.NotNull(body);
-        Assert.Equal([enabledCardStrings.FullCard, disabledCardStrings.FullCard], body.Cards);
+        _ = await Verify(
+                new
+                {
+                    ExpectedCards = new FullCard[]
+                    {
+                        enabledCardStrings.FullCard,
+                        disabledCardStrings.FullCard,
+                    },
+                    response,
+                }
+            )
+            .UseParameters(reverse);
     }
 
     [Theory]
@@ -283,13 +278,18 @@ public sealed class HttpGet : IDisposable
 
         using HttpResponseMessage response = await client.GetAsync($"/Cards");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        FindResponse? body = await response.ReadJsonAsync<FindResponse>();
-        Assert.NotNull(body);
-        Assert.Equal(
-            [earlyNextTimeCardStrings.FullCard, lateNextTimeCardStrings.FullCard],
-            body.Cards
-        );
+        _ = await Verify(
+                new
+                {
+                    ExpectedCards = new FullCard[]
+                    {
+                        earlyNextTimeCardStrings.FullCard,
+                        lateNextTimeCardStrings.FullCard,
+                    },
+                    response,
+                }
+            )
+            .UseParameters(reverse);
     }
 
     [Theory]
@@ -326,10 +326,18 @@ public sealed class HttpGet : IDisposable
 
         using HttpResponseMessage response = await client.GetAsync($"/Cards");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        FindResponse? body = await response.ReadJsonAsync<FindResponse>();
-        Assert.NotNull(body);
-        Assert.Equal([smallIdCardStrings.FullCard, bigIdCardStrings.FullCard], body.Cards);
+        _ = await Verify(
+                new
+                {
+                    ExpectedCards = new FullCard[]
+                    {
+                        smallIdCardStrings.FullCard,
+                        bigIdCardStrings.FullCard,
+                    },
+                    response,
+                }
+            )
+            .UseParameters(reverse);
     }
 
     [Theory]
@@ -383,10 +391,18 @@ public sealed class HttpGet : IDisposable
             $"/Cards?searchText={PromptSubString}&skip={skip}"
         );
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        FindResponse? body = await response.ReadJsonAsync<FindResponse>();
-        Assert.NotNull(body);
-        Assert.Equal(new[] { cardStrings1.FullCard, cardStrings3.FullCard }.Skip(skip), body.Cards);
+        _ = await Verify(
+                new
+                {
+                    ExpectedCards = new FullCard[]
+                    {
+                        cardStrings1.FullCard,
+                        cardStrings3.FullCard,
+                    }.Skip(skip),
+                    response,
+                }
+            )
+            .UseParameters(skip);
     }
 
     [Theory]
@@ -477,10 +493,16 @@ public sealed class HttpGet : IDisposable
             $"/Cards?searchText={PromptSubString}&skip=1"
         );
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        FindResponse? body = await response.ReadJsonAsync<FindResponse>();
-        Assert.NotNull(body);
-        Assert.Equal(new[] { c3.FullCard, c5.FullCard, c7.FullCard }.Take(pageSize), body.Cards);
+        _ = await Verify(
+                new
+                {
+                    ExpectedCards = new FullCard[] { c3.FullCard, c5.FullCard, c7.FullCard }.Take(
+                        pageSize
+                    ),
+                    response,
+                }
+            )
+            .UseParameters(pageSize);
     }
 
     private WebApplicationFactory<Program> GetApplicationFactory(int pageSize = 99)
