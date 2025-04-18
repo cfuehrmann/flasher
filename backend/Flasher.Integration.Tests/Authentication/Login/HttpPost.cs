@@ -154,7 +154,13 @@ public sealed class HttpPost : IDisposable
 
         // Check that the token's Max-Age is not 0. Because 0 corresponds to the default
         // TimeSpan, which would be used if the property were not explicitly configured.
-        _ = await Verify(new { response });
+        IEnumerable<string> cookies = response.GetCookies();
+
+        string? jwtCookie = cookies.FirstOrDefault(cookie =>
+            cookie.StartsWith("__Host-jwt", StringComparison.Ordinal)
+        );
+
+        Assert.Contains("; max-age=42", jwtCookie, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<IEnumerable<string>> CookieSignedWithDifferentSecurityKey()

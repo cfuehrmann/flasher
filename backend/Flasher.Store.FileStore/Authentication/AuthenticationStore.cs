@@ -28,10 +28,12 @@ public class AuthenticationStore(
 
         string json = File.ReadAllText(path);
 
-        var profile =
-            JsonSerializer.Deserialize(json, typeof(Profile), _jsonContext) as Profile
+        var profile = JsonSerializer.Deserialize(json, typeof(Profile), _jsonContext) as Profile;
+
+        var passwordHash =
+            profile?.PasswordHash
             ?? throw new InvalidOperationException("The profile file is invalid!");
 
-        return Task.FromResult(profile.PasswordHash);
+        return Task.FromResult<string?>(passwordHash);
     }
 }

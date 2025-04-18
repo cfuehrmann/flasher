@@ -1,6 +1,4 @@
-﻿using System.Threading.Tasks;
-
-namespace Flasher.Store.Authentication;
+﻿namespace Flasher.Store.Authentication;
 
 public interface IAuthenticationStore
 {

@@ -3,7 +3,6 @@ using System.Security.Claims;
 using Flasher.Injectables;
 using Flasher.Store.Authentication;
 using Flasher.Store.AutoSaving;
-using Flasher.Store.Exceptions;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
@@ -13,7 +12,9 @@ namespace Flasher.Host.Handlers.Authentication;
 
 public static class LoginHandler
 {
-    public static async Task<Results<Ok<LoginResponse>, UnauthorizedHttpResult>> Login(
+    public static async Task<
+        Results<Ok<LoginResponse>, UnauthorizedHttpResult, ProblemHttpResult, InternalServerError>
+    > Login(
         LoginRequest request,
         HttpContext context,
         IAuthenticationStore authenticationStore,
@@ -30,7 +31,7 @@ public static class LoginHandler
 
             if (hashedPassword == null)
             {
-                return TypedResults.Unauthorized();
+                return UserNameOrPasswordProblem();
             }
 
             PasswordVerificationResult passwordVerificationResult =
@@ -42,7 +43,7 @@ public static class LoginHandler
 
             if (passwordVerificationResult != PasswordVerificationResult.Success)
             {
-                return TypedResults.Unauthorized();
+                return UserNameOrPasswordProblem();
             }
 
             Task<AutoSave?> readAutoSave = autoSaveStore.Read(request.UserName);
@@ -91,7 +92,21 @@ public static class LoginHandler
         }
         catch
         {
-            return TypedResults.Unauthorized();
+            return TypedResults.InternalServerError();
         }
+    }
+
+    private static Results<
+        Ok<LoginResponse>,
+        UnauthorizedHttpResult,
+        ProblemHttpResult,
+        InternalServerError
+    > UserNameOrPasswordProblem()
+    {
+        return TypedResults.Problem(
+            detail: "The user name or password you entered is incorrect.",
+            title: "Invalid credentials",
+            statusCode: StatusCodes.Status401Unauthorized
+        );
     }
 }

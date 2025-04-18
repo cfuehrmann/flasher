@@ -1,8 +1,8 @@
 ﻿using System.Runtime.CompilerServices;
 
-namespace Flasher.Integration.Tests.AutoSave;
+namespace Flasher.Integration.Tests;
 
-public static class VerifyConfiguration
+public static partial class VerifyConfiguration
 {
     [ModuleInitializer]
     public static void Initialize()
