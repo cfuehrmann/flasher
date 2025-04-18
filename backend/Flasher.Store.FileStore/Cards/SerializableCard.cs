@@ -1,5 +1,4 @@
-﻿using System;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using Flasher.Store.Cards;
 
 namespace Flasher.Store.FileStore.Cards;

@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Flasher.Store.Exceptions;
+﻿namespace Flasher.Store.Exceptions;
 
 public class ConflictException : Exception
 {

@@ -1,8 +1,6 @@
-﻿using System;
-
-namespace Flasher.Injectables;
+﻿namespace Flasher.Injectables;
 
 public interface IDateTime
 {
-    public DateTime Now { get; }
+    DateTime Now { get; }
 }

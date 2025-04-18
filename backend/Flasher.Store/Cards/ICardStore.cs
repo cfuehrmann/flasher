@@ -1,6 +1,4 @@
-﻿using System.Threading.Tasks;
-
-namespace Flasher.Store.Cards;
+﻿namespace Flasher.Store.Cards;
 
 public interface ICardStore
 {
