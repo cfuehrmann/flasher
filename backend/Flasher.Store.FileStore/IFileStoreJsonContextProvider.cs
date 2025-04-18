@@ -4,5 +4,5 @@ namespace Flasher.Store.FileStore;
 
 public interface IFileStoreJsonContextProvider
 {
-    public JsonSerializerContext Instance { get; }
+    JsonSerializerContext Instance { get; }
 }

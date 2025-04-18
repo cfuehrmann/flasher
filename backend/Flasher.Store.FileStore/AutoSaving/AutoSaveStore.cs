@@ -1,9 +1,7 @@
-﻿using System;
-using System.IO;
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 using Flasher.Store.AutoSaving;
+using Flasher.Store.Exceptions;
 using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.AutoSaving;
@@ -13,10 +11,6 @@ public class AutoSaveStore(
     IFileStoreJsonContextProvider jsonContextProvider
 ) : IAutoSaveStore
 {
-    private readonly string _directory =
-        options.CurrentValue.Directory
-        ?? throw new ArgumentException("Missing configuration 'FileStore:Directory'");
-
     private readonly JsonSerializerContext _jsonContext = jsonContextProvider.Instance;
 
     public async Task<AutoSave?> Read(string user)
@@ -49,7 +43,7 @@ public class AutoSaveStore(
         {
             Id = id,
             Prompt = prompt,
-            Solution = solution
+            Solution = solution,
         };
     }
 
@@ -86,13 +80,17 @@ public class AutoSaveStore(
         {
             Id = autoSave.Id,
             Prompt = autoSave.Prompt,
-            Solution = autoSave.Solution
+            Solution = autoSave.Solution,
         };
         await JsonSerializer.SerializeAsync(fs, s, typeof(SerializableAutoSave), _jsonContext);
     }
 
     private string GetPath(string user)
     {
-        return Path.Combine(_directory, user, "autoSave.json");
+        var directory =
+            options.CurrentValue.Directory
+            ?? throw new StoreConfigurationException("Missing configuration 'FileStore:Directory'");
+
+        return Path.Combine(directory, user, "autoSave.json");
     }
 }

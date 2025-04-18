@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Net.Http;
+﻿using System.Net;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace Flasher.Integration.Tests.Cards.Id;
 
@@ -45,7 +39,7 @@ public sealed class SetState : IDisposable
         {
             { "FileStore:Directory", _fileStoreDirectory },
             { "Cards:NewCardWaitingTime", "00:00:00" },
-            { $"Cards:{state}Multiplier", $"{multiplier}" }
+            { $"Cards:{state}Multiplier", $"{multiplier}" },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -84,18 +78,15 @@ public sealed class SetState : IDisposable
             .GetDateTime();
 
         var enableResponse = await client.PostAsync($"/Cards/{postResponseId}/Enable", null);
+
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
 
         await Task.Delay(delay);
 
         using var response = await client.PostAsync($"/Cards/{postResponseId}/Set{state}", null);
-        // The status code can be NoContent, or OK if the nextTime is so close
-        // that the card is already due.
-        Assert.True(response.IsSuccessStatusCode);
 
         using var getResponse = await client.GetAsync("/Cards");
-        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         var getResponseString = await getResponse.Content.ReadAsStringAsync();
         using var getResponseDocument = JsonDocument.Parse(getResponseString);
         var getCard = getResponseDocument.RootElement.GetProperty("cards")[0];
@@ -103,12 +94,19 @@ public sealed class SetState : IDisposable
         var getNextTime = getCard.GetProperty("nextTime").GetDateTime();
 
         TimeSpan passedTime = getChangeTime - postResponseChangeTime;
+        TimeSpan waitingTime = getNextTime - getChangeTime;
 
-        Assert.True(passedTime >= delay);
-
-        var waitingTime = getNextTime - getChangeTime;
-
-        Assert.Equal(passedTime * multiplier, waitingTime);
+        _ = await Verify(
+                new
+                {
+                    postResponse,
+                    response,
+                    getResponse,
+                    PassedTimeOk = passedTime >= delay,
+                    WaitingTimeOk = waitingTime == passedTime * multiplier,
+                }
+            )
+            .UseParameters(state, multiplier);
     }
 
     [Theory]
@@ -118,7 +116,7 @@ public sealed class SetState : IDisposable
     {
         var settings = new Dictionary<string, string?>
         {
-            { "FileStore:Directory", _fileStoreDirectory }
+            { "FileStore:Directory", _fileStoreDirectory },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -138,8 +136,8 @@ public sealed class SetState : IDisposable
         client.AddCookies(cookies);
 
         using var response = await client.PostAsync($"/Cards/nonExistingId/Set{state}", null);
-        // To prevent Stryker timeouts
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        _ = await Verify(new { response }).UseParameters(state);
     }
 
     [Theory]
@@ -153,7 +151,7 @@ public sealed class SetState : IDisposable
         {
             { "FileStore:Directory", _fileStoreDirectory },
             { "Cards:NewCardWaitingTime", "00:00:00" },
-            { $"Cards:{state}Multiplier", $"{multiplier}" }
+            { $"Cards:{state}Multiplier", $"{multiplier}" },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -185,13 +183,15 @@ public sealed class SetState : IDisposable
         var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
 
         var enableResponse = await client.PostAsync($"/Cards/{postResponseId}/Enable", null);
+
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
 
         await Task.Delay(delay);
 
         using var response = await client.PostAsync($"/Cards/{postResponseId}/Set{state}", null);
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        _ = await Verify(new { response }).UseParameters(state, multiplier);
     }
 
     [Theory]
@@ -205,7 +205,7 @@ public sealed class SetState : IDisposable
         {
             { "FileStore:Directory", _fileStoreDirectory },
             { "Cards:NewCardWaitingTime", "00:00:00" },
-            { $"Cards:{state}Multiplier", $"{multiplier}" }
+            { $"Cards:{state}Multiplier", $"{multiplier}" },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -243,16 +243,19 @@ public sealed class SetState : IDisposable
         var postResponse2Id = postResponse2Document.RootElement.GetProperty("id").GetString();
 
         var enableResponse = await client.PostAsync($"/Cards/{postResponseId}/Enable", null);
+
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
 
         var _enableResponse2 = await client.PostAsync($"/Cards/{postResponse2Id}/Enable", null);
+
         // To prevent Stryker timeouts
         Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
 
         await Task.Delay(delay);
 
         using var response = await client.PostAsync($"/Cards/{postResponseId}/Set{state}", null);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        _ = await Verify(new { postResponse2, response }).UseParameters(state, multiplier);
     }
 }

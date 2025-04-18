@@ -21,7 +21,7 @@ public static class AutoSaveHandler
             {
                 Id = request.Id,
                 Prompt = request.Prompt,
-                Solution = request.Solution
+                Solution = request.Solution,
             }
         );
     }

@@ -1,14 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Net.Http;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace Flasher.Integration.Tests.Cards.Id;
 
@@ -38,7 +31,7 @@ public sealed class Delete : IDisposable
     {
         var settings = new Dictionary<string, string?>
         {
-            { "FileStore:Directory", _fileStoreDirectory }
+            { "FileStore:Directory", _fileStoreDirectory },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -71,14 +64,8 @@ public sealed class Delete : IDisposable
 
         using var response = await client.DeleteAsync($"Cards/{postResponseId}");
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-
         using var getResponse = await client.GetAsync("/Cards");
-        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-        var getResponseString = await getResponse.Content.ReadAsStringAsync();
-        using var getResponseDocument = JsonDocument.Parse(getResponseString);
-        var getCards = getResponseDocument.RootElement.GetProperty("cards");
-        Assert.Equal(JsonValueKind.Array, getCards.ValueKind);
-        Assert.Equal(0, getCards.GetArrayLength());
+
+        _ = await Verify(new { response, getResponse });
     }
 }

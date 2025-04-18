@@ -1,14 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
+﻿using System.Text;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace Flasher.Integration.Tests.AutoSave;
 
@@ -38,7 +30,7 @@ public sealed class Delete : IDisposable
     {
         var settings = new Dictionary<string, string?>
         {
-            { "FileStore:Directory", _fileStoreDirectory }
+            { "FileStore:Directory", _fileStoreDirectory },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -66,25 +58,18 @@ public sealed class Delete : IDisposable
             )
         );
 
-        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
-
         using HttpResponseMessage response = await client.DeleteAsync("/AutoSave");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
         using var loginResponse2 = await client.Login(UserName, Password);
-        var loginResponse2String = await loginResponse2.Content.ReadAsStringAsync();
-        Console.WriteLine(loginResponse2String);
-        using var loginResponse2Document = JsonDocument.Parse(loginResponse2String);
 
-        var hasAutoSave = loginResponse2Document.RootElement.TryGetProperty(
-            "autoSave",
-            out var autoSave
+        _ = await Verify(
+            new
+            {
+                loginResponse,
+                putResponse,
+                response,
+                loginResponse2,
+            }
         );
-
-        if (hasAutoSave)
-        {
-            Assert.Equal(JsonValueKind.Null, autoSave.ValueKind);
-        }
     }
 }

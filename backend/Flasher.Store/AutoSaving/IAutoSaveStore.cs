@@ -1,6 +1,4 @@
-﻿using System.Threading.Tasks;
-
-namespace Flasher.Store.AutoSaving;
+﻿namespace Flasher.Store.AutoSaving;
 
 public interface IAutoSaveStore
 {

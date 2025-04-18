@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+﻿using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 using Flasher.Injectables;
 using Flasher.Store.Cards;
 using Flasher.Store.Exceptions;
@@ -134,11 +129,11 @@ public class CardStore : ICardStore
             .ThenBy(card => card.Id)
             .Select(card => card.ToResponse());
 
-        FullCard[] allHitsArray = allHits.ToArray();
+        FullCard[] allHitsArray = [.. allHits];
         var result = new FindResponse
         {
             Cards = allHitsArray.Skip(skip).Take(take),
-            Count = allHitsArray.Length
+            Count = allHitsArray.Length,
         };
         return Task.FromResult(result);
     }
@@ -172,7 +167,7 @@ public class CardStore : ICardStore
                 }
 
                 var dictionary = GetCachedCards(typedValue).ToDictionary(card => card.Id);
-                return new ConcurrentDictionary<string, CachedCard>(dictionary);
+                return new(dictionary);
             }
         );
     }
@@ -249,7 +244,7 @@ public static class Extensions
             State = storedCard.State,
             ChangeTime = storedCard.ChangeTime,
             NextTime = storedCard.NextTime,
-            Disabled = storedCard.Disabled
+            Disabled = storedCard.Disabled,
         };
     }
 }

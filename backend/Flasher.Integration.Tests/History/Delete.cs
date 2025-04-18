@@ -1,14 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Net.Http;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Xunit;
 
 namespace Flasher.Integration.Tests.History;
 
@@ -41,7 +34,7 @@ public sealed class Delete : IDisposable
         var settings = new Dictionary<string, string?>
         {
             { "FileStore:Directory", _fileStoreDirectory },
-            { "Cards:NewCardWaitingTime", newCardWaitingTime.ToString() }
+            { "Cards:NewCardWaitingTime", newCardWaitingTime.ToString() },
         };
 
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -71,13 +64,6 @@ public sealed class Delete : IDisposable
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
         using var postResponseDocument = JsonDocument.Parse(postResponseString);
         var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
-        var postResponsePrompt = postResponseDocument.RootElement.GetProperty("prompt").GetString();
-        var postResponseSolution = postResponseDocument
-            .RootElement.GetProperty("solution")
-            .GetString();
-        var postResponseDisabled = postResponseDocument
-            .RootElement.GetProperty("disabled")
-            .GetBoolean();
 
         var timeBeforeDelete = DateTime.Now;
 
@@ -85,32 +71,20 @@ public sealed class Delete : IDisposable
 
         var timeAfterDelete = DateTime.Now;
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
         var responseString = await response.Content.ReadAsStringAsync();
         using var responseDocument = JsonDocument.Parse(responseString);
         var card = responseDocument.RootElement;
-
-        var id = card.GetProperty("id").GetString();
-        Assert.Equal(postResponseId, id);
-
-        var prompt = card.GetProperty("prompt").GetString();
-        Assert.Equal(postResponsePrompt, prompt);
-
-        var solution = card.GetProperty("solution").GetString();
-        Assert.Equal(postResponseSolution, solution);
-
-        var state = card.GetProperty("state").GetString();
-        Assert.Equal("New", state);
-
         var changeTime = card.GetProperty("changeTime").GetDateTime();
-        Assert.True(timeBeforeDelete <= changeTime);
-        Assert.True(changeTime <= timeAfterDelete);
-
         var nextTime = card.GetProperty("nextTime").GetDateTime();
-        Assert.Equal(changeTime + newCardWaitingTime, nextTime);
 
-        var disabled = card.GetProperty("disabled").GetBoolean();
-        Assert.Equal(postResponseDisabled, disabled);
+        _ = await Verify(
+            new
+            {
+                postResponse,
+                response,
+                ChangeTimeOk = timeBeforeDelete <= changeTime && changeTime <= timeAfterDelete,
+                NextTimeOk = nextTime == changeTime + newCardWaitingTime,
+            }
+        );
     }
 }

@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Flasher.Store.Cards;
+﻿namespace Flasher.Store.Cards;
 
 public record CardUpdate
 {

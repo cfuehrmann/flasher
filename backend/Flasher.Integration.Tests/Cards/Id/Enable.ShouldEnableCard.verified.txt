@@ -1,0 +1,30 @@
+﻿{
+  response: {
+    Status: 204 No Content,
+    Content: {
+      Headers: {}
+    }
+  },
+  getResponse: {
+    Status: 200 OK,
+    Content: {
+      Headers: {
+        Content-Type: application/json; charset=utf-8
+      },
+      Value: {
+        cards: [
+          {
+            id: Guid_1,
+            prompt: prompt,
+            solution: solution,
+            state: New,
+            changeTime: DateTimeOffset_1,
+            nextTime: DateTimeOffset_2,
+            disabled: false
+          }
+        ],
+        count: 1
+      }
+    }
+  }
+}

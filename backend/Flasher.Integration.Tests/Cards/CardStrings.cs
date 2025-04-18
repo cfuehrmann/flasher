@@ -1,5 +1,4 @@
-﻿using System;
-using System.Globalization;
+﻿using System.Globalization;
 using Flasher.Store.Cards;
 
 namespace Flasher.Integration.Tests.Cards;
@@ -36,7 +35,7 @@ public record CardStrings(
             State = Enum.Parse<State>(State),
             ChangeTime = GetDateTime(ChangeTime),
             NextTime = GetDateTime(NextTime),
-            Disabled = bool.Parse(Disabled)
+            Disabled = bool.Parse(Disabled),
         };
 
     private static DateTime GetDateTime(string dateTimeString)

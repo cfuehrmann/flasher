@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Flasher.Store.Cards;
+﻿namespace Flasher.Store.Cards;
 
 public sealed record FindResponse
 {
