@@ -211,8 +211,8 @@ public class CardStore : ICardStore
                 FileMode.Create,
                 FileAccess.Write,
                 FileShare.None,
-                131072,
-                true
+                bufferSize: 131072,
+                useAsync: true
             );
             ICollection<CachedCard> values = _cardsByUser[user].Values;
             var type = typeof(IEnumerable<CachedCard>);

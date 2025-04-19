@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -24,6 +25,119 @@ public sealed class Patch : IDisposable
     public void Dispose()
     {
         Directory.Delete(_fileStoreDirectory, true);
+    }
+
+    [Theory]
+    [InlineData( /*lang=json,strict*/
+        """{ "prompt": "prompt2" }"""
+    )]
+    [InlineData( /*lang=json,strict*/
+        """{ "solution": "solution2" }"""
+    )]
+    public async Task ReadImmediately(string requestString)
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            { "FileStore:Directory", _fileStoreDirectory },
+        };
+
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
+        );
+
+        var client = factory.CreateClient();
+
+        using var loginResponse = await client.Login(UserName, Password);
+        var cookies = loginResponse.GetCookies();
+        client.AddCookies(cookies);
+
+        using var postRequest = JsonContent.Create(
+            new { prompt = "prompt", solution = "solution" }
+        );
+        using var postResponse = await client.PostAsync("/Cards", postRequest);
+        var postResponseString = await postResponse.Content.ReadAsStringAsync();
+        using var postResponseDocument = JsonDocument.Parse(postResponseString);
+        var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
+
+        var requestContent = new StringContent(requestString, Encoding.UTF8, "application/json");
+        using var response = await client.PatchAsync($"Cards/{postResponseId}", requestContent);
+
+        using var getResponse = await client.GetAsync($"/Cards");
+
+        _ = await Verify(new { postResponse, getResponse }).UseParameters(requestString);
+    }
+
+    [Fact]
+    public async Task ReadAfterApplicationRestart()
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            { "FileStore:Directory", _fileStoreDirectory },
+        };
+
+        using var factory1 = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
+        );
+
+        var clientBeforeRestart = factory1.CreateClient();
+
+        using var loginResponseBeforeRestart = await clientBeforeRestart.Login(UserName, Password);
+        var cookiesBeforeRestart = loginResponseBeforeRestart.GetCookies();
+        clientBeforeRestart.AddCookies(cookiesBeforeRestart);
+
+        using var postRequest = JsonContent.Create(
+            new { prompt = "prompt", solution = "solution" }
+        );
+        using var postResponse = await clientBeforeRestart.PostAsync("/Cards", postRequest);
+        var postResponseString = await postResponse.Content.ReadAsStringAsync();
+        using var postResponseDocument = JsonDocument.Parse(postResponseString);
+        var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
+
+        var request = JsonContent.Create(new { prompt = "prompt2" });
+        using var response = await clientBeforeRestart.PatchAsync(
+            $"Cards/{postResponseId}",
+            request
+        );
+
+        using var getResponseBeforeRestart = await clientBeforeRestart.GetAsync($"/Cards");
+
+        factory1.Dispose();
+
+        using var factory2 = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
+        );
+
+        var clientAfterRestart = factory2.CreateClient();
+
+        using var loginResponseAfterRestart = await clientAfterRestart.Login(UserName, Password);
+        var cookiesAfterRestart = loginResponseAfterRestart.GetCookies();
+        clientAfterRestart.AddCookies(cookiesAfterRestart);
+
+        using var getResponseAfterRestart = await clientAfterRestart.GetAsync($"/Cards");
+
+        _ = await Verify(
+            new
+            {
+                postResponse,
+                getResponseBeforeRestart,
+                getResponseAfterRestart,
+            }
+        );
     }
 
     [Fact]
