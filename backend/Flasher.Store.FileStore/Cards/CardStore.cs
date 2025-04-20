@@ -31,10 +31,10 @@ public class CardStore : ICardStore
         _time = time;
     }
 
-    public Task Create(string user, FullCard card)
+    public async Task Create(string user, FullCard card)
     {
-        // Here we handle synchronous stuff early (Sonar recommendation)
-        ConcurrentDictionary<string, CachedCard> cards = EnsureCache(user);
+        var cards = EnsureCache(user);
+
         var cachedCard = new CachedCard(
             card.Id,
             card.Prompt,
@@ -44,9 +44,12 @@ public class CardStore : ICardStore
             card.NextTime,
             card.Disabled
         );
-        return cards.TryAdd(card.Id, cachedCard)
-            ? WriteCards(user)
-            : throw new ArgumentException($"The card with id {card.Id} already exists!");
+
+        //  The card cannot exists already, because the handler always creates
+        //  a new ID.
+        _ = cards.TryAdd(card.Id, cachedCard);
+
+        await WriteCards(user);
     }
 
     public Task<FullCard?> Read(string user, string id)

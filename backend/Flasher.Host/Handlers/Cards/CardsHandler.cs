@@ -19,6 +19,7 @@ public static class CardsHandler
         string id = Guid.NewGuid().ToString();
         DateTime now = time.Now;
         DateTime nextTime = now.Add(optionsMonitor.CurrentValue.NewCardWaitingTime);
+
         var card = new FullCard
         {
             Id = id,
@@ -27,10 +28,12 @@ public static class CardsHandler
             State = State.New,
             ChangeTime = now,
             NextTime = nextTime,
-            Disabled = true
+            Disabled = true,
         };
+
         await store.Create(context.User.Identity!.Name!, card);
-        return TypedResults.Created(nameof(Created), card);
+
+        return TypedResults.Created("ShouldBeUriOfCard", card);
     }
 
     public static async Task<Results<Ok, NotFound>> Update(
@@ -45,7 +48,7 @@ public static class CardsHandler
         {
             Id = id,
             Prompt = request.Prompt,
-            Solution = request.Solution
+            Solution = request.Solution,
         };
         var cardWasFound = await store.Update(context.User.Identity!.Name!, update) != null;
         await autoSaveStore.Delete(context.User.Identity.Name!);
@@ -178,7 +181,7 @@ public static class CardsHandler
             Id = id,
             State = state,
             ChangeTime = now,
-            NextTime = now.Add(passedTime * multiplier)
+            NextTime = now.Add(passedTime * multiplier),
         };
 
         _ = await store.Update(context.User.Identity.Name!, update);

@@ -2,7 +2,7 @@
   postResponse: {
     Status: 201 Created,
     Headers: {
-      Location: Created
+      Location: ShouldBeUriOfCard
     },
     Content: {
       Headers: {
