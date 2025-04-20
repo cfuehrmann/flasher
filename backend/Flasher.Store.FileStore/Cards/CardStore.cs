@@ -28,11 +28,7 @@ public class CardStore : ICardStore
             options.CurrentValue.Directory
             ?? throw new ArgumentException("Missing configuration 'FileStore:Directory'");
         _jsonContext = jsonContextProvider.Instance;
-        const int lowestPrimeAboveInitialNumberOfUsers = 2;
-        _cardsByUser = new ConcurrentDictionary<string, ConcurrentDictionary<string, CachedCard>>(
-            Environment.ProcessorCount * 2,
-            lowestPrimeAboveInitialNumberOfUsers
-        );
+        _cardsByUser = new ConcurrentDictionary<string, ConcurrentDictionary<string, CachedCard>>();
         _time = time;
     }
 
@@ -176,26 +172,15 @@ public class CardStore : ICardStore
     {
         foreach (SerializableCard card in deserializedCards)
         {
-            if (
-                card.Id != null
-                && card.Prompt != null
-                && card.Solution != null
-                && card.State != null
-                && card.ChangeTime != null
-                && card.NextTime != null
-                && card.Disabled != null
-            )
-            {
-                yield return new CachedCard(
-                    id: card.Id,
-                    prompt: card.Prompt,
-                    solution: card.Solution,
-                    state: card.State.Value,
-                    changeTime: card.ChangeTime.Value,
-                    nextTime: card.NextTime.Value,
-                    disabled: card.Disabled.Value
-                );
-            }
+            yield return new CachedCard(
+                id: card.Id,
+                prompt: card.Prompt,
+                solution: card.Solution,
+                state: card.State,
+                changeTime: card.ChangeTime,
+                nextTime: card.NextTime,
+                disabled: card.Disabled
+            );
         }
     }
 
@@ -204,15 +189,8 @@ public class CardStore : ICardStore
         string path = GetPath(user);
         try
         {
-            using var fs = new FileStream(
-                path,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.None,
-                bufferSize: 131072,
-                useAsync: true
-            );
-            ICollection<CachedCard> values = _cardsByUser[user].Values;
+            using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            var values = _cardsByUser[user].Values;
             var type = typeof(IEnumerable<CachedCard>);
             await JsonSerializer.SerializeAsync(fs, values, type, _jsonContext);
         }

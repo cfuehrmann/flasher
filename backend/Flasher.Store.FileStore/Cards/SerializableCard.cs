@@ -5,14 +5,18 @@ namespace Flasher.Store.FileStore.Cards;
 
 public sealed record SerializableCard
 {
-    public string? Id { get; set; }
-    public string? Prompt { get; set; }
-    public string? Solution { get; set; }
+    public required string Id { get; set; }
+
+    public required string Prompt { get; set; }
+
+    public required string Solution { get; set; }
 
     [JsonConverter(typeof(JsonStringEnumConverter<State>))]
-    public State? State { get; set; }
+    public State State { get; set; }
 
-    public DateTime? ChangeTime { get; set; }
-    public DateTime? NextTime { get; set; }
-    public bool? Disabled { get; set; }
+    public DateTime ChangeTime { get; set; }
+
+    public DateTime NextTime { get; set; }
+
+    public bool Disabled { get; set; }
 }
