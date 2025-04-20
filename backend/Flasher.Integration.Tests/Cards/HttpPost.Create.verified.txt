@@ -2,7 +2,7 @@
   response: {
     Status: 201 Created,
     Headers: {
-      Location: ShouldBeUriOfCard
+      Location: /Cards/Guid_1
     },
     Content: {
       Headers: {

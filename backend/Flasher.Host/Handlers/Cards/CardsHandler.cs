@@ -1,6 +1,7 @@
 ﻿using Flasher.Injectables;
 using Flasher.Store.AutoSaving;
 using Flasher.Store.Cards;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 
@@ -13,7 +14,8 @@ public static class CardsHandler
         CreateCardRequest request,
         ICardStore store,
         IOptionsMonitor<CardsOptions> optionsMonitor,
-        IDateTime time
+        IDateTime time,
+        LinkGenerator linkGenerator
     )
     {
         string id = Guid.NewGuid().ToString();
@@ -33,7 +35,12 @@ public static class CardsHandler
 
         await store.Create(context.User.Identity!.Name!, card);
 
-        return TypedResults.Created("ShouldBeUriOfCard", card);
+        return TypedResults.Created(
+            // The application cannot know the external base URL.
+            // To provide it, we'd have to introduce a configuration option.
+            $"/Cards/{id}",
+            card
+        );
     }
 
     public static async Task<Results<Ok, NotFound>> Update(
