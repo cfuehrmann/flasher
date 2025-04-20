@@ -7,29 +7,22 @@ using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.Cards;
 
-public class CardStore : ICardStore
+public class CardStore(
+    IOptionsMonitor<FileStoreOptions> options,
+    IDateTime time,
+    IFileStoreJsonContextProvider jsonContextProvider
+) : ICardStore
 {
-    private readonly string _directory;
-    private readonly JsonSerializerContext _jsonContext;
+    private readonly string _directory =
+        options.CurrentValue.Directory
+        ?? throw new ArgumentException("Missing configuration 'FileStore:Directory'");
+
+    private readonly JsonSerializerContext _jsonContext = jsonContextProvider.Instance;
+
     private readonly ConcurrentDictionary<
         string,
         ConcurrentDictionary<string, CachedCard>
-    > _cardsByUser;
-    private readonly IDateTime _time;
-
-    public CardStore(
-        IOptionsMonitor<FileStoreOptions> options,
-        IDateTime time,
-        IFileStoreJsonContextProvider jsonContextProvider
-    )
-    {
-        _directory =
-            options.CurrentValue.Directory
-            ?? throw new ArgumentException("Missing configuration 'FileStore:Directory'");
-        _jsonContext = jsonContextProvider.Instance;
-        _cardsByUser = new ConcurrentDictionary<string, ConcurrentDictionary<string, CachedCard>>();
-        _time = time;
-    }
+    > _cardsByUser = new();
 
     public async Task Create(string user, FullCard card)
     {
@@ -138,7 +131,7 @@ public class CardStore : ICardStore
     public Task<FullCard?> FindNext(string user)
     {
         FullCard? result = EnsureCache(user)
-            .Values.Where(card => card.NextTime <= _time.Now && !card.Disabled)
+            .Values.Where(card => card.NextTime <= time.Now && !card.Disabled)
             .OrderBy(card => card.NextTime)
             .FirstOrDefault()
             ?.ToResponse();
