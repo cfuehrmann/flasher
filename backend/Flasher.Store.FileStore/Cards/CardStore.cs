@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Flasher.Injectables;
 using Flasher.Store.Cards;
-using Flasher.Store.Exceptions;
 using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.Cards;
@@ -187,19 +186,10 @@ public class CardStore : ICardStore
     private async Task WriteCards(string user)
     {
         string path = GetPath(user);
-        try
-        {
-            using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-            var values = _cardsByUser[user].Values;
-            var type = typeof(IEnumerable<CachedCard>);
-            await JsonSerializer.SerializeAsync(fs, values, type, _jsonContext);
-        }
-        catch (IOException)
-        {
-            throw new ConflictException(
-                "Cannot access the cards file. Did you use Flasher concurrently?"
-            );
-        }
+        using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+        var values = _cardsByUser[user].Values;
+        var type = typeof(IEnumerable<CachedCard>);
+        await JsonSerializer.SerializeAsync(fs, values, type, _jsonContext);
     }
 
     private string GetPath(string user)
