@@ -126,7 +126,6 @@ public class CardStore : ICardStore
             )
             .OrderBy(card => card.Disabled)
             .ThenBy(card => card.NextTime)
-            .ThenBy(card => card.Id)
             .Select(card => card.ToResponse());
 
         FullCard[] allHitsArray = [.. allHits];
@@ -143,7 +142,6 @@ public class CardStore : ICardStore
         FullCard? result = EnsureCache(user)
             .Values.Where(card => card.NextTime <= _time.Now && !card.Disabled)
             .OrderBy(card => card.NextTime)
-            .ThenBy(card => card.Id)
             .FirstOrDefault()
             ?.ToResponse();
         return Task.FromResult(result);

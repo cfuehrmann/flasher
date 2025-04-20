@@ -2,28 +2,28 @@
   ExpectedCards: [
     {
       Id: Guid_1,
-      Prompt: fooPROMPTbar,
-      Solution: fooSOLUTIONbar,
+      Prompt: Prompt0,
+      Solution: Solution0,
       ChangeTime: DateTime_1,
       NextTime: DateTime_2,
       Disabled: false
     },
     {
       Id: Guid_2,
-      Prompt: fooPROMPTbar,
-      Solution: fooSOLUTIONbar,
+      Prompt: Prompt1,
+      Solution: Solution1,
       State: Ok,
-      ChangeTime: DateTime_1,
-      NextTime: DateTime_2,
+      ChangeTime: DateTime_3,
+      NextTime: DateTime_4,
       Disabled: true
     },
     {
       Id: Guid_3,
-      Prompt: fooPROMPTbar,
-      Solution: fooSOLUTIONbar,
+      Prompt: Prompt2,
+      Solution: Solution2,
       State: Failed,
-      ChangeTime: DateTime_1,
-      NextTime: DateTime_2,
+      ChangeTime: DateTime_5,
+      NextTime: DateTime_6,
       Disabled: true
     }
   ],
@@ -37,8 +37,8 @@
         cards: [
           {
             id: Guid_1,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt0,
+            solution: Solution0,
             state: New,
             changeTime: DateTimeOffset_1,
             nextTime: DateTimeOffset_2,
@@ -46,20 +46,20 @@
           },
           {
             id: Guid_2,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt1,
+            solution: Solution1,
             state: Ok,
-            changeTime: DateTimeOffset_1,
-            nextTime: DateTimeOffset_2,
+            changeTime: DateTimeOffset_3,
+            nextTime: DateTimeOffset_4,
             disabled: true
           },
           {
             id: Guid_3,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt2,
+            solution: Solution2,
             state: Failed,
-            changeTime: DateTimeOffset_1,
-            nextTime: DateTimeOffset_2,
+            changeTime: DateTimeOffset_5,
+            nextTime: DateTimeOffset_6,
             disabled: true
           }
         ],

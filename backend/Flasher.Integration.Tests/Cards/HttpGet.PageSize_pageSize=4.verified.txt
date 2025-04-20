@@ -2,8 +2,8 @@
   ExpectedCards: [
     {
       Id: Guid_1,
-      Prompt: fooPROMPTbar,
-      Solution: fooSOLUTIONbar,
+      Prompt: Prompt3,
+      Solution: Solution3,
       State: Ok,
       ChangeTime: DateTime_1,
       NextTime: DateTime_2,
@@ -11,20 +11,20 @@
     },
     {
       Id: Guid_2,
-      Prompt: fooPROMPTbar,
-      Solution: fooSOLUTIONbar,
+      Prompt: Prompt5,
+      Solution: Solution5,
       State: Ok,
-      ChangeTime: DateTime_1,
-      NextTime: DateTime_2,
+      ChangeTime: DateTime_3,
+      NextTime: DateTime_4,
       Disabled: true
     },
     {
       Id: Guid_3,
-      Prompt: fooPROMPTbar,
-      Solution: fooSOLUTIONbar,
+      Prompt: Prompt7,
+      Solution: Solution7,
       State: Ok,
-      ChangeTime: DateTime_1,
-      NextTime: DateTime_2,
+      ChangeTime: DateTime_5,
+      NextTime: DateTime_6,
       Disabled: true
     }
   ],
@@ -38,8 +38,8 @@
         cards: [
           {
             id: Guid_1,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt3,
+            solution: Solution3,
             state: Ok,
             changeTime: DateTimeOffset_1,
             nextTime: DateTimeOffset_2,
@@ -47,20 +47,20 @@
           },
           {
             id: Guid_2,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt5,
+            solution: Solution5,
             state: Ok,
-            changeTime: DateTimeOffset_1,
-            nextTime: DateTimeOffset_2,
+            changeTime: DateTimeOffset_3,
+            nextTime: DateTimeOffset_4,
             disabled: true
           },
           {
             id: Guid_3,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt7,
+            solution: Solution7,
             state: Ok,
-            changeTime: DateTimeOffset_1,
-            nextTime: DateTimeOffset_2,
+            changeTime: DateTimeOffset_5,
+            nextTime: DateTimeOffset_6,
             disabled: true
           }
         ],

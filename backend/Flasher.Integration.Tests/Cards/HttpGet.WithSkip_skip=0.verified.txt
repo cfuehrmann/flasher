@@ -2,8 +2,8 @@
   ExpectedCards: [
     {
       Id: Guid_1,
-      Prompt: fooPROMPTbar,
-      Solution: fooSOLUTIONbar,
+      Prompt: Prompt1,
+      Solution: Solution1,
       State: Failed,
       ChangeTime: DateTime_1,
       NextTime: DateTime_2,
@@ -11,11 +11,11 @@
     },
     {
       Id: Guid_2,
-      Prompt: fooPROMPTbar,
-      Solution: fooSOLUTIONbar,
+      Prompt: Prompt3,
+      Solution: Solution3,
       State: Ok,
-      ChangeTime: DateTime_1,
-      NextTime: DateTime_2,
+      ChangeTime: DateTime_3,
+      NextTime: DateTime_4,
       Disabled: true
     }
   ],
@@ -29,8 +29,8 @@
         cards: [
           {
             id: Guid_1,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt1,
+            solution: Solution1,
             state: Failed,
             changeTime: DateTimeOffset_1,
             nextTime: DateTimeOffset_2,
@@ -38,11 +38,11 @@
           },
           {
             id: Guid_2,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt3,
+            solution: Solution3,
             state: Ok,
-            changeTime: DateTimeOffset_1,
-            nextTime: DateTimeOffset_2,
+            changeTime: DateTimeOffset_3,
+            nextTime: DateTimeOffset_4,
             disabled: true
           }
         ],

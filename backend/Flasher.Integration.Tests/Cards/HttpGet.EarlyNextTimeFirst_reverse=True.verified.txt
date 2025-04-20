@@ -1,24 +1,24 @@
 ﻿{
-  ExpectedCards: [
-    {
+  ExpectedCards: {
+    early: {
       Id: Guid_1,
-      Prompt: fooPROMPTbar,
-      Solution: fooSOLUTIONbar,
+      Prompt: Prompt,
+      Solution: Solution,
       State: Failed,
       ChangeTime: DateTime_1,
       NextTime: DateTime_2,
       Disabled: false
     },
-    {
+    late: {
       Id: Guid_2,
-      Prompt: fooPROMPTbar,
-      Solution: fooSOLUTIONbar,
+      Prompt: Prompt,
+      Solution: Solution,
       State: Failed,
       ChangeTime: DateTime_1,
       NextTime: DateTime_3,
       Disabled: false
     }
-  ],
+  },
   response: {
     Status: 200 OK,
     Content: {
@@ -29,8 +29,8 @@
         cards: [
           {
             id: Guid_1,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt,
+            solution: Solution,
             state: Failed,
             changeTime: DateTimeOffset_1,
             nextTime: DateTimeOffset_2,
@@ -38,8 +38,8 @@
           },
           {
             id: Guid_2,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt,
+            solution: Solution,
             state: Failed,
             changeTime: DateTimeOffset_1,
             nextTime: DateTimeOffset_3,

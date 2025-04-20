@@ -1,8 +1,8 @@
 ﻿{
   ExpectedCard: {
     Id: Guid_1,
-    Prompt: fooPROMPTbar,
-    Solution: fooSOLUTIONbar,
+    Prompt: Prompt1,
+    Solution: Solution1,
     State: Failed,
     ChangeTime: DateTime_1,
     NextTime: DateTime_2,
@@ -18,8 +18,8 @@
         cards: [
           {
             id: Guid_1,
-            prompt: fooPROMPTbar,
-            solution: fooSOLUTIONbar,
+            prompt: Prompt1,
+            solution: Solution1,
             state: Failed,
             changeTime: DateTimeOffset_1,
             nextTime: DateTimeOffset_2,

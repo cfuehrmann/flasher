@@ -1,6 +1,4 @@
-﻿using System.Globalization;
-using Flasher.Store.Cards;
-using Microsoft.AspNetCore.Mvc.Testing;
+﻿using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 
 namespace Flasher.Integration.Tests.Cards;
@@ -15,20 +13,6 @@ public sealed class HttpGet : IDisposable
     private const string Id5 = "5d305cfd-9a33-46cd-807b-8adefbe57e42";
     private const string Id6 = "6d305cfd-9a33-46cd-807b-8adefbe57e42";
     private const string Id7 = "7d305cfd-9a33-46cd-807b-8adefbe57e42";
-    private const string PromptSubString = "PrOmPt";
-    private static readonly string Prompt0 =
-        $"foo{PromptSubString.ToUpper(CultureInfo.InvariantCulture)}bar";
-    private const string SolutionSubstring = "SoLuTiOn";
-    private static readonly string Solution0 =
-        $"foo{SolutionSubstring.ToUpper(CultureInfo.InvariantCulture)}bar";
-    private const string NewString = "New";
-    private const string FailedString = "Failed";
-    private const string OkString = "Ok";
-    private const string Time0String = "2022-04-02T15:01:13.1643461+02:00";
-    private const string Time1String = "2022-04-02T15:31:13.1643461+02:00";
-    private const string Time2String = "2022-04-10T15:31:13.1643461+02:00";
-    private const string FalseString = "false";
-    private const string TrueString = "true";
 
     private const string UserName = "john@doe";
     private const string Password = "123456";
@@ -57,41 +41,41 @@ public sealed class HttpGet : IDisposable
     {
         var cardStrings0 = new CardStrings(
             Id0,
-            Prompt0,
-            Solution0,
-            NewString,
-            Time0String,
-            Time1String,
-            FalseString
+            "Prompt0",
+            "Solution0",
+            "New",
+            "2022-04-02T15:01:13.1643460+02:00",
+            "2022-04-10T15:31:13.1643460+02:00",
+            "false"
         );
         var cardStrings1 = new CardStrings(
             Id1,
-            Prompt0,
-            Solution0,
-            OkString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Prompt1",
+            "Solution1",
+            "Ok",
+            "2022-04-02T15:01:13.1643461+02:00",
+            "2022-04-10T15:31:13.1643461+02:00",
+            "true"
         );
         var cardStrings2 = new CardStrings(
             Id2,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Prompt2",
+            "Solution2",
+            "Failed",
+            "2022-04-02T15:01:13.1643462+02:00",
+            "2022-04-10T15:31:13.1643462+02:00",
+            "true"
         );
-        WriteCardsFile(cardStrings0, cardStrings1, cardStrings2);
-        using WebApplicationFactory<Program> factory = GetApplicationFactory();
-        using HttpClient client = await Login(factory);
+        WriteCardsFile(cardStrings1, cardStrings0, cardStrings2);
+        using var factory = GetApplicationFactory();
+        using var client = await Login(factory);
 
-        using HttpResponseMessage response = await client.GetAsync($"/Cards");
+        using var response = await client.GetAsync($"/Cards");
 
         _ = await Verify(
             new
             {
-                ExpectedCards = new FullCard[]
+                ExpectedCards = new[]
                 {
                     cardStrings0.FullCard,
                     cardStrings1.FullCard,
@@ -108,37 +92,35 @@ public sealed class HttpGet : IDisposable
         var cardStrings0 = new CardStrings(
             Id0,
             "different",
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Solution0",
+            "Failed",
+            "2022-04-02T15:01:13.1643460+02:00",
+            "2022-04-10T15:31:13.1643460+02:00",
+            "true"
         );
         var cardStrings1 = new CardStrings(
             Id1,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Prompt1",
+            "Solution1",
+            "Failed",
+            "2022-04-02T15:01:13.1643461+02:00",
+            "2022-04-10T15:31:13.1643461+02:00",
+            "true"
         );
         var cardStrings2 = new CardStrings(
             Id2,
             "different",
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Solution2",
+            "Failed",
+            "2022-04-02T15:01:13.1643462+02:00",
+            "2022-04-10T15:31:13.1643462+02:00",
+            "true"
         );
-        WriteCardsFile(cardStrings0, cardStrings1, cardStrings2);
-        using WebApplicationFactory<Program> factory = GetApplicationFactory();
-        using HttpClient client = await Login(factory);
+        WriteCardsFile(cardStrings1, cardStrings0, cardStrings2);
+        using var factory = GetApplicationFactory();
+        using var client = await Login(factory);
 
-        using HttpResponseMessage response = await client.GetAsync(
-            $"/Cards?searchText={PromptSubString}"
-        );
+        using var response = await client.GetAsync($"/Cards?searchText=PrOmPt");
 
         _ = await Verify(new { ExpectedCard = cardStrings1.FullCard, response });
     }
@@ -148,38 +130,36 @@ public sealed class HttpGet : IDisposable
     {
         var cardStrings0 = new CardStrings(
             Id0,
-            Prompt0,
+            "Prompt0",
             "different",
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Failed",
+            "2022-04-02T15:01:13.1643460+02:00",
+            "2022-04-10T15:31:13.1643460+02:00",
+            "true"
         );
         var cardStrings1 = new CardStrings(
             Id1,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Prompt1",
+            "Solution1",
+            "Failed",
+            "2022-04-02T15:01:13.1643461+02:00",
+            "2022-04-10T15:31:13.1643461+02:00",
+            "true"
         );
         var cardStrings2 = new CardStrings(
             Id2,
-            Prompt0,
+            "Prompt2",
             "different",
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Failed",
+            "2022-04-02T15:01:13.1643462+02:00",
+            "2022-04-10T15:31:13.1643462+02:00",
+            "true"
         );
         WriteCardsFile(cardStrings0, cardStrings1, cardStrings2);
-        using WebApplicationFactory<Program> factory = GetApplicationFactory();
-        using HttpClient client = await Login(factory);
+        using var factory = GetApplicationFactory();
+        using var client = await Login(factory);
 
-        using HttpResponseMessage response = await client.GetAsync(
-            $"/Cards?searchText={SolutionSubstring}"
-        );
+        using var response = await client.GetAsync($"/Cards?searchText=SoLuTiOn");
 
         _ = await Verify(new { ExpectedCard = cardStrings1.FullCard, response });
     }
@@ -188,10 +168,10 @@ public sealed class HttpGet : IDisposable
     public async Task FileEmpty()
     {
         WriteCardsFile();
-        using WebApplicationFactory<Program> factory = GetApplicationFactory();
-        using HttpClient client = await Login(factory);
+        using var factory = GetApplicationFactory();
+        using var client = await Login(factory);
 
-        using HttpResponseMessage response = await client.GetAsync($"/Cards");
+        using var response = await client.GetAsync($"/Cards");
 
         _ = await Verify(new { response });
     }
@@ -203,37 +183,33 @@ public sealed class HttpGet : IDisposable
     {
         var enabledCardStrings = new CardStrings(
             Id1,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time2String,
-            FalseString
+            "Prompt",
+            "Solution",
+            "Failed",
+            "2022-04-02T15:01:13.1643460+02:00",
+            "2022-04-10T15:31:13.1643462+02:00",
+            "false"
         );
         var disabledCardStrings = new CardStrings(
             Id0,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Prompt",
+            "Solution",
+            "Failed",
+            "2022-04-02T15:01:13.1643460+02:00",
+            "2022-04-10T15:31:13.1643461+02:00",
+            "true"
         );
-        IEnumerable<CardStrings> cardsStrings = Util.Reverse(
-            reverse,
-            enabledCardStrings,
-            disabledCardStrings
-        );
+        var cardsStrings = Util.Reverse(reverse, enabledCardStrings, disabledCardStrings);
         WriteCardsFile(cardsStrings);
-        using WebApplicationFactory<Program> factory = GetApplicationFactory();
-        using HttpClient client = await Login(factory);
+        using var factory = GetApplicationFactory();
+        using var client = await Login(factory);
 
-        using HttpResponseMessage response = await client.GetAsync($"/Cards");
+        using var response = await client.GetAsync($"/Cards");
 
         _ = await Verify(
                 new
                 {
-                    ExpectedCards = new FullCard[]
+                    ExpectedCards = new[]
                     {
                         enabledCardStrings.FullCard,
                         disabledCardStrings.FullCard,
@@ -251,88 +227,36 @@ public sealed class HttpGet : IDisposable
     {
         var earlyNextTimeCardStrings = new CardStrings(
             Id1,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            FalseString
+            "Prompt",
+            "Solution",
+            "Failed",
+            "2022-04-02T15:01:13.1643460+02:00",
+            "2022-04-10T15:31:13.1643461+02:00",
+            "false"
         );
         var lateNextTimeCardStrings = new CardStrings(
             Id0,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time2String,
-            FalseString
+            "Prompt",
+            "Solution",
+            "Failed",
+            "2022-04-02T15:01:13.1643460+02:00",
+            "2022-04-10T15:31:13.1643462+02:00",
+            "false"
         );
-        IEnumerable<CardStrings> cardsStrings = Util.Reverse(
-            reverse,
-            earlyNextTimeCardStrings,
-            lateNextTimeCardStrings
-        );
+        var cardsStrings = Util.Reverse(reverse, earlyNextTimeCardStrings, lateNextTimeCardStrings);
         WriteCardsFile(cardsStrings);
-        using WebApplicationFactory<Program> factory = GetApplicationFactory();
-        using HttpClient client = await Login(factory);
+        using var factory = GetApplicationFactory();
+        using var client = await Login(factory);
 
-        using HttpResponseMessage response = await client.GetAsync($"/Cards");
+        using var response = await client.GetAsync($"/Cards");
 
         _ = await Verify(
                 new
                 {
-                    ExpectedCards = new FullCard[]
+                    ExpectedCards = new Dictionary<string, object>
                     {
-                        earlyNextTimeCardStrings.FullCard,
-                        lateNextTimeCardStrings.FullCard,
-                    },
-                    response,
-                }
-            )
-            .UseParameters(reverse);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SmallIdFirst(bool reverse)
-    {
-        var smallIdCardStrings = new CardStrings(
-            Id0,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            FalseString
-        );
-        var bigIdCardStrings = new CardStrings(
-            Id1,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            FalseString
-        );
-        IEnumerable<CardStrings> cardsStrings = Util.Reverse(
-            reverse,
-            smallIdCardStrings,
-            bigIdCardStrings
-        );
-        WriteCardsFile(cardsStrings);
-        using WebApplicationFactory<Program> factory = GetApplicationFactory();
-        using HttpClient client = await Login(factory);
-
-        using HttpResponseMessage response = await client.GetAsync($"/Cards");
-
-        _ = await Verify(
-                new
-                {
-                    ExpectedCards = new FullCard[]
-                    {
-                        smallIdCardStrings.FullCard,
-                        bigIdCardStrings.FullCard,
+                        { "early", earlyNextTimeCardStrings.FullCard },
+                        { "late", lateNextTimeCardStrings.FullCard },
                     },
                     response,
                 }
@@ -350,55 +274,51 @@ public sealed class HttpGet : IDisposable
         var cardStrings0 = new CardStrings(
             Id0,
             "different",
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Solution0",
+            "Failed",
+            "2022-04-02T15:01:13.1643460+02:00",
+            "2022-04-10T15:31:13.1643460+02:00",
+            "true"
         );
         var cardStrings1 = new CardStrings(
             Id1,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            FalseString
+            "Prompt1",
+            "Solution1",
+            "Failed",
+            "2022-04-02T15:01:13.1643461+02:00",
+            "2022-04-10T15:31:13.1643461+02:00",
+            "false"
         );
         var cardStrings2 = new CardStrings(
             Id2,
             "different",
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Solution2",
+            "Failed",
+            "2022-04-02T15:01:13.1643462+02:00",
+            "2022-04-10T15:31:13.1643462+02:00",
+            "true"
         );
         var cardStrings3 = new CardStrings(
             Id3,
-            Prompt0,
-            Solution0,
-            OkString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Prompt3",
+            "Solution3",
+            "Ok",
+            "2022-04-02T15:01:13.1643463+02:00",
+            "2022-04-10T15:31:13.1643463+02:00",
+            "true"
         );
         WriteCardsFile(cardStrings0, cardStrings1, cardStrings2, cardStrings3);
-        using WebApplicationFactory<Program> factory = GetApplicationFactory();
-        using HttpClient client = await Login(factory);
+        using var factory = GetApplicationFactory();
+        using var client = await Login(factory);
 
-        using HttpResponseMessage response = await client.GetAsync(
-            $"/Cards?searchText={PromptSubString}&skip={skip}"
-        );
+        using var response = await client.GetAsync($"/Cards?searchText=PrOmPt&skip={skip}");
 
         _ = await Verify(
                 new
                 {
-                    ExpectedCards = new FullCard[]
-                    {
-                        cardStrings1.FullCard,
-                        cardStrings3.FullCard,
-                    }.Skip(skip),
+                    ExpectedCards = new[] { cardStrings1.FullCard, cardStrings3.FullCard }.Skip(
+                        skip
+                    ),
                     response,
                 }
             )
@@ -416,89 +336,85 @@ public sealed class HttpGet : IDisposable
         var c0 = new CardStrings(
             Id0,
             "different",
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Solution0",
+            "Failed",
+            "2022-04-02T15:01:13.1643460+02:00",
+            "2022-04-10T15:31:13.1643460+02:00",
+            "true"
         );
         var c1 = new CardStrings(
             Id1,
-            Prompt0,
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            FalseString
+            "Prompt1",
+            "Solution1",
+            "Failed",
+            "2022-04-02T15:01:13.1643461+02:00",
+            "2022-04-10T15:31:13.1643461+02:00",
+            "false"
         );
         var c2 = new CardStrings(
             Id2,
             "different",
-            Solution0,
-            FailedString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Solution2",
+            "Failed",
+            "2022-04-02T15:01:13.1643462+02:00",
+            "2022-04-10T15:31:13.1643462+02:00",
+            "true"
         );
         var c3 = new CardStrings(
             Id3,
-            Prompt0,
-            Solution0,
-            OkString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Prompt3",
+            "Solution3",
+            "Ok",
+            "2022-04-02T15:01:13.1643463+02:00",
+            "2022-04-10T15:31:13.1643463+02:00",
+            "true"
         );
         var c4 = new CardStrings(
             Id4,
             "different",
-            Solution0,
-            OkString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Solution4",
+            "Ok",
+            "2022-04-02T15:01:13.1643464+02:00",
+            "2022-04-10T15:31:13.1643464+02:00",
+            "true"
         );
         var c5 = new CardStrings(
             Id5,
-            Prompt0,
-            Solution0,
-            OkString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Prompt5",
+            "Solution5",
+            "Ok",
+            "2022-04-02T15:01:13.1643465+02:00",
+            "2022-04-10T15:31:13.1643465+02:00",
+            "true"
         );
         var c6 = new CardStrings(
             Id6,
             "different",
-            Solution0,
-            OkString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Solution6",
+            "Ok",
+            "2022-04-02T15:01:13.1643466+02:00",
+            "2022-04-10T15:31:13.1643466+02:00",
+            "true"
         );
         var c7 = new CardStrings(
             Id7,
-            Prompt0,
-            Solution0,
-            OkString,
-            Time0String,
-            Time1String,
-            TrueString
+            "Prompt7",
+            "Solution7",
+            "Ok",
+            "2022-04-02T15:01:13.1643467+02:00",
+            "2022-04-10T15:31:13.1643467+02:00",
+            "true"
         );
-        WriteCardsFile(c0, c1, c2, c3, c4, c5, c6, c7);
-        using WebApplicationFactory<Program> factory = GetApplicationFactory(pageSize);
-        using HttpClient client = await Login(factory);
+        WriteCardsFile(c1, c5, c0, c3, c2, c4, c7, c6);
+        using var factory = GetApplicationFactory(pageSize);
+        using var client = await Login(factory);
 
-        using HttpResponseMessage response = await client.GetAsync(
-            $"/Cards?searchText={PromptSubString}&skip=1"
-        );
+        using var response = await client.GetAsync($"/Cards?searchText=PrOmPt&skip=1");
 
         _ = await Verify(
                 new
                 {
-                    ExpectedCards = new FullCard[] { c3.FullCard, c5.FullCard, c7.FullCard }.Take(
-                        pageSize
-                    ),
+                    ExpectedCards = new[] { c3.FullCard, c5.FullCard, c7.FullCard }.Take(pageSize),
                     response,
                 }
             )
@@ -512,15 +428,14 @@ public sealed class HttpGet : IDisposable
             { "FileStore:Directory", _fileStoreDirectory },
             { "Cards:PageSize", $"{pageSize}" },
         };
-        WebApplicationFactory<Program> factory =
-            new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-                builder.ConfigureAppConfiguration(
-                    (context, conf) =>
-                    {
-                        _ = conf.AddInMemoryCollection(settings);
-                    }
-                )
-            );
+        var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
+        );
         return factory;
     }
 
