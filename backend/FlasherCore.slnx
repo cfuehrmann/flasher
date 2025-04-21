@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Flasher.Host/Flasher.Host.csproj" />
+  <Project Path="Flasher.Integration.Tests/Flasher.Integration.Tests.csproj" />
+</Solution>
