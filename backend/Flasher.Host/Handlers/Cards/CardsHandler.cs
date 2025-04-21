@@ -1,7 +1,6 @@
 ﻿using Flasher.Injectables;
 using Flasher.Store.AutoSaving;
 using Flasher.Store.Cards;
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 
@@ -14,8 +13,7 @@ public static class CardsHandler
         CreateCardRequest request,
         ICardStore store,
         IOptionsMonitor<CardsOptions> optionsMonitor,
-        IDateTime time,
-        LinkGenerator linkGenerator
+        IDateTime time
     )
     {
         string id = Guid.NewGuid().ToString();

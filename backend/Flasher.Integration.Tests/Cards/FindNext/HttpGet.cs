@@ -1,5 +1,6 @@
-﻿using System.Net;
-using System.Text;
+﻿using System.Diagnostics;
+using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -48,23 +49,15 @@ public sealed class HttpGet : IDisposable
         );
 
         var client = factory.CreateClient();
-        client.Timeout = TimeSpan.FromSeconds(1);
 
         using var loginResponse = await client.Login(UserName, Password);
         var cookies = loginResponse.GetCookies();
         client.AddCookies(cookies);
 
-        var postPrompt = "some prompt";
-        var postSolution = "some solution";
-
-        var postBodyString = $$"""
-            {
-                "prompt": "{{postPrompt}}",
-                "solution": "{{postSolution}}"
-            }
-            """;
-        var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
-        using var postResponse = await client.PostAsync("/Cards", postBodyContent);
+        using var postResponse = await client.PostAsync(
+            "/Cards",
+            JsonContent.Create(new { prompt = "some prompt", solution = "some solution" })
+        );
 
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
         using var postResponseDocument = JsonDocument.Parse(postResponseString);
@@ -76,10 +69,9 @@ public sealed class HttpGet : IDisposable
 
         var enableResponse = await client.PostAsync($"/Cards/{postId}/Enable", null);
 
-        // To prevent Stryker timeouts
-        Assert.Equal(HttpStatusCode.NoContent, enableResponse.StatusCode);
+        var time = Stopwatch.GetTimestamp();
 
-        while (true)
+        while (Stopwatch.GetElapsedTime(time) < TimeSpan.FromMilliseconds(200))
         {
             using var response = await client.GetAsync("/Cards/Next");
 
@@ -100,10 +92,10 @@ public sealed class HttpGet : IDisposable
                 return;
             }
 
-            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-
             await Task.Delay(delay);
         }
+
+        Assert.Fail("Timeout!");
     }
 
     [Fact]
@@ -125,20 +117,15 @@ public sealed class HttpGet : IDisposable
         );
 
         var client = factory.CreateClient();
-        client.Timeout = TimeSpan.FromSeconds(1);
 
         using var loginResponse = await client.Login(UserName, Password);
         var cookies = loginResponse.GetCookies();
         client.AddCookies(cookies);
 
-        var postBodyString = $$"""
-            {
-                "prompt": "prompt",
-                "solution": "solution"
-            }
-            """;
-        var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
-        using var postResponse = await client.PostAsync("/Cards", postBodyContent);
+        using var postResponse = await client.PostAsync(
+            "/Cards",
+            JsonContent.Create(new { prompt = "prompt", solution = "solution" })
+        );
 
         using var response = await client.GetAsync("/Cards/Next");
 
@@ -165,7 +152,6 @@ public sealed class HttpGet : IDisposable
         );
 
         var client = factory.CreateClient();
-        client.Timeout = TimeSpan.FromSeconds(1);
 
         using var loginResponse = await client.Login(UserName, Password);
         var cookies = loginResponse.GetCookies();
@@ -174,5 +160,78 @@ public sealed class HttpGet : IDisposable
         using var response = await client.GetAsync("/Cards/Next");
 
         _ = await Verify(new { response });
+    }
+
+    [Fact]
+    public async Task ShouldFindEarliestCard()
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            { "FileStore:Directory", _fileStoreDirectory },
+            { "Cards:NewCardWaitingTime", "00:00:00.100" },
+        };
+
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
+        );
+
+        var client = factory.CreateClient();
+
+        using var loginResponse = await client.Login(UserName, Password);
+        var cookies = loginResponse.GetCookies();
+        client.AddCookies(cookies);
+
+        using var postResponse1 = await client.PostAsync(
+            "/Cards",
+            JsonContent.Create(new { prompt = "prompt1", solution = "solution1" })
+        );
+        var postResponseString1 = await postResponse1.Content.ReadAsStringAsync();
+        using var postResponseDocument1 = JsonDocument.Parse(postResponseString1);
+        var postId1 = postResponseDocument1.RootElement.GetProperty("id").GetString();
+        _ = await client.PostAsync($"/Cards/{postId1}/Enable", null);
+
+        using var postResponse2 = await client.PostAsync(
+            "/Cards",
+            JsonContent.Create(new { prompt = "prompt2", solution = "solution2" })
+        );
+        var postResponseString2 = await postResponse2.Content.ReadAsStringAsync();
+        using var postResponseDocument2 = JsonDocument.Parse(postResponseString2);
+        var postId2 = postResponseDocument2.RootElement.GetProperty("id").GetString();
+        _ = await client.PostAsync($"/Cards/{postId2}/Enable", null);
+        var post2NextTime = postResponseDocument2
+            .RootElement.GetProperty("nextTime")
+            .GetDateTimeOffset();
+
+        // Wait until the next time the second card is due.
+        // Strangely, Task.Delay(postNextTime - now) sometimes does not wait
+        // long enough.
+        var time = Stopwatch.GetTimestamp();
+
+        while (true)
+        {
+            var now = DateTimeOffset.Now;
+
+            if (now > post2NextTime)
+            {
+                break;
+            }
+
+            if (Stopwatch.GetElapsedTime(time) > TimeSpan.FromMilliseconds(200))
+            {
+                Assert.Fail("Timeout!");
+            }
+            ;
+
+            await Task.Delay(10);
+        }
+
+        using var response = await client.GetAsync("/Cards/Next");
+
+        _ = await Verify(new { postResponse1, response });
     }
 }

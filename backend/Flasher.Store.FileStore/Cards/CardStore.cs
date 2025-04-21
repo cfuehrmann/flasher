@@ -135,6 +135,7 @@ public class CardStore(
             .OrderBy(card => card.NextTime)
             .FirstOrDefault()
             ?.ToResponse();
+
         return Task.FromResult(result);
     }
 
