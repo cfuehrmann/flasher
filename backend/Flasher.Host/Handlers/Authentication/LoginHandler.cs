@@ -13,7 +13,7 @@ namespace Flasher.Host.Handlers.Authentication;
 public static class LoginHandler
 {
     public static async Task<
-        Results<Ok<LoginResponse>, UnauthorizedHttpResult, ProblemHttpResult, InternalServerError>
+        Results<Ok<LoginResponse>, UnauthorizedHttpResult, ProblemHttpResult>
     > Login(
         LoginRequest request,
         HttpContext context,
@@ -25,82 +25,66 @@ public static class LoginHandler
         SecurityKey securityKey
     )
     {
-        try
+        string? hashedPassword = await authenticationStore.GetPasswordHash(request.UserName);
+
+        if (hashedPassword == null)
         {
-            string? hashedPassword = await authenticationStore.GetPasswordHash(request.UserName);
-
-            if (hashedPassword == null)
-            {
-                return UserNameOrPasswordProblem();
-            }
-
-            PasswordVerificationResult passwordVerificationResult =
-                passwordHasher.VerifyHashedPassword(
-                    new User { Name = request.UserName },
-                    hashedPassword,
-                    request.Password
-                );
-
-            if (passwordVerificationResult != PasswordVerificationResult.Success)
-            {
-                return UserNameOrPasswordProblem();
-            }
-
-            Task<AutoSave?> readAutoSave = autoSaveStore.Read(request.UserName);
-
-            var token = new JwtSecurityToken(
-                claims: [new Claim(ClaimTypes.Name, request.UserName)],
-                expires: dateTime.Now + options.CurrentValue.TokenLifetime,
-                signingCredentials: new SigningCredentials(
-                    securityKey,
-                    SecurityAlgorithms.RsaSha256
-                )
-            );
-
-            string tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-
-            var cookieOptions = new CookieOptions
-            {
-                SameSite = SameSiteMode.Strict,
-                Secure = true,
-                HttpOnly = true,
-                Path = "/",
-                MaxAge = options.CurrentValue.TokenLifetime,
-            };
-
-            context.Response.Cookies.Append("__Host-jwt", tokenString, cookieOptions);
-
-            AutoSave? storedAutoSave = await readAutoSave;
-
-            LoginResponse.AutoSaveData? autoSaveData =
-                storedAutoSave != null
-                    ? new LoginResponse.AutoSaveData
-                    {
-                        Id = storedAutoSave.Id,
-                        Prompt = storedAutoSave.Prompt,
-                        Solution = storedAutoSave.Solution,
-                    }
-                    : null;
-
-            var response = new LoginResponse
-            {
-                JsonWebToken = tokenString,
-                AutoSave = autoSaveData,
-            };
-
-            return TypedResults.Ok(response);
+            return UserNameOrPasswordProblem();
         }
-        catch
+
+        PasswordVerificationResult passwordVerificationResult = passwordHasher.VerifyHashedPassword(
+            new User { Name = request.UserName },
+            hashedPassword,
+            request.Password
+        );
+
+        if (passwordVerificationResult != PasswordVerificationResult.Success)
         {
-            return TypedResults.InternalServerError();
+            return UserNameOrPasswordProblem();
         }
+
+        Task<AutoSave?> readAutoSave = autoSaveStore.Read(request.UserName);
+
+        var token = new JwtSecurityToken(
+            claims: [new Claim(ClaimTypes.Name, request.UserName)],
+            expires: dateTime.Now + options.CurrentValue.TokenLifetime,
+            signingCredentials: new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256)
+        );
+
+        string tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+
+        var cookieOptions = new CookieOptions
+        {
+            SameSite = SameSiteMode.Strict,
+            Secure = true,
+            HttpOnly = true,
+            Path = "/",
+            MaxAge = options.CurrentValue.TokenLifetime,
+        };
+
+        context.Response.Cookies.Append("__Host-jwt", tokenString, cookieOptions);
+
+        AutoSave? storedAutoSave = await readAutoSave;
+
+        LoginResponse.AutoSaveData? autoSaveData =
+            storedAutoSave != null
+                ? new LoginResponse.AutoSaveData
+                {
+                    Id = storedAutoSave.Id,
+                    Prompt = storedAutoSave.Prompt,
+                    Solution = storedAutoSave.Solution,
+                }
+                : null;
+
+        var response = new LoginResponse { JsonWebToken = tokenString, AutoSave = autoSaveData };
+
+        return TypedResults.Ok(response);
     }
 
     private static Results<
         Ok<LoginResponse>,
         UnauthorizedHttpResult,
-        ProblemHttpResult,
-        InternalServerError
+        ProblemHttpResult
     > UserNameOrPasswordProblem()
     {
         return TypedResults.Problem(

@@ -5,6 +5,7 @@ using Flasher.Host.Handlers.Authentication;
 using Flasher.Host.Handlers.AutoSaving;
 using Flasher.Host.Handlers.Cards;
 using Flasher.Host.Handlers.History;
+using Flasher.Host.Middleware;
 using Flasher.Injectables;
 using Flasher.Store.Authentication;
 using Flasher.Store.AutoSaving;
@@ -86,6 +87,8 @@ var app = builder.Build();
 _ = app.UseSwagger().UseSwaggerUI();
 #endif
 
+app.UseMiddleware<ErrorHandlingMiddleware>();
+
 app.Use(
     static async (context, next) =>
     {
@@ -133,7 +136,6 @@ app.UseAuthorization();
     var group = app.MapGroup("/History");
     group.MapDelete("/{id}", HistoryHandler.Delete);
 }
-
 app.Run();
 
 [JsonSourceGenerationOptions(UseStringEnumConverter = true)]
