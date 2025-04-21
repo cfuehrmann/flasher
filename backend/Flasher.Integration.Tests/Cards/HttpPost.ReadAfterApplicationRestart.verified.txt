@@ -1,0 +1,44 @@
+﻿{
+  response: {
+    Status: 201 Created,
+    Headers: {
+      Location: /Cards/Guid_1
+    },
+    Content: {
+      Headers: {
+        Content-Type: application/json; charset=utf-8
+      },
+      Value: {
+        id: Guid_1,
+        prompt: somePrompt,
+        solution: someSolution,
+        state: New,
+        changeTime: DateTimeOffset_1,
+        nextTime: DateTimeOffset_2,
+        disabled: true
+      }
+    }
+  },
+  getResponse: {
+    Status: 200 OK,
+    Content: {
+      Headers: {
+        Content-Type: application/json; charset=utf-8
+      },
+      Value: {
+        cards: [
+          {
+            id: Guid_1,
+            prompt: somePrompt,
+            solution: someSolution,
+            state: New,
+            changeTime: DateTimeOffset_1,
+            nextTime: DateTimeOffset_2,
+            disabled: true
+          }
+        ],
+        count: 1
+      }
+    }
+  }
+}

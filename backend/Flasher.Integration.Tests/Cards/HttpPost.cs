@@ -1,4 +1,4 @@
-﻿using System.Text;
+﻿using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -38,30 +38,22 @@ public sealed class HttpPost : IDisposable
             { "Cards:NewCardWaitingTime", "00:00:42" },
         };
 
-        using WebApplicationFactory<Program> factory =
-            new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-                builder.ConfigureAppConfiguration(
-                    (context, conf) =>
-                    {
-                        _ = conf.AddInMemoryCollection(inMemorySettings);
-                    }
-                )
-            );
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(inMemorySettings);
+                }
+            )
+        );
 
-        using HttpClient client = await factory.Login(UserName, Password);
-
-        var prompt = "somePrompt";
-        var solution = "someSolution";
+        using var client = await factory.Login(UserName, Password);
 
         var now = DateTime.Now;
 
-        using HttpResponseMessage response = await client.PostAsync(
+        using var response = await client.PostAsync(
             "/Cards",
-            new StringContent(
-                $$"""{ "prompt": "{{prompt}}", "solution": "{{solution}}" }""",
-                Encoding.UTF8,
-                "application/json"
-            )
+            JsonContent.Create(new { prompt = "somePrompt", solution = "someSolution" })
         );
 
         using var getResponse = await client.GetAsync("/Cards");
@@ -81,5 +73,46 @@ public sealed class HttpPost : IDisposable
                 NextTimeOk = getNextTime == getChangeTime.AddSeconds(42),
             }
         );
+    }
+
+    [Fact]
+    public async Task ReadAfterApplicationRestart()
+    {
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            { "FileStore:Directory", _fileStoreDirectory },
+            { "Cards:NewCardWaitingTime", "00:00:42" },
+        };
+
+        using var factory1 = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(inMemorySettings);
+                }
+            )
+        );
+
+        using var client1 = await factory1.Login(UserName, Password);
+
+        using var response = await client1.PostAsync(
+            "/Cards",
+            JsonContent.Create(new { prompt = "somePrompt", solution = "someSolution" })
+        );
+
+        using var factory2 = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(inMemorySettings);
+                }
+            )
+        );
+
+        using var client2 = await factory2.Login(UserName, Password);
+
+        using var getResponse = await client2.GetAsync("/Cards");
+
+        _ = await Verify(new { response, getResponse });
     }
 }
