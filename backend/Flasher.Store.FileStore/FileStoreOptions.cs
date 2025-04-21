@@ -1,6 +1,9 @@
-﻿namespace Flasher.Store.FileStore;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Flasher.Store.FileStore;
 
 public sealed record FileStoreOptions
 {
-    public string? Directory { get; set; }
+    [Required]
+    public required string Directory { get; set; }
 }

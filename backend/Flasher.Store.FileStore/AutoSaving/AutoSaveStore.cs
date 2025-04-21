@@ -1,7 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Flasher.Store.AutoSaving;
-using Flasher.Store.Exceptions;
 using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.AutoSaving;
@@ -87,10 +86,6 @@ public class AutoSaveStore(
 
     private string GetPath(string user)
     {
-        var directory =
-            options.CurrentValue.Directory
-            ?? throw new StoreConfigurationException("Missing configuration 'FileStore:Directory'");
-
-        return Path.Combine(directory, user, "autoSave.json");
+        return Path.Combine(options.CurrentValue.Directory, user, "autoSave.json");
     }
 }

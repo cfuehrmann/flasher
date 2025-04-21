@@ -13,10 +13,6 @@ public class CardStore(
     IFileStoreJsonContextProvider jsonContextProvider
 ) : ICardStore
 {
-    private readonly string _directory =
-        options.CurrentValue.Directory
-        ?? throw new ArgumentException("Missing configuration 'FileStore:Directory'");
-
     private readonly JsonSerializerContext _jsonContext = jsonContextProvider.Instance;
 
     private readonly ConcurrentDictionary<
@@ -191,7 +187,7 @@ public class CardStore(
 
     private string GetPath(string user)
     {
-        return Path.Combine(_directory, user, "cards.json");
+        return Path.Combine(options.CurrentValue.Directory, user, "cards.json");
     }
 }
 

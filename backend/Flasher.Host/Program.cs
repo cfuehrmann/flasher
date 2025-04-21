@@ -36,7 +36,10 @@ services.AddSingleton<IAuthenticationStore, AuthenticationStore>();
 services.AddSingleton<ICardStore, CardStore>();
 services.AddSingleton<IAutoSaveStore, AutoSaveStore>();
 services.AddSingleton<IFileStoreJsonContextProvider, FileStoreJsonContextProvider>();
-services.Configure<FileStoreOptions>(builder.Configuration.GetSection("FileStore"));
+services
+    .AddOptions<FileStoreOptions>()
+    .Bind(builder.Configuration.GetSection("FileStore"))
+    .ValidateDataAnnotations();
 services.Configure<CardsOptions>(builder.Configuration.GetSection("Cards"));
 
 // The following method call is needed for AOT only. I see no way to cover it

@@ -1,7 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Flasher.Store.Authentication;
-using Flasher.Store.Exceptions;
 using Microsoft.Extensions.Options;
 
 namespace Flasher.Store.FileStore.Authentication;
@@ -15,9 +14,7 @@ public class AuthenticationStore(
 
     public Task<string?> GetPasswordHash(string userName)
     {
-        var directory =
-            options.CurrentValue.Directory
-            ?? throw new StoreConfigurationException("Missing option 'FileStore:Directory'!");
+        var directory = options.CurrentValue.Directory;
 
         string path = Path.Combine(directory, userName, "profile.json");
 
