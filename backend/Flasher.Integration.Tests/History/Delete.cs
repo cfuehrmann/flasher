@@ -1,4 +1,4 @@
-﻿using System.Text;
+﻿using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -53,14 +53,10 @@ public sealed class Delete : IDisposable
         var cookies = loginResponse.GetCookies();
         client.AddCookies(cookies);
 
-        var postBodyString = $$"""
-            {
-                "prompt": "prompt",
-                "solution": "solution"
-            }
-            """;
-        var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
-        using var postResponse = await client.PostAsync("/Cards", postBodyContent);
+        using var postResponse = await client.PostAsJsonAsync(
+            "/Cards",
+            new { prompt = "prompt", solution = "solution" }
+        );
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
         using var postResponseDocument = JsonDocument.Parse(postResponseString);
         var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
@@ -86,5 +82,38 @@ public sealed class Delete : IDisposable
                 NextTimeOk = nextTime == changeTime + newCardWaitingTime,
             }
         );
+    }
+
+    [Fact]
+    public async Task DeleteForNonExistingCard()
+    {
+        var newCardWaitingTime = new TimeSpan(1, 23, 45, 678);
+
+        var settings = new Dictionary<string, string?>
+        {
+            { "FileStore:Directory", _fileStoreDirectory },
+            { "Cards:NewCardWaitingTime", newCardWaitingTime.ToString() },
+        };
+
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
+        );
+
+        var client = factory.CreateClient();
+
+        using var loginResponse = await client.Login(UserName, Password);
+        var cookies = loginResponse.GetCookies();
+        client.AddCookies(cookies);
+
+        using var response = await client.DeleteAsync(
+            $"History/0d305cfd-9a33-46cd-807b-8adefbe57e42"
+        );
+
+        _ = await Verify(new { response });
     }
 }

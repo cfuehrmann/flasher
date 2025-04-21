@@ -22,11 +22,13 @@ public static class HistoryHandler
             Id = id,
             State = State.New,
             ChangeTime = now,
-            NextTime = now.Add(optionsMonitor.CurrentValue.NewCardWaitingTime)
+            NextTime = now.Add(optionsMonitor.CurrentValue.NewCardWaitingTime),
         };
 
         FullCard? result = await store.Update(context.User.Identity!.Name!, update);
 
+        // To maintain its cache, the frontend really must distinguish between
+        // the two case below.
         return result != null ? TypedResults.Ok(result) : TypedResults.NotFound();
     }
 }

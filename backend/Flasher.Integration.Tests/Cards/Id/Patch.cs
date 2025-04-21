@@ -164,28 +164,15 @@ public sealed class Patch : IDisposable
         var cookies = loginResponse.GetCookies();
         client.AddCookies(cookies);
 
-        var postBodyString = $$"""
-            {
-                "prompt": "prompt",
-                "solution": "solution"
-            }
-            """;
-        var postBodyContent = new StringContent(postBodyString, Encoding.UTF8, "application/json");
-        using var postResponse = await client.PostAsync("/Cards", postBodyContent);
+        using var postResponse = await client.PostAsJsonAsync(
+            "/Cards",
+            new { prompt = "prompt", solution = "solution" }
+        );
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
         using var postResponseDocument = JsonDocument.Parse(postResponseString);
         var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
 
-        var patchRequestString = $$"""{}""";
-        var patchRequestContent = new StringContent(
-            patchRequestString,
-            Encoding.UTF8,
-            "application/json"
-        );
-        using var response = await client.PatchAsync(
-            $"Cards/{postResponseId}",
-            patchRequestContent
-        );
+        using var response = await client.PatchAsJsonAsync($"Cards/{postResponseId}", new { });
 
         _ = await Verify(new { response });
     }
@@ -214,41 +201,24 @@ public sealed class Patch : IDisposable
         var cookies = loginResponse.GetCookies();
         client.AddCookies(cookies);
 
-        var postBodyString = $$"""
-            {
-                "prompt": "prompt",
-                "solution": "solution"
-            }
-            """;
-        var postRequestContent = new StringContent(
-            postBodyString,
-            Encoding.UTF8,
-            "application/json"
-        );
-        using var postResponse = await client.PostAsync("/Cards", postRequestContent);
+        var request = new { prompt = "prompt", solution = "solution" };
+
+        using var postResponse = await client.PostAsJsonAsync("/Cards", request);
         var postResponseString = await postResponse.Content.ReadAsStringAsync();
         using var postResponseDocument = JsonDocument.Parse(postResponseString);
         var postResponseId = postResponseDocument.RootElement.GetProperty("id").GetString();
 
-        using HttpResponseMessage autoSaveResponse = await client.PutAsync(
+        using HttpResponseMessage autoSaveResponse = await client.PutAsJsonAsync(
             "/AutoSave",
-            new StringContent(
-                $$"""{ "id": "some-id", "prompt": "p", "solution": "s" }""",
-                Encoding.UTF8,
-                "application/json"
-            )
+            new
+            {
+                id = "some-id",
+                prompt = "p",
+                solution = "s",
+            }
         );
 
-        var patchRequestString = $$"""{}""";
-        var patchRequestContent = new StringContent(
-            patchRequestString,
-            Encoding.UTF8,
-            "application/json"
-        );
-        using var response = await client.PatchAsync(
-            $"Cards/{postResponseId}",
-            patchRequestContent
-        );
+        using var response = await client.PatchAsJsonAsync($"Cards/{postResponseId}", request);
 
         using var loginResponse2 = await client.Login(UserName, Password);
         using var getResponse = await client.GetAsync("/Cards");
@@ -263,5 +233,36 @@ public sealed class Patch : IDisposable
                 getResponse,
             }
         );
+    }
+
+    [Fact]
+    public async Task PatchNonExistingCard()
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            { "FileStore:Directory", _fileStoreDirectory },
+        };
+
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration(
+                (context, conf) =>
+                {
+                    _ = conf.AddInMemoryCollection(settings);
+                }
+            )
+        );
+
+        var client = factory.CreateClient();
+
+        using var loginResponse = await client.Login(UserName, Password);
+        var cookies = loginResponse.GetCookies();
+        client.AddCookies(cookies);
+
+        using var response = await client.PatchAsJsonAsync(
+            "Cards/0d305cfd-9a33-46cd-807b-8adefbe57e42",
+            new { prompt = "somePrompt", solution = "someSolution" }
+        );
+
+        _ = await Verify(new { response });
     }
 }
