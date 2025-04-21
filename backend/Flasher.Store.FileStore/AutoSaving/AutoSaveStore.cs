@@ -67,20 +67,15 @@ public class AutoSaveStore(
     public async Task Write(string user, AutoSave autoSave)
     {
         string path = GetPath(user);
-        using var fs = new FileStream(
-            path,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None,
-            131072,
-            true
-        );
+        using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+
         var s = new SerializableAutoSave
         {
             Id = autoSave.Id,
             Prompt = autoSave.Prompt,
             Solution = autoSave.Solution,
         };
+
         await JsonSerializer.SerializeAsync(fs, s, typeof(SerializableAutoSave), _jsonContext);
     }
 
