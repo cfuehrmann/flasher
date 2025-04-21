@@ -1,0 +1,22 @@
+<Project>
+  <PropertyGroup>
+    <!-- Enable central package management, https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.4" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.8.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.4" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="8.1.1" />
+
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.4" />
+
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.4" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+    <PackageVersion Include="Verify.Http" Version="6.5.0" />
+    <PackageVersion Include="Verify.xUnit" Version="29.2.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.2" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+  </ItemGroup>
+</Project>
