@@ -106,13 +106,11 @@ app.Use(
 app.UseAuthentication();
 app.UseAuthorization();
 
-
 {
     var group = app.MapGroup("/Authentication");
     var handler = group.MapPost("/Login", LoginHandler.Login);
     handler.AllowAnonymous();
 }
-
 
 {
     var group = app.MapGroup("/Cards");
@@ -127,13 +125,11 @@ app.UseAuthorization();
     group.MapPost("/{id}/Disable", CardsHandler.Disable);
 }
 
-
 {
     var group = app.MapGroup("/AutoSave");
     group.MapPut("", AutoSaveHandler.Write);
     group.MapDelete("", AutoSaveHandler.Delete);
 }
-
 
 {
     var group = app.MapGroup("/History");

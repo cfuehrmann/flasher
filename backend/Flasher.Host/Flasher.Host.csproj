@@ -1,32 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
-
   <PropertyGroup>
     <!-- Running AOT-published binaries on another machine stopped working 
     for me, with an error message stating that the ISA level of the target
     machine is too low. I found no solution for that allows keeping AOT.
-    It should be monitored across .NET updates if this problem goes away. --> 
+    It should be monitored across .NET updates if this problem goes away. -->
     <!-- <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot> -->
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
-
   <ItemGroup Condition="'$(Configuration)' == 'Debug'">
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\Flasher.Store\Flasher.Store.csproj" />
     <ProjectReference Include="..\Flasher.Store.FileStore\Flasher.Store.FileStore.csproj" />
     <ProjectReference Include="..\Flasher.Injectables\Flasher.Injectables.csproj" />
   </ItemGroup>
-
 </Project>

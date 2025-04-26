@@ -4,5 +4,5 @@ public enum State
 {
     New,
     Ok,
-    Failed
+    Failed,
 }

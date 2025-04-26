@@ -12,7 +12,7 @@ public class FileStoreJsonContextProvider : IFileStoreJsonContextProvider
             var jsonOptions = new JsonSerializerOptions
             {
                 WriteIndented = true,
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
             };
             return new FileStoreJsonContext(jsonOptions);
         }
