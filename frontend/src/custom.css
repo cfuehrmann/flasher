@@ -1,0 +1,10 @@
+/* Custom color overrides for better accessibility */
+.w3-dark-green {
+  color: #fff !important;
+  background-color: #2E7D32 !important; /* Material Design Green 800 - WCAG AA compliant */
+}
+
+.w3-hover-dark-green:hover {
+  color: #fff !important;
+  background-color: #2E7D32 !important;
+}

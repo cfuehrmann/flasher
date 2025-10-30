@@ -27,7 +27,7 @@ export function AbandonButton(props: ButtonProps) {
 }
 
 export function CreateButton(props: ButtonProps) {
-  return <W3CssButton {...props} w3CssColor={"w3-green"} text="Create" />;
+  return <W3CssButton {...props} w3CssColor={"w3-dark-green"} text="Create" />;
 }
 
 export function EditButton(props: ButtonProps) {
@@ -35,7 +35,7 @@ export function EditButton(props: ButtonProps) {
 }
 
 export function OkButton(props: ButtonProps) {
-  return <W3CssButton {...props} w3CssColor={"w3-green"} text="Ok" />;
+  return <W3CssButton {...props} w3CssColor={"w3-dark-green"} text="Ok" />;
 }
 
 export function FailedButton(props: ButtonProps) {
@@ -43,7 +43,7 @@ export function FailedButton(props: ButtonProps) {
 }
 
 export function SaveButton(props: ButtonProps) {
-  return <W3CssButton {...props} w3CssColor={"w3-green"} text="Save" />;
+  return <W3CssButton {...props} w3CssColor={"w3-dark-green"} text="Save" />;
 }
 
 export function DeleteHistoryButton(props: ButtonProps) {

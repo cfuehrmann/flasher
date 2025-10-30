@@ -16,7 +16,7 @@ export function LoginView(props: Props) {
 
   return (
     <div className="w3-card">
-      <div className="w3-container w3-green">
+      <div className="w3-container w3-blue">
         <h2>Login</h2>
       </div>
       <div className="w3-container">
