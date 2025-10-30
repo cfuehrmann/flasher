@@ -12,7 +12,7 @@ import { QuizView } from "./QuizView";
 
 function App() {
   const [state, setState] = useState<AppState>({
-    routerState: { route: "Prompt" },
+    routerState: { route: "Login" },
     isContactingServer: false,
   });
 
