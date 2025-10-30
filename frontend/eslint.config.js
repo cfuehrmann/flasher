@@ -5,6 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
+<<<<<<< Updated upstream
   { ignores: ['dist'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -12,6 +13,15 @@ export default tseslint.config(
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 'latest',
+=======
+  { ignores: ["dist"] },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      ecmaVersion: "latest",
+>>>>>>> Stashed changes
       globals: globals.browser,
     },
     plugins: {
@@ -19,9 +29,15 @@ export default tseslint.config(
       'react-refresh': reactRefresh,
     },
     rules: {
+<<<<<<< Updated upstream
       ...reactHooks.configs['recommended-latest'].rules,
       'react-refresh/only-export-components': [
         'warn',
+=======
+      ...reactHooks.configs["recommended-latest"].rules,
+      "react-refresh/only-export-components": [
+        "warn",
+>>>>>>> Stashed changes
         { allowConstantExport: true },
       ],
     },
