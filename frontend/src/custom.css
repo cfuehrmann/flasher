@@ -8,3 +8,13 @@
   color: #fff !important;
   background-color: #2E7D32 !important;
 }
+
+.w3-dark-blue {
+  color: #fff !important;
+  background-color: #1565C0 !important; /* Material Design Blue 800 - WCAG AA compliant */
+}
+
+.w3-hover-dark-blue:hover {
+  color: #fff !important;
+  background-color: #1565C0 !important;
+}

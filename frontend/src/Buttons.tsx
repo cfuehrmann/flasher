@@ -34,6 +34,10 @@ export function EditButton(props: ButtonProps) {
   return <TextButton {...props} text={"Edit"} />;
 }
 
+export function LoginButton(props: ButtonProps) {
+  return <W3CssButton {...props} w3CssColor={"w3-dark-blue"} text="Login" />;
+}
+
 export function OkButton(props: ButtonProps) {
   return <W3CssButton {...props} w3CssColor={"w3-dark-green"} text="Ok" />;
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { ButtonBar, OkButton } from "./Buttons";
+import { ButtonBar, LoginButton } from "./Buttons";
 
 interface Props {
   userName: string;
@@ -16,7 +16,7 @@ export function LoginView(props: Props) {
 
   return (
     <div className="w3-card">
-      <div className="w3-container w3-blue">
+      <div className="w3-container w3-dark-blue">
         <h2>Login</h2>
       </div>
       <div className="w3-container">
@@ -46,7 +46,7 @@ export function LoginView(props: Props) {
         />
         <br />
         <ButtonBar>
-          <OkButton
+          <LoginButton
             width="26%"
             onClick={() =>
               void props.onOk(credentials.userName, credentials.password)
