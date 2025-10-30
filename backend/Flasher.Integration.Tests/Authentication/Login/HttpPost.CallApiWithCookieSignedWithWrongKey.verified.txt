@@ -3,9 +3,6 @@
     Status: 401 Unauthorized,
     Headers: {
       WWW-Authenticate: Bearer error="invalid_token", error_description="The signature key was not found"
-    },
-    Content: {
-      Headers: {}
     }
   }
 }

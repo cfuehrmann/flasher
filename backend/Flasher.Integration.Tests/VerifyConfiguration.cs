@@ -8,7 +8,7 @@ public static partial class VerifyConfiguration
     public static void Initialize()
     {
         VerifierSettings.InitializePlugins();
-        VerifierSettings.ScrubMembers("__Host-jwt", "jsonWebToken");
+        VerifierSettings.ScrubMembers("__Host-jwt", "jsonWebToken", "Content-Length");
         VerifierSettings.ScrubInlineGuids();
     }
 }

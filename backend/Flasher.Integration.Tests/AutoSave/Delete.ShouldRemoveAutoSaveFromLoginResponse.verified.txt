@@ -6,6 +6,7 @@
     },
     Content: {
       Headers: {
+        Content-Length: {Scrubbed},
         Content-Type: application/json; charset=utf-8
       },
       Value: {
@@ -15,16 +16,10 @@
     }
   },
   putResponse: {
-    Status: 200 OK,
-    Content: {
-      Headers: {}
-    }
+    Status: 200 OK
   },
   response: {
-    Status: 200 OK,
-    Content: {
-      Headers: {}
-    }
+    Status: 200 OK
   },
   loginResponse2: {
     Status: 200 OK,
@@ -33,6 +28,7 @@
     },
     Content: {
       Headers: {
+        Content-Length: {Scrubbed},
         Content-Type: application/json; charset=utf-8
       },
       Value: {

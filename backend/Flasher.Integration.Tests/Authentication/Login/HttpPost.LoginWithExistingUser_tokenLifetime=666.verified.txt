@@ -6,6 +6,7 @@
     },
     Content: {
       Headers: {
+        Content-Length: {Scrubbed},
         Content-Type: application/json; charset=utf-8
       },
       Value: {
@@ -16,9 +17,6 @@
   },
   JwtOk: true,
   apiResponse: {
-    Status: 204 No Content,
-    Content: {
-      Headers: {}
-    }
+    Status: 204 No Content
   }
 }

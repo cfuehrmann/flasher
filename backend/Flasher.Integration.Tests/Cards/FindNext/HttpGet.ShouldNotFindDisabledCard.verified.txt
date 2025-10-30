@@ -1,8 +1,5 @@
 ﻿{
   response: {
-    Status: 204 No Content,
-    Content: {
-      Headers: {}
-    }
+    Status: 204 No Content
   }
 }
