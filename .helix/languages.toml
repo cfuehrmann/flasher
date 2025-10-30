@@ -4,10 +4,10 @@ scope = "source.csharp"
 injection-regex = "c-?sharp"
 file-types = ["cs", "csx", "cake"]
 roots = ["sln", "csproj"]
-comment-token = "//"
+# comment-token = "//" Strangely, this caused Helix to complain on startup
 block-comment-tokens = { start = "/*", end = "*/" }
 indent = { tab-width = 4, unit = "\t" }
-language-servers = [ { name = "csharp-ls", except-features = [ "format" ] }, "gpt" ]
+language-servers = [{ name = "csharp-ls", except-features = ["format"] }]
 formatter = { command = "dotnet-csharpier" }
 auto-format = true
 
@@ -20,7 +20,13 @@ file-types = ["js", "mjs", "cjs", "rules", "es6", "pac", { glob = "jakefile" }]
 shebangs = ["node"]
 comment-token = "//"
 block-comment-tokens = { start = "/*", end = "*/" }
-language-servers = [ { name = "typescript-language-server", except-features = [ "format" ] }, "eslint", "gpt" ]
+language-servers = [
+  { name = "typescript-language-server", except-features = [
+    "format",
+  ] },
+  "eslint",
+  "gpt",
+]
 indent = { tab-width = 2, unit = "  " }
 formatter = { command = "prettier", args = ["--parser", "typescript"] }
 auto-format = true
@@ -33,7 +39,13 @@ language-id = "javascriptreact"
 file-types = ["jsx"]
 comment-token = "//"
 block-comment-tokens = { start = "/*", end = "*/" }
-language-servers = [ { name = "typescript-language-server", except-features = [ "format" ] }, "eslint", "gpt" ]
+language-servers = [
+  { name = "typescript-language-server", except-features = [
+    "format",
+  ] },
+  "eslint",
+  "gpt",
+]
 indent = { tab-width = 2, unit = "  " }
 grammar = "javascript"
 formatter = { command = "prettier", args = ["--parser", "typescript"] }
@@ -48,7 +60,13 @@ language-id = "typescript"
 shebangs = ["deno", "ts-node"]
 comment-token = "//"
 block-comment-tokens = { start = "/*", end = "*/" }
-language-servers = [ { name = "typescript-language-server", except-features = [ "format" ] }, "eslint", "gpt" ]
+language-servers = [
+  { name = "typescript-language-server", except-features = [
+    "format",
+  ] },
+  "eslint",
+  "gpt",
+]
 indent = { tab-width = 2, unit = "  " }
 formatter = { command = "prettier", args = ["--parser", "typescript"] }
 auto-format = true
@@ -61,7 +79,28 @@ language-id = "typescriptreact"
 file-types = ["tsx"]
 comment-token = "//"
 block-comment-tokens = { start = "/*", end = "*/" }
-language-servers = [ { name = "typescript-language-server", except-features = [ "format" ] }, "eslint", "gpt" ]
+language-servers = [
+  { name = "typescript-language-server", except-features = [
+    "format",
+  ] },
+  "eslint",
+  "gpt",
+]
 indent = { tab-width = 2, unit = "  " }
 formatter = { command = "prettier", args = ["--parser", "typescript"] }
 auto-format = true
+
+[language-server.eslint]
+command = "vscode-eslint-language-server"
+args = ["--stdio"]
+
+[language-server.eslint.config]
+validate = "on"
+rulesCustomizations = []
+run = "onType"
+nodePath = ""
+useESLintClass = true
+experimental = {}
+problems = { shortenToSingleLine = false }
+codeActionOnSave = { mode = "all" }
+format = false
