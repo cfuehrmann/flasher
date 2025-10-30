@@ -30,14 +30,18 @@ export function EditView(props: Props) {
     <div className="w3-container" style={{ whiteSpace: "pre-wrap" }}>
       <br />
       <div className="w3-card">
+        <label htmlFor="edit-prompt" className="w3-hide">Prompt</label>
         <input
+          id="edit-prompt"
           className="w3-input"
           type="text"
           onChange={(event) => setPrompt(event.target.value)}
           value={card.prompt}
         />
         <br />
+        <label htmlFor="edit-solution" className="w3-hide">Solution</label>
         <textarea
+          id="edit-solution"
           className="w3-input"
           rows={17}
           onChange={(event) => setSolution(event.target.value)}

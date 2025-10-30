@@ -28,14 +28,18 @@ export function RecoverView(props: Props) {
       </div>
       <br />
       <div className="w3-card">
+        <label htmlFor="recover-prompt" className="w3-hide">Prompt</label>
         <input
+          id="recover-prompt"
           className="w3-input"
           type="text"
           onChange={(event) => setPrompt(event.target.value)}
           value={card.prompt}
         />
         <br />
+        <label htmlFor="recover-solution" className="w3-hide">Solution</label>
         <textarea
+          id="recover-solution"
           className="w3-input"
           rows={17}
           onChange={(event) => setSolution(event.target.value)}

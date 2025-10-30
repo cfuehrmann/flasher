@@ -21,8 +21,9 @@ export function LoginView(props: Props) {
       </div>
       <div className="w3-container">
         <br />
-        <label>User Name</label>
+        <label htmlFor="username">User Name</label>
         <input
+          id="username"
           className="w3-input"
           type="text"
           autoComplete="username"
@@ -30,8 +31,9 @@ export function LoginView(props: Props) {
           value={credentials.userName}
         />
         <br />
-        <label>Password</label>
+        <label htmlFor="password">Password</label>
         <input
+          id="password"
           className="w3-input"
           type="password"
           autoComplete="current-password"

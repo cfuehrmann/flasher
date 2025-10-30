@@ -52,7 +52,9 @@ export function GroomView(props: ApiHandler & { onGoToPrompt: () => void }) {
             />
           </div>
           <div className="w3-bar w3-light-grey w3-border">
+            <label htmlFor="search-input" className="w3-hide">Search</label>
             <input
+              id="search-input"
               className="w3-bar-item w3-input"
               type="text"
               autoFocus
