@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -12,16 +12,9 @@ import { QuizView } from "./QuizView";
 
 function App() {
   const [state, setState] = useState<AppState>({
-    routerState: { route: "Starting" },
+    routerState: { route: "Prompt" },
     isContactingServer: false,
   });
-
-  useEffect(() => {
-    setState((prevState) => ({
-      ...prevState,
-      routerState: { route: "Prompt" },
-    }));
-  }, []);
 
   const narratives = getNarratives(setState);
   const { isContactingServer, ...pageProps } = {
