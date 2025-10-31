@@ -11,7 +11,6 @@ export interface FindResponse {
 }
 
 export type RouterState =
-  | { route: "Starting" }
   | { route: "Login" }
   | { route: "Prompt" }
   | { route: "Groom" }

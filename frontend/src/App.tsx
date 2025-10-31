@@ -12,8 +12,8 @@ import { QuizView } from "./QuizView";
 
 function App() {
   const [state, setState] = useState<AppState>({
-    routerState: { route: "Login" },
-    isContactingServer: false,
+    routerState: { route: "Prompt" },
+    isContactingServer: true,
   });
 
   const narratives = getNarratives(setState);
@@ -37,8 +37,6 @@ function Router(props: { routerState: RouterState } & AppNarratives) {
   const routerState = props.routerState;
 
   switch (routerState.route) {
-    case "Starting":
-      return <p>Starting...</p>;
     case "Login":
       return <LoginView userName="" password="" onOk={props.login} />;
     case "Prompt":
