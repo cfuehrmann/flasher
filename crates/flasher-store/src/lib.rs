@@ -672,25 +672,59 @@ impl Store {
     // ------------------------------------------------------------ sessions
 
     /// Creates a session row: opaque `token` for `user_id`, valid until
-    /// `expires_at` (unix epoch millis).
+    /// `expires_at` (unix epoch millis). `verified_at` stamps the last
+    /// passkey proof (a fresh login counts); sensitive operations require
+    /// a recent one (step-up, "sudo mode").
     ///
     /// # Errors
     /// Returns an error on database failure, including a uniqueness
-    /// violation if the token already exists (a 256-bit random token
+    /// violation if the token already exists (a 244-bit random token
     /// collision — the caller may retry).
     pub async fn create_session(
         &self,
         token: &str,
         user_id: i64,
         expires_at: i64,
+        verified_at: i64,
     ) -> Result<(), Error> {
-        sqlx::query("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
+        sqlx::query(
+            "INSERT INTO sessions (token, user_id, expires_at, verified_at) VALUES (?, ?, ?, ?)",
+        )
+        .bind(token)
+        .bind(user_id)
+        .bind(expires_at)
+        .bind(verified_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// The `verified_at` stamp of a session token (see
+    /// [`Store::create_session`]), or `None` for an unknown token.
+    ///
+    /// # Errors
+    /// Returns an error on database failure.
+    pub async fn get_session_verified_at(&self, token: &str) -> Result<Option<i64>, Error> {
+        let row: Option<(i64,)> =
+            sqlx::query_as("SELECT verified_at FROM sessions WHERE token = ?")
+                .bind(token)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|(verified_at,)| verified_at))
+    }
+
+    /// Re-stamps a session's `verified_at` after a successful step-up
+    /// ceremony. Returns whether the session existed.
+    ///
+    /// # Errors
+    /// Returns an error on database failure.
+    pub async fn touch_session_verified(&self, token: &str, now: i64) -> Result<bool, Error> {
+        let result = sqlx::query("UPDATE sessions SET verified_at = ? WHERE token = ?")
+            .bind(now)
             .bind(token)
-            .bind(user_id)
-            .bind(expires_at)
             .execute(&self.pool)
             .await?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 
     /// The user behind a session token, or `None` if the token is unknown
@@ -733,6 +767,23 @@ impl Store {
             .execute(&self.pool)
             .await?;
         Ok(result.rows_affected() > 0)
+    }
+
+    /// Deletes every session of a user EXCEPT `keep_token` (the session
+    /// performing the action, so the user is not logged out mid-action).
+    /// Called when a passkey is deleted: a lost device's passkey being
+    /// removed must also kill that device's session. Returns the number
+    /// of sessions deleted.
+    ///
+    /// # Errors
+    /// Returns an error on database failure.
+    pub async fn delete_other_sessions(&self, user_id: i64, keep_token: &str) -> Result<u64, Error> {
+        let result = sqlx::query("DELETE FROM sessions WHERE user_id = ? AND token != ?")
+            .bind(user_id)
+            .bind(keep_token)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
     }
 
     /// Deletes all sessions expired at `now` (unix epoch millis); called

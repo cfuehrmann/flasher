@@ -1,13 +1,15 @@
 //! Flasher Leptos frontend (CSR).
 //!
 //! Phase 5B added passkey authentication: on startup the app asks
-//! `GET /api/auth/session` who it is talking to. A 401 (auth mode, no
-//! session) swaps the whole app for the centered auth screen
+//! `GET /api/auth/session` who it is talking to. A 200 `null` (auth mode,
+//! no session) swaps the whole app for the centered auth screen
 //! ([`AuthScreen`]) — first-run register or one-button login, decided by
-//! `GET /api/auth/bootstrap`. A 200 means logged in; a second probe with
-//! cookies suppressed still answers 200 only in dev-bypass mode, which is
-//! how the UI hides the logout button there. Any mid-session 401 from an
-//! API call bounces back to the auth screen via [`api::on_unauthorized`].
+//! `GET /api/auth/bootstrap`. A 200 with the user means logged in; a
+//! second probe with cookies suppressed still answers with the user only
+//! in dev-bypass mode, which is how the UI tells the two modes apart. Any
+//! mid-session 401 from a data API call bounces back to the auth screen
+//! via [`api::on_unauthorized`] (auth ceremony 401s are surfaced locally
+//! instead — a failed ceremony says nothing about the session).
 //! Logged-in users get a fourth Account tab ([`Account`]) with passkey
 //! management.
 //!
@@ -204,9 +206,10 @@ pub fn App() -> impl IntoView {
             add_prefill.set_value(None);
             auth_state.set(AuthState::Unauthenticated);
         });
-        // Startup session probe: 401 → auth screen; 200 → app. A second
-        // probe with cookies suppressed tells dev bypass (still 200) from
-        // a real session (401 without the cookie).
+        // Startup session probe: 200 with the user → app; 200 `null` (or
+        // an error) → auth screen. A second probe with cookies suppressed
+        // tells dev bypass (still answers with the user) from a real
+        // session (200 `null` without the cookie).
         Effect::new(move |_| {
             leptos::task::spawn_local(async move {
                 let next = match api::session(true).await {

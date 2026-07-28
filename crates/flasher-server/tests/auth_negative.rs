@@ -15,7 +15,9 @@
 //! (c) bootstrap-token rejections, (d) expired sessions, (e) other-user
 //! passkey rename/delete, (f) last-passkey delete, plus the
 //! bootstrap-window re-check, the duplicate-credential 409, cookie
-//! last-match, ceremony-cookie clearing and the challenge-store cap.
+//! last-match, ceremony-cookie clearing, the challenge-store cap, session
+//! revocation on passkey delete, and the step-up ("sudo mode") gate on
+//! sensitive operations.
 
 use flasher_auth::Auth;
 use flasher_server::{AppState, CEREMONY_COOKIE, SESSION_COOKIE, serve};
@@ -212,9 +214,9 @@ async fn register_finish_rejects_a_ceremony_bound_to_another_user() -> TestResul
     let alice = store.create_user("alice").await?;
     let bob = store.create_user("bob").await?;
     store
-        .create_session("sess-alice", alice.id, i64::MAX)
+        .create_session("sess-alice", alice.id, i64::MAX, i64::MAX)
         .await?;
-    store.create_session("sess-bob", bob.id, i64::MAX).await?;
+    store.create_session("sess-bob", bob.id, i64::MAX, i64::MAX).await?;
     let (base, server) = start(AppState::new(store, test_auth()?)).await?;
 
     // Alice starts the ceremony (bound to her user handle)...
@@ -330,7 +332,7 @@ async fn login_finish_with_a_registration_ceremony_is_a_400() -> TestResult {
         .await?
         .ok_or("alice must exist")?;
     store
-        .create_session("sess-alice", alice.id, i64::MAX)
+        .create_session("sess-alice", alice.id, i64::MAX, i64::MAX)
         .await?;
     // A REGISTRATION ceremony (the wrong kind for login/finish).
     let (reg_ceremony, _options) = register_start(&base, Some("sess-alice"), "alice").await?;
@@ -360,7 +362,7 @@ async fn register_start_excludes_the_users_existing_credentials() -> TestResult 
         .await?
         .ok_or("alice must exist")?;
     store
-        .create_session("sess-alice", alice.id, i64::MAX)
+        .create_session("sess-alice", alice.id, i64::MAX, i64::MAX)
         .await?;
 
     let (_ceremony, options) = register_start(&base, Some("sess-alice"), "alice").await?;
@@ -384,7 +386,7 @@ async fn register_finish_maps_a_generic_store_failure_to_500() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let alice = store.create_user("alice").await?;
     store
-        .create_session("sess-alice", alice.id, i64::MAX)
+        .create_session("sess-alice", alice.id, i64::MAX, i64::MAX)
         .await?;
     let (base, server) = start(AppState::new(store.clone(), test_auth()?)).await?;
 
@@ -440,7 +442,7 @@ async fn bootstrap_token_rejects_missing_and_wrong_token() -> TestResult {
 async fn expired_session_is_rejected() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let alice = store.create_user("alice").await?;
-    store.create_session("dead-token", alice.id, 10_000).await?;
+    store.create_session("dead-token", alice.id, 10_000, 10_000).await?;
     let (base, server) = start(AppState::new(store, test_auth()?)).await?;
 
     let resp = reqwest::Client::new()
@@ -479,7 +481,7 @@ async fn rename_and_delete_of_another_users_passkey_are_not_found() -> TestResul
         .insert_passkey(bob.id, "cred-bob", "Passkey 1", "{}", 1_000)
         .await?;
     store
-        .create_session("sess-alice", alice.id, i64::MAX)
+        .create_session("sess-alice", alice.id, i64::MAX, i64::MAX)
         .await?;
     let (base, server) = start(AppState::new(store, test_auth()?)).await?;
     let client = reqwest::Client::new();
@@ -515,7 +517,7 @@ async fn last_passkey_delete_is_a_conflict() -> TestResult {
         .insert_passkey(alice.id, "cred-2", "Passkey 2", "{}", 2_000)
         .await?;
     store
-        .create_session("sess-alice", alice.id, i64::MAX)
+        .create_session("sess-alice", alice.id, i64::MAX, i64::MAX)
         .await?;
     let (base, server) = start(AppState::new(store.clone(), test_auth()?)).await?;
     let client = reqwest::Client::new();
@@ -535,6 +537,61 @@ async fn last_passkey_delete_is_a_conflict() -> TestResult {
         .await?;
     assert_eq!(resp.status(), 409);
     assert_eq!(store.count_passkeys_for_user(alice.id).await?, 1);
+
+    server.abort();
+    Ok(())
+}
+
+/// Deleting a passkey kills the user's OTHER sessions (lost-device
+/// reaction: the lost device's cookie must die with the passkey) but
+/// keeps the session performing the deletion.
+#[tokio::test]
+async fn passkey_delete_revokes_other_sessions_but_keeps_the_current() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let alice = store.create_user("alice").await?;
+    let bob = store.create_user("bob").await?;
+    let first = store
+        .insert_passkey(alice.id, "cred-1", "Passkey 1", "{}", 1_000)
+        .await?;
+    store
+        .insert_passkey(alice.id, "cred-2", "Passkey 2", "{}", 2_000)
+        .await?;
+    store
+        .create_session("sess-current", alice.id, i64::MAX, i64::MAX)
+        .await?;
+    store.create_session("sess-phone", alice.id, i64::MAX, i64::MAX).await?;
+    store.create_session("sess-bob", bob.id, i64::MAX, i64::MAX).await?;
+    let (base, server) = start(AppState::new(store, test_auth()?)).await?;
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .delete(format!("{base}/api/auth/passkeys/{first}"))
+        .header(reqwest::header::COOKIE, session_cookie("sess-current"))
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 204);
+
+    // The lost device's session is dead...
+    let resp = client
+        .get(format!("{base}/api/cards"))
+        .header(reqwest::header::COOKIE, session_cookie("sess-phone"))
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 401, "other session must be revoked");
+    // ...the session doing the deletion is not logged out mid-action...
+    let resp = client
+        .get(format!("{base}/api/cards"))
+        .header(reqwest::header::COOKIE, session_cookie("sess-current"))
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 200, "current session must survive");
+    // ...and another user's session is untouched.
+    let resp = client
+        .get(format!("{base}/api/cards"))
+        .header(reqwest::header::COOKIE, session_cookie("sess-bob"))
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 200, "other users must be unaffected");
 
     server.abort();
     Ok(())
@@ -582,7 +639,7 @@ async fn duplicate_credential_finish_is_a_conflict() -> TestResult {
         .insert_passkey(other.id, "cred-other", "Passkey 1", "{}", 1_000)
         .await?;
     store
-        .create_session("sess-alice", alice.id, i64::MAX)
+        .create_session("sess-alice", alice.id, i64::MAX, i64::MAX)
         .await?;
     let (base, server) = start(AppState::new(store.clone(), test_auth()?)).await?;
 
@@ -610,7 +667,7 @@ async fn a_planted_first_cookie_does_not_shadow_the_session() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let alice = store.create_user("alice").await?;
     store
-        .create_session("real-token", alice.id, i64::MAX)
+        .create_session("real-token", alice.id, i64::MAX, i64::MAX)
         .await?;
     let (base, server) = start(AppState::new(store, test_auth()?)).await?;
     let client = reqwest::Client::new();
@@ -667,6 +724,225 @@ async fn challenge_store_cap_is_a_503() -> TestResult {
         .send()
         .await?;
     assert_eq!(resp.status(), 503, "past the cap must be a 503");
+
+    server.abort();
+    Ok(())
+}
+
+// ------------------------------------------------------------- step-up
+
+/// POST step-up/start with a session; returns the ceremony cookie pair
+/// and the request options.
+async fn step_up_start(
+    base: &str,
+    session: &str,
+) -> Result<(String, serde_json::Value), Box<dyn std::error::Error>> {
+    let resp = reqwest::Client::new()
+        .post(format!("{base}/api/auth/step-up/start"))
+        .header(reqwest::header::COOKIE, session_cookie(session))
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 200, "step-up/start must succeed");
+    let ceremony = ceremony_pair(&resp)?;
+    Ok((ceremony, resp.json().await?))
+}
+
+/// POST step-up/finish with session + ceremony in ONE `Cookie` header.
+async fn step_up_finish(
+    base: &str,
+    session: &str,
+    ceremony: &str,
+    assertion: &serde_json::Value,
+) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
+    Ok(reqwest::Client::new()
+        .post(format!("{base}/api/auth/step-up/finish"))
+        .header(
+            reqwest::header::COOKIE,
+            format!("{ceremony}; {}", session_cookie(session)),
+        )
+        .json(assertion)
+        .send()
+        .await?)
+}
+
+/// Sensitive operations (register/start with a session, passkey delete)
+/// answer 403 "step-up required" when the session's `verified_at` stamp is
+/// stale — the session cookie alone must not be enough to add or remove
+/// passkeys.
+#[tokio::test]
+async fn sensitive_ops_require_a_recently_verified_session() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let alice = store.create_user("alice").await?;
+    let passkey = store
+        .insert_passkey(alice.id, "cred-1", "Passkey 1", "{}", 1_000)
+        .await?;
+    store
+        .insert_passkey(alice.id, "cred-2", "Passkey 2", "{}", 2_000)
+        .await?;
+    // Verified "at the epoch" = long ago = stale.
+    store
+        .create_session("sess-stale", alice.id, i64::MAX, 0)
+        .await?;
+    let (base, server) = start(AppState::new(store.clone(), test_auth()?)).await?;
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .post(format!("{base}/api/auth/register/start"))
+        .header(reqwest::header::COOKIE, session_cookie("sess-stale"))
+        .json(&serde_json::json!({"username": "alice"}))
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 403, "stale session must be a 403");
+    assert_eq!(resp.text().await?, "step-up required");
+
+    let resp = client
+        .delete(format!("{base}/api/auth/passkeys/{passkey}"))
+        .header(reqwest::header::COOKIE, session_cookie("sess-stale"))
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 403, "stale session must be a 403");
+    assert_eq!(resp.text().await?, "step-up required");
+    assert_eq!(
+        store.count_passkeys_for_user(alice.id).await?,
+        2,
+        "a refused delete must not remove the passkey"
+    );
+
+    server.abort();
+    Ok(())
+}
+
+/// The step-up ceremony re-stamps the session's `verified_at` and unlocks
+/// the sensitive operations; it must NOT mint a new session.
+#[tokio::test]
+async fn step_up_refreshes_the_session_and_unlocks_sensitive_ops() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let (base, server) = start(AppState::new(store.clone(), test_auth()?)).await?;
+
+    let (mut token, credential_id) = bootstrap_register(&base, "alice").await?;
+    let alice = store
+        .get_user_by_name("alice")
+        .await?
+        .ok_or("alice must exist")?;
+    // A stale session for alice (as if logged in days ago).
+    store
+        .create_session("sess-stale", alice.id, i64::MAX, 0)
+        .await?;
+
+    // register/start is refused for the stale session...
+    let resp = reqwest::Client::new()
+        .post(format!("{base}/api/auth/register/start"))
+        .header(reqwest::header::COOKIE, session_cookie("sess-stale"))
+        .json(&serde_json::json!({"username": "alice"}))
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 403);
+
+    // ...the step-up ceremony runs against the same passkey...
+    let (ceremony, options) = step_up_start(&base, "sess-stale").await?;
+    let mut assertion = do_authentication(&mut token, &options, &credential_id)?;
+    assertion["response"]["userHandle"] = serde_json::Value::from(user_handle_b64(alice.id));
+    let resp = step_up_finish(&base, "sess-stale", &ceremony, &assertion).await?;
+    assert_eq!(resp.status(), 204, "step-up/finish must succeed");
+    let cookies: Vec<String> = resp
+        .headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok().map(str::to_owned))
+        .collect();
+    assert!(
+        !cookies
+            .iter()
+            .any(|v| v.starts_with(&format!("{SESSION_COOKIE}="))),
+        "step-up must not mint a new session, got {cookies:?}"
+    );
+    assert!(
+        cookies
+            .iter()
+            .any(|v| v.starts_with(&format!("{CEREMONY_COOKIE}=")) && v.contains("Max-Age=0")),
+        "step-up/finish must clear the ceremony cookie, got {cookies:?}"
+    );
+
+    // ...and the previously refused operation now works.
+    let (_ceremony, _options) = register_start(&base, Some("sess-stale"), "alice").await?;
+
+    server.abort();
+    Ok(())
+}
+
+/// step-up with ANOTHER user's passkey is a 401: proving possession of
+/// someone else's credential proves nothing about this session.
+#[tokio::test]
+async fn step_up_with_another_users_passkey_is_rejected() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let (base, server) = start(AppState::new(store.clone(), test_auth()?)).await?;
+
+    let (mut token, credential_id) = bootstrap_register(&base, "alice").await?;
+    let alice = store
+        .get_user_by_name("alice")
+        .await?
+        .ok_or("alice must exist")?;
+    let bob = store.create_user("bob").await?;
+    store.create_session("sess-bob", bob.id, i64::MAX, 0).await?;
+
+    // Bob's session, alice's passkey in the ceremony.
+    let (ceremony, options) = step_up_start(&base, "sess-bob").await?;
+    let mut assertion = do_authentication(&mut token, &options, &credential_id)?;
+    assertion["response"]["userHandle"] = serde_json::Value::from(user_handle_b64(alice.id));
+    let resp = step_up_finish(&base, "sess-bob", &ceremony, &assertion).await?;
+    assert_eq!(resp.status(), 401, "another user's passkey must be a 401");
+    // Bob's session stays stale.
+    assert_eq!(
+        store.get_session_verified_at("sess-bob").await?,
+        Some(0),
+        "a failed step-up must not refresh the stamp"
+    );
+
+    server.abort();
+    Ok(())
+}
+
+/// step-up requires a session at all: without one, start is a 401 (it is
+/// a re-authentication, not a login).
+#[tokio::test]
+async fn step_up_requires_a_session() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let (base, server) = start(AppState::new(store, test_auth()?)).await?;
+
+    let resp = reqwest::Client::new()
+        .post(format!("{base}/api/auth/step-up/start"))
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 401, "step-up without a session is a 401");
+
+    server.abort();
+    Ok(())
+}
+
+/// step-up/finish with an unknown (or expired) ceremony is a 400, not a
+/// 401: the ceremony problem is client-correctable, not an authentication
+/// failure (same mapping as login/finish).
+#[tokio::test]
+async fn step_up_finish_with_an_unknown_ceremony_is_a_400() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let (base, server) = start(AppState::new(store.clone(), test_auth()?)).await?;
+
+    let (mut token, credential_id) = bootstrap_register(&base, "alice").await?;
+    let alice = store
+        .get_user_by_name("alice")
+        .await?
+        .ok_or("alice must exist")?;
+    store
+        .create_session("sess-alice", alice.id, i64::MAX, i64::MAX)
+        .await?;
+
+    // Sign an assertion over SOME challenge (its verification never runs:
+    // the unknown ceremony is rejected first).
+    let (_login_ceremony, options) = login_start(&base).await?;
+    let mut assertion = do_authentication(&mut token, &options, &credential_id)?;
+    assertion["response"]["userHandle"] = serde_json::Value::from(user_handle_b64(alice.id));
+    let resp = step_up_finish(&base, "sess-alice", "flasher-ceremony=bogus", &assertion).await?;
+    assert_eq!(resp.status(), 400, "an unknown ceremony must be a 400");
 
     server.abort();
     Ok(())

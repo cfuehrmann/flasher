@@ -14,6 +14,12 @@ use flasher_e2e::{Error, Result, TestHarness};
 /// download and boot first (same reasoning as the harness default).
 const TIMEOUT: Duration = Duration::from_secs(15);
 
+// The error is only formatted, but `map_err` needs an owned receiver.
+#[allow(clippy::needless_pass_by_value)]
+fn store_err(err: flasher_store::Error) -> Error {
+    Error::message(format!("store error: {err}"))
+}
+
 /// Drives the full first-run flow: register a passkey for `username`,
 /// then sign in with it. Lands in the app (Quiz tab). Returns the
 /// virtual authenticator's id (callers adding a second passkey need it,
@@ -189,6 +195,51 @@ async fn passkey_management() -> Result<()> {
         .await?;
     h.screenshot("07_auth/05_last_passkey_guard").await?;
     h.click("#cancel-delete").await?;
+    h.wait_for_text("#passkeys-list", "Passkey 2", TIMEOUT)
+        .await?;
+    Ok(())
+}
+
+/// Step-up ("sudo mode"): a session whose last passkey proof is stale
+/// must re-authenticate before a sensitive operation. The UI does it
+/// transparently: the delete is refused (403 "step-up required"), the
+/// client runs the step-up ceremony against the current authenticator
+/// and retries — the row goes without any error surfacing.
+#[ignore = "browser"]
+#[tokio::test]
+async fn stale_session_steps_up_before_delete() -> Result<()> {
+    let h = TestHarness::start_with_auth().await?;
+    let authenticator = register_and_login(&h, "stale").await?;
+
+    // A second passkey, so the first may be deleted at all.
+    h.click("#tab-account").await?;
+    h.wait_for_text("#passkeys-list", "Passkey 1", TIMEOUT)
+        .await?;
+    swap_to_fresh_authenticator(&h, &authenticator).await?;
+    h.click("#add-passkey").await?;
+    h.wait_for_text("#passkeys-list", "Passkey 2", TIMEOUT)
+        .await?;
+
+    // Pretend the login happened long ago: stale the verified_at stamp.
+    let token = h
+        .session_token()
+        .await?
+        .ok_or_else(|| Error::message("no session cookie after login"))?;
+    h.seed_store()
+        .await
+        .map_err(store_err)?
+        .touch_session_verified(&token, 0)
+        .await
+        .map_err(store_err)?;
+
+    // Delete passkey 1 behind the confirm modal: gated → step-up runs
+    // against the CURRENT authenticator (which holds Passkey 2) → retry
+    // succeeds.
+    h.click("#delete-passkey-1").await?;
+    h.wait_for_selector("#confirm-delete-modal", TIMEOUT)
+        .await?;
+    h.click("#confirm-delete").await?;
+    wait_until_gone(&h, "#passkey-row-1").await?;
     h.wait_for_text("#passkeys-list", "Passkey 2", TIMEOUT)
         .await?;
     Ok(())

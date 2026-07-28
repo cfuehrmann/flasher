@@ -7,4 +7,9 @@
 
 flasher.carstenfuehrmann.org {
 	reverse_proxy 127.0.0.1:3000
+	# Caddy does not add HSTS by default. Two years, subdomains included:
+	# the passkey RP ID is the parent domain, so every sibling origin
+	# should be pinned to TLS as well. (Preload only once the whole
+	# domain is HTTPS-forever.)
+	header Strict-Transport-Security "max-age=63072000; includeSubDomains"
 }

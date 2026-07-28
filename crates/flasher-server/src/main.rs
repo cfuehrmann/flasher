@@ -64,7 +64,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!(user = %user.username, "auth: dev bypass (FLASHER_USER) — no session required");
         AppState::dev_bypass(store, auth, user.id)
     } else {
-        let bootstrap_token = std::env::var("FLASHER_BOOTSTRAP_TOKEN").ok();
+        let bootstrap_token = std::env::var("FLASHER_BOOTSTRAP_TOKEN").ok().and_then(|token| {
+            if is_placeholder_bootstrap_token(&token) {
+                tracing::warn!(
+                    "FLASHER_BOOTSTRAP_TOKEN is the publicly known placeholder from \
+                     deploy/flasher.service — treating it as UNSET. Set a real random token."
+                );
+                None
+            } else {
+                Some(token)
+            }
+        });
         if bootstrap_token.is_none() {
             tracing::warn!(
                 "FLASHER_BOOTSTRAP_TOKEN is unset: while the system has ZERO passkeys, \
@@ -125,6 +135,13 @@ fn parse_positive_u32(raw: &str) -> Option<u32> {
     }
 }
 
+/// The placeholder shipped in deploy/flasher.service is public knowledge:
+/// honoring it would protect nothing while looking protected, so `main`
+/// treats it as unset (with a loud warning).
+fn is_placeholder_bootstrap_token(token: &str) -> bool {
+    token == "CHANGE_ME_LONG_RANDOM"
+}
+
 /// Current time as unix epoch millis, falling back to 0 if the system
 /// clock is before the epoch.
 fn now_millis() -> i64 {
@@ -148,6 +165,14 @@ mod tests {
         assert_eq!(parse_positive_u32("-1"), None);
         assert_eq!(parse_positive_u32("abc"), None);
         assert_eq!(parse_positive_u32(""), None);
+    }
+
+    #[test]
+    fn placeholder_bootstrap_token_is_detected() {
+        assert!(is_placeholder_bootstrap_token("CHANGE_ME_LONG_RANDOM"));
+        assert!(!is_placeholder_bootstrap_token("change_me_long_random"));
+        assert!(!is_placeholder_bootstrap_token("a-real-random-token"));
+        assert!(!is_placeholder_bootstrap_token(""));
     }
 
     /// Exact float equality is intentional here: the config either

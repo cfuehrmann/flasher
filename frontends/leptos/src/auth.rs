@@ -12,7 +12,11 @@
 //!   dev-bypass mode there is no session to end) and the passkey
 //!   management card: list, inline rename, delete behind a confirm modal
 //!   (the server's "cannot delete your last passkey" 409 is surfaced
-//!   there) and an "Add passkey" ceremony button.
+//!   there) and an "Add passkey" ceremony button. Adding/removing a
+//!   passkey is step-up gated: when the session's last passkey proof is
+//!   too old the server answers 403 "step-up required" and the client
+//!   transparently runs a re-authentication ceremony and retries
+//!   ([`step_up_ceremony`], [`with_step_up`]).
 
 use leptos::prelude::*;
 
@@ -22,10 +26,25 @@ use crate::api;
 /// send the credential back. `username` is only used by the open
 /// bootstrap; with a session the server ignores it. `token` is the
 /// bootstrap token, sent only on the open first-run registration when the
-/// server requires it.
+/// server requires it. With a session the server may gate the start
+/// behind a recent passkey proof: a step-up ceremony is inserted and the
+/// start retried once.
 #[cfg(feature = "csr")]
 async fn register_ceremony(username: &str, token: Option<&str>) -> Result<(), String> {
-    let options = api::register_start(username, token).await?;
+    let options = match api::register_start(username, token).await? {
+        api::StepUp::Done(options) => options,
+        api::StepUp::NeedsStepUp => {
+            step_up_ceremony().await?;
+            match api::register_start(username, token).await? {
+                api::StepUp::Done(options) => options,
+                api::StepUp::NeedsStepUp => {
+                    return Err(
+                        "re-authentication did not stick — please try again".to_owned()
+                    );
+                }
+            }
+        }
+    };
     let credential = crate::webauthn::create_credential(&options).await?;
     api::register_finish(&credential).await
 }
@@ -37,6 +56,44 @@ async fn login_ceremony() -> Result<String, String> {
     let options = api::login_start().await?;
     let assertion = crate::webauthn::get_credential(&options).await?;
     api::login_finish(&assertion).await
+}
+
+/// Full step-up ceremony: re-authentication for sensitive operations
+/// (add/remove passkey). Same browser ceremony as login, but re-stamps
+/// the current session instead of minting a new one.
+#[cfg(feature = "csr")]
+async fn step_up_ceremony() -> Result<(), String> {
+    let options = api::step_up_start().await?;
+    let assertion = crate::webauthn::get_credential(&options).await?;
+    api::step_up_finish(&assertion).await
+}
+
+/// `step_up_ceremony` (ssr stub, never called).
+#[cfg(not(feature = "csr"))]
+#[allow(clippy::unused_async)]
+async fn step_up_ceremony() -> Result<(), String> {
+    Err("the passkey ceremony is only available in the browser build".to_owned())
+}
+
+/// Runs a step-up-gated `action`, transparently inserting the step-up
+/// ceremony when the server answers "step-up required" and retrying once.
+async fn with_step_up<F, Fut>(action: F) -> Result<(), String>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<api::StepUp<()>, String>>,
+{
+    match action().await? {
+        api::StepUp::Done(()) => Ok(()),
+        api::StepUp::NeedsStepUp => {
+            step_up_ceremony().await?;
+            match action().await? {
+                api::StepUp::Done(()) => Ok(()),
+                api::StepUp::NeedsStepUp => {
+                    Err("re-authentication did not stick — please try again".to_owned())
+                }
+            }
+        }
+    }
 }
 
 /// `register_ceremony` (ssr stub, never called — the buttons live behind
@@ -312,13 +369,13 @@ pub fn Account(
             return;
         };
         leptos::task::spawn_local(async move {
-            match api::delete_passkey(id).await {
+            match with_step_up(|| api::delete_passkey(id)).await {
                 Ok(()) => {
                     deleting.set(None);
                     reload.run(());
                 }
-                // Stays open: the 409 "last passkey" guard (and any other
-                // error) is shown inside the modal.
+                // Stays open: the 409 "last passkey" guard, a failed
+                // step-up (and any other error) is shown inside the modal.
                 Err(err) => delete_error.set(Some(err)),
             }
         });
@@ -443,7 +500,8 @@ pub fn Account(
                         <div class="modal-backdrop" id="confirm-delete-modal">
                             <div class="modal" role="dialog" aria-modal="true">
                                 <p class="modal-text">
-                                    "Delete passkey “" {name} "”? This cannot be undone."
+                                    "Delete passkey “" {name} "”? This cannot be undone. \
+                                     You will be signed out on all other devices."
                                 </p>
                                 {move || {
                                     delete_error

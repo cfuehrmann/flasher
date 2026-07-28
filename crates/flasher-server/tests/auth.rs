@@ -74,9 +74,9 @@ async fn valid_session_unlocks_api_expired_does_not() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let user = store.create_user("alice").await?;
     store
-        .create_session("good-token", user.id, i64::MAX)
+        .create_session("good-token", user.id, i64::MAX, i64::MAX)
         .await?;
-    store.create_session("dead-token", user.id, 10_000).await?;
+    store.create_session("dead-token", user.id, 10_000, 10_000).await?;
     let (base, server) = start_auth_mode(store).await?;
 
     let client = reqwest::Client::new();
@@ -115,7 +115,7 @@ async fn logout_deletes_the_session_and_clears_the_cookie() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let user = store.create_user("alice").await?;
     store
-        .create_session("good-token", user.id, i64::MAX)
+        .create_session("good-token", user.id, i64::MAX, i64::MAX)
         .await?;
     let (base, server) = start_auth_mode(store).await?;
 

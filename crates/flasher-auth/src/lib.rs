@@ -19,7 +19,7 @@
 //!
 //! - `__Host-session` — the login session (`Path=/; HttpOnly; Secure;
 //!   SameSite=Strict; Max-Age=604800`). Set by login/finish, cleared by
-//!   logout. Opaque 64-char lowercase-hex token (256 bits of entropy).
+//!   logout. Opaque 64-char lowercase-hex token (244 bits of entropy).
 //! - `flasher-ceremony` — one-shot ceremony handle (`Path=/api/auth;
 //!   HttpOnly; Secure; SameSite=Strict; Max-Age=300`). Set by
 //!   register/start and login/start, consumed by the matching finish call
@@ -57,7 +57,9 @@
 //!   (case-insensitive) — e.g. a migrated user without passkeys — the new
 //!   passkey is attached to that user; otherwise a new user is created.
 //! - **Add another passkey** (session present): `username` is ignored, the
-//!   passkey is created for the session's user. Without a session and with
+//!   passkey is created for the session's user. Requires a recent passkey
+//!   proof: `403 "step-up required"` when the session's `verified_at` is
+//!   stale (see step-up below). Without a session and with
 //!   ≥1 passkey in the system: `401`.
 //!
 //! Request:
@@ -185,6 +187,27 @@
 //! cookie. Errors: `400` (unknown/expired ceremony), `401` (unknown
 //! credential or failed verification).
 //!
+//! ## `POST /api/auth/step-up/start` (session)
+//!
+//! Re-authentication ("sudo mode") for sensitive operations: same
+//! response shape as login/start, same ceremony cookie, but requires a
+//! valid session. Errors: `401` (no session), `503`.
+//!
+//! ## `POST /api/auth/step-up/finish` (session)
+//!
+//! Body: an assertion produced with one of the SESSION user's own
+//! passkeys. On success the session's `verified_at` stamp is refreshed
+//! (no new session cookie) → `204`. Errors: `400` (unknown/expired
+//! ceremony), `401` (unknown credential, another user's passkey, or
+//! failed verification).
+//!
+//! Sensitive operations — `register/start` with a session and
+//! `DELETE /api/auth/passkeys/{id}` — answer `403 "step-up required"`
+//! when the session's `verified_at` is older than the server's step-up
+//! window; the client runs the step-up ceremony and retries. A fresh
+//! login also stamps `verified_at`, so the prompt only appears when
+//! acting long after signing in.
+//!
 //! ## `POST /api/auth/logout` (session)
 //!
 //! Empty body. Deletes the session row and clears the cookie. `204`.
@@ -199,7 +222,10 @@
 //!   `404` for unknown/other-user ids, `422` for a bad name.
 //! - `DELETE /api/auth/passkeys/{id}` → `204`; `404` unknown/other-user;
 //!   `409` "cannot delete your last passkey" when it is the user's only
-//!   one.
+//!   one. Also deletes all OTHER sessions of the user: deletion is the
+//!   reaction to a lost device, whose session cookie must die with it.
+//!   Requires a recent passkey proof: `403 "step-up required"` when the
+//!   session's `verified_at` is stale.
 //!
 //! # Ceremony state
 //!
@@ -348,7 +374,7 @@ impl Auth {
     }
 
     /// A fresh opaque token (ceremony id or session token): 64 lowercase
-    /// hex chars = 256 bits of entropy.
+    /// hex chars = 244 bits of entropy (two v4 uuids at 122 bits each).
     #[must_use]
     pub fn generate_token() -> String {
         format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())

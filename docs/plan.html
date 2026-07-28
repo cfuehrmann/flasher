@@ -363,6 +363,20 @@ last-match, ceremony-cookie clearing, constant-time token compare, CSP + nosniff
 per-build inline-script hashes). Decisions recorded: sessions survive passkey deletion (by design;
 "log out everywhere" is a possible later feature); token entropy doc corrected (244 bits, 2×UUIDv4).
 Process note carried to morning report: everything still uncommitted.</div>
+<div class="note"><b>Review round 5 (auth/session security deep-dive, 2026-07-28):</b> independent
+security review + fixes, then unprimed adversarial review (behaviorally verified, scratch e2e).
+Fixed: deleting a passkey now revokes the user's other sessions (supersedes round 4's "sessions
+survive passkey deletion"); step-up "sudo mode" for add/remove passkey (10-min
+<code>verified_at</code> window, <code>/api/auth/step-up/*</code>, transparent re-auth + retry in the
+UI); ceremony-endpoint 401s no longer bounce a valid session to the login screen and failed logins
+show a friendly message (both reproduced by the review); HSTS in the Caddyfile; the placeholder
+bootstrap token is treated as unset; the 244-bit entropy doc is now actually corrected. Mutants:
+flasher-store 89 caught/0 missed, flasher-server 107 caught/0 missed. Deferred: second-tab
+<code>login/start</code> clobbers the first tab's ceremony cookie (confusing, low impact);
+unauthenticated challenge-cap DoS (~20 req/min locks logins out — per-IP rate limit at Caddy would
+close it); bootstrap finish TOCTOU (proven practically unwinnable over HTTP; an atomic
+INSERT…WHERE would close it for free); open bootstrap creates a user row per call (bounded by the
+window + token).</div>
 <p>Quality gates cost time; needless bugfixes burn tokens. The gate runs before every commit and is cheap enough to never skip:</p>
 <ul>
   <li><b>Pre-commit hook as the whole CI</b> (Omega pattern, no GitHub Actions needed): fast paths by staged-file type — docs-only skips, rust-only runs <code>just rust-gate</code>, frontend changes add the leptos build + snapshots, full gate adds browser e2e. Auto-<code>cargo fmt</code> + restage.</li>
@@ -440,6 +454,7 @@ browser e2e (clicking) together — never a backend without its user-facing test
     <li class="done">UI: centered auth card (first-run register / one-button login), Account tab (add/rename/delete passkeys, last-passkey guard), 401-bounce; dev bypass (<code>FLASHER_USER</code>) keeps all prior e2e auth-free</li>
     <li class="done">Browser e2e via CDP virtual authenticator: register → login → logout → manage, 29/29 total; CSP + nosniff headers</li>
     <li class="done">Review round 4 (security focus): 0 critical, 3 major, 10 minor — all majors + most minors fixed; negative-path tests sanctioned as doctrine exception; mutants on auth crates</li>
+    <li class="done">Security hardening (review round 5, 2026-07-28): deleting a passkey revokes the user's other sessions (lost-device reaction); step-up "sudo mode" — add/remove passkey requires a passkey proof ≤ 10 min old (<code>sessions.verified_at</code>, new <code>/api/auth/step-up/*</code>, transparent re-auth + retry in the UI; server negative tests + stale-session browser e2e)</li>
   </ul>
 </div>
 

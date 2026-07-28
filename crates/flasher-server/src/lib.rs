@@ -42,10 +42,12 @@
 //! | `POST /api/auth/register/finish`   | 201 `PasskeyResponse`            | 400, 401, 409, 422, 500 |
 //! | `POST /api/auth/login/start`       | 200 `WebAuthn` request options     | 500, 503           |
 //! | `POST /api/auth/login/finish`      | 200 `SessionResponse` + cookie   | 400, 401, 500       |
+//! | `POST /api/auth/step-up/start`     | 200 `WebAuthn` request options   | 401, 500, 503       |
+//! | `POST /api/auth/step-up/finish`    | 204                              | 400, 401, 500       |
 //! | `POST /api/auth/logout`            | 204 + cookie cleared             | 500                 |
 //! | `GET /api/auth/passkeys`           | 200 `[PasskeyResponse]`          | 401, 500            |
 //! | `PATCH /api/auth/passkeys/{id}`    | 200 `PasskeyResponse`            | 401, 404, 422, 500  |
-//! | `DELETE /api/auth/passkeys/{id}`   | 204                              | 401, 404, 409, 500  |
+//! | `DELETE /api/auth/passkeys/{id}`   | 204                              | 401, 403, 404, 409, 500 |
 //!
 //! # Auth modes
 //!
@@ -58,10 +60,17 @@
 //!   session is open only while the system has zero passkeys (bootstrap).
 //!
 //! Sessions are server-side rows in the `sessions` table: an opaque
-//! 256-bit token in the cookie, a fixed 7-day expiry from creation (no
-//! sliding renewal), deleted on logout and swept on startup. The token is
-//! stored **plain** — acceptable for this personal app: anyone with read
-//! access to the database file already owns all its content.
+//! 244-bit token in the cookie, a fixed 7-day expiry from creation (no
+//! sliding renewal), deleted on logout and swept on startup. Deleting a
+//! passkey also deletes all OTHER sessions of the user (lost-device
+//! reaction: the lost device's cookie must die with the passkey).
+//! Sensitive operations (adding/removing passkeys) additionally require a
+//! recent passkey proof ("sudo mode"): the session's `verified_at` stamp
+//! (set at login, refreshed by the step-up ceremony) must be no older
+//! than [`STEP_UP_TTL_MS`], else 403 "step-up required" — a hijacked
+//! session cookie alone cannot add or remove passkeys. The
+//! token is stored **plain** — acceptable for this personal app: anyone
+//! with read access to the database file already owns all its content.
 //!
 //! The `/api/autosave` routes port `AutoSaveHandler`: one draft per user,
 //! upserted by `PUT` (the store keeps `updated_at` when the content is
@@ -112,7 +121,7 @@ use tower_http::services::{ServeDir, ServeFile};
 pub const DEFAULT_PAGE_SIZE: u32 = 10;
 
 /// Name of the session cookie (`__Host-` prefix: `Secure`, `Path=/`, no
-/// `Domain`). The value is an opaque 256-bit hex token.
+/// `Domain`). The value is an opaque 244-bit hex token.
 pub const SESSION_COOKIE: &str = "__Host-session";
 
 /// Name of the one-shot ceremony cookie set by register/start and
@@ -121,6 +130,12 @@ pub const CEREMONY_COOKIE: &str = "flasher-ceremony";
 
 /// Session lifetime: fixed 7 days from creation, no sliding renewal.
 const SESSION_TTL_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+
+/// How recent the last passkey proof (login or step-up ceremony) must be
+/// for sensitive operations (adding/removing passkeys): 10 minutes, the
+/// "sudo mode" window. A fresh login counts, so the step-up prompt only
+/// appears when acting long after signing in.
+const STEP_UP_TTL_MS: i64 = 10 * 60 * 1000;
 
 /// Ceremony cookie lifetime, matching `flasher_auth::CHALLENGE_TTL`
 /// (5 minutes).
@@ -274,6 +289,38 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0_u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
+/// Gates a sensitive operation (adding/removing passkeys) behind a
+/// recent passkey proof: the session's `verified_at` stamp (set at
+/// login, refreshed by the step-up ceremony) must be no older than
+/// [`STEP_UP_TTL_MS`], else [`ApiError::StepUpRequired`] — the client
+/// then runs the step-up ceremony and retries. A hijacked session cookie
+/// alone can therefore not add an attacker's passkey (persistence) or
+/// remove the owner's (lockout attempt). Dev bypass has no session:
+/// always allowed.
+async fn require_recent_verification(state: &AppState, parts: &Parts) -> Result<(), ApiError> {
+    if state.dev_user.is_some() {
+        return Ok(());
+    }
+    let token = cookie_value(parts, SESSION_COOKIE).ok_or(ApiError::Unauthorized)?;
+    let verified_at = state
+        .store
+        .get_session_verified_at(&token)
+        .await?
+        .ok_or(ApiError::Unauthorized)?;
+    if verification_is_stale(verified_at, now_millis()) {
+        return Err(ApiError::StepUpRequired);
+    }
+    Ok(())
+}
+
+/// Whether a `verified_at` stamp is too old for sensitive operations
+/// (pure so the exact window boundary is unit-testable): the age at
+/// exactly [`STEP_UP_TTL_MS`] is still fresh, one ms past it is stale; a
+/// stamp in the future (clock skew) is fresh.
+fn verification_is_stale(verified_at: i64, now: i64) -> bool {
+    now.saturating_sub(verified_at) > STEP_UP_TTL_MS
+}
+
 /// The `Set-Cookie` value creating the session cookie (`Secure` is
 /// accepted by browsers on localhost, which is a trustworthy origin).
 fn session_set_cookie(token: &str) -> String {
@@ -321,6 +368,12 @@ pub enum ApiError {
     /// No session (or an expired one) where one is required.
     #[error("authentication required")]
     Unauthorized,
+    /// The session's last passkey proof (login or step-up) is older than
+    /// [`STEP_UP_TTL_MS`]: the client must run a step-up ceremony and
+    /// retry. The exact body text ("step-up required") is part of the
+    /// contract — the frontend matches on it.
+    #[error("step-up required")]
+    StepUpRequired,
     /// The bootstrap token sent to register/start did not match
     /// `FLASHER_BOOTSTRAP_TOKEN`.
     #[error("invalid bootstrap token")]
@@ -372,6 +425,7 @@ impl IntoResponse for ApiError {
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
             Self::Unauthorized => StatusCode::UNAUTHORIZED.into_response(),
+            Self::StepUpRequired => (StatusCode::FORBIDDEN, self.to_string()).into_response(),
             Self::InvalidBootstrapToken => {
                 (StatusCode::FORBIDDEN, self.to_string()).into_response()
             }
@@ -408,6 +462,8 @@ pub fn app(dist_dir: PathBuf, state: AppState) -> Router {
         .route("/register/finish", post(register_finish))
         .route("/login/start", post(login_start))
         .route("/login/finish", post(login_finish))
+        .route("/step-up/start", post(step_up_start))
+        .route("/step-up/finish", post(step_up_finish))
         .route("/logout", post(logout))
         .route("/passkeys", get(list_passkeys))
         .route(
@@ -643,16 +699,21 @@ async fn auth_session(MaybeUser(user): MaybeUser) -> Json<Option<SessionResponse
 /// `POST /api/auth/register/start` — begins a passkey registration.
 ///
 /// With a session: adds a passkey to the session's user (`username` is
-/// ignored). Without a session: the open bootstrap, allowed only while
+/// ignored). This is a sensitive operation — a hijacked session could
+/// otherwise add the attacker's passkey for persistence — so it requires
+/// a recent passkey proof (403 "step-up required" otherwise).
+/// Without a session: the open bootstrap, allowed only while
 /// the system has zero passkeys; `username` claims an existing user
 /// (case-insensitive — the migrated no-passkeys case) or creates a new
 /// one. The bootstrap optionally requires `FLASHER_BOOTSTRAP_TOKEN`.
 async fn register_start(
     State(state): State<AppState>,
     MaybeUser(session_user): MaybeUser,
+    parts: Parts,
     Json(request): Json<RegisterStartRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let user = if let Some(user) = session_user {
+        require_recent_verification(&state, &parts).await?;
         user
     } else {
         if state.store.count_passkeys().await? > 0 {
@@ -762,7 +823,9 @@ async fn login_start(State(state): State<AppState>) -> Result<impl IntoResponse,
 }
 
 /// `POST /api/auth/login/finish` — verifies the assertion, identifies the
-/// user by credential handle, creates the session, sets the cookie.
+/// user by credential handle, creates the session, sets the cookie. A
+/// fresh login counts as a passkey proof: the new session's `verified_at`
+/// stamp is now.
 async fn login_finish(
     State(state): State<AppState>,
     parts: Parts,
@@ -809,7 +872,7 @@ async fn login_finish(
     let token = Auth::generate_token();
     state
         .store
-        .create_session(&token, user.id, now_millis() + SESSION_TTL_MS)
+        .create_session(&token, user.id, now_millis() + SESSION_TTL_MS, now_millis())
         .await?;
     Ok((
         // The ceremony is consumed: clear the one-shot cookie.
@@ -820,6 +883,77 @@ async fn login_finish(
         Json(SessionResponse {
             username: user.username,
         }),
+    ))
+}
+
+/// `POST /api/auth/step-up/start` — begins a re-authentication ceremony
+/// for the logged-in user ("sudo mode"): same username-less options as
+/// login/start, but requires a session and mints no new session — it only
+/// re-stamps the current session's `verified_at` at finish.
+async fn step_up_start(
+    State(state): State<AppState>,
+    CurrentUser(_user_id): CurrentUser,
+) -> Result<impl IntoResponse, ApiError> {
+    let (rcr, ceremony) = state
+        .auth
+        .start_authentication()
+        .map_err(start_ceremony_error)?;
+    Ok(([(SET_COOKIE, ceremony_set_cookie(&ceremony))], Json(rcr)))
+}
+
+/// `POST /api/auth/step-up/finish` — verifies the assertion (which must
+/// come from one of the SESSION user's own passkeys: proving possession
+/// of someone else's passkey proves nothing about this session) and
+/// re-stamps the session's `verified_at`. 204; no new session cookie.
+async fn step_up_finish(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+    parts: Parts,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, ApiError> {
+    let ceremony = cookie_value(&parts, CEREMONY_COOKIE)
+        .ok_or_else(|| ApiError::BadAuthRequest("missing ceremony cookie".to_owned()))?;
+    let assertion: PublicKeyCredential = serde_json::from_value(body)
+        .map_err(|err| ApiError::BadAuthRequest(format!("malformed credential json: {err}")))?;
+    let (user_handle, credential_id) = state
+        .auth
+        .identify_authentication(&assertion)
+        .map_err(|_| ApiError::Unauthorized)?;
+    let row = state
+        .store
+        .get_passkey_by_credential_id(&credential_id)
+        .await?
+        .ok_or(ApiError::Unauthorized)?;
+    // Own passkeys only, and the user handle must match the owner.
+    if row.user_id != user_id || Auth::user_id_from_handle(&user_handle) != Some(row.user_id) {
+        return Err(ApiError::Unauthorized);
+    }
+    let mut passkey: Passkey = serde_json::from_str(&row.data).map_err(auth_internal)?;
+    let result = state
+        .auth
+        .finish_authentication(&ceremony, &assertion, &passkey)
+        .map_err(|err| match err {
+            flasher_auth::Error::UnknownCeremony | flasher_auth::Error::CeremonyKind => {
+                auth_ceremony_error(err)
+            }
+            _ => ApiError::Unauthorized,
+        })?;
+    // Persist counter/backup-flag updates, as at login.
+    let _ = passkey.update_credential(&result);
+    let data = serde_json::to_string(&passkey).map_err(auth_internal)?;
+    state
+        .store
+        .update_passkey_after_auth(row.user_id, row.id, &data, now_millis())
+        .await?;
+    let token = cookie_value(&parts, SESSION_COOKIE).ok_or(ApiError::Unauthorized)?;
+    state
+        .store
+        .touch_session_verified(&token, now_millis())
+        .await?;
+    Ok((
+        // The ceremony is consumed: clear the one-shot cookie.
+        axum::response::AppendHeaders([(SET_COOKIE, ceremony_clear_cookie())]),
+        StatusCode::NO_CONTENT,
     ))
 }
 
@@ -872,12 +1006,25 @@ async fn rename_passkey(
 /// the user's last one (409). The last-passkey guard is atomic in the
 /// store's DELETE statement; a zero-row result is disambiguated here by
 /// checking whether the passkey (still) exists.
+///
+/// Side effects: deleting a passkey is the reaction to a lost/stolen
+/// device, so all OTHER sessions of the user are deleted with it — the
+/// lost device's session cookie would otherwise stay valid for the rest
+/// of its 7-day life. The session performing the deletion survives (its
+/// user is demonstrably present); in dev-bypass mode there is no session
+/// cookie, so every session of the user goes. And because deletion is
+/// just as sensitive as adding a passkey, the session must present a
+/// recent passkey proof (403 "step-up required" otherwise).
 async fn delete_passkey(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
     Path(id): Path<i64>,
+    parts: Parts,
 ) -> Result<StatusCode, ApiError> {
+    require_recent_verification(&state, &parts).await?;
     if state.store.delete_passkey(user_id, id).await? {
+        let keep = cookie_value(&parts, SESSION_COOKIE).unwrap_or_default();
+        state.store.delete_other_sessions(user_id, &keep).await?;
         return Ok(StatusCode::NO_CONTENT);
     }
     let exists = state
@@ -1272,6 +1419,21 @@ mod tests {
     fn session_ttl_is_seven_days_and_the_cookie_carries_it() {
         assert_eq!(SESSION_TTL_MS, 604_800_000);
         assert!(session_set_cookie("tok").contains("Max-Age=604800"));
+    }
+
+    #[test]
+    fn step_up_ttl_is_ten_minutes() {
+        assert_eq!(STEP_UP_TTL_MS, 600_000);
+    }
+
+    #[test]
+    fn verification_staleness_boundary() {
+        // Age exactly at the window is still fresh; one ms past is stale.
+        assert!(!verification_is_stale(1_000, 1_000 + STEP_UP_TTL_MS));
+        assert!(verification_is_stale(1_000, 1_000 + STEP_UP_TTL_MS + 1));
+        assert!(!verification_is_stale(1_000, 1_000));
+        // A stamp in the future (clock skew) is not stale.
+        assert!(!verification_is_stale(2_000, 1_000));
     }
 
     #[test]

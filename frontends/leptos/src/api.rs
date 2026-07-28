@@ -379,21 +379,37 @@ pub async fn delete_history(_id: &str) -> Result<CardResponse, String> {
 /// Builds an error from a non-success response: the server's plain-text
 /// body when present, otherwise the bare status code.
 ///
-/// A 401 anywhere means the session expired mid-use: the registered
-/// unauthorized hook bounces the app back to the auth screen (in
-/// dev-bypass mode 401s never occur). The auth ceremony endpoints that
-/// expect 401s as a normal outcome (`session`, `login/finish`) handle the
-/// status themselves before reaching this.
+/// A 401 on a DATA endpoint means the session expired mid-use: the
+/// registered unauthorized hook bounces the app back to the auth screen
+/// (in dev-bypass mode 401s never occur). A 401 on an auth CEREMONY
+/// endpoint (`/api/auth/register/*`, `/api/auth/login/*`,
+/// `/api/auth/step-up/*`) is about the ceremony — an unknown or
+/// server-side-deleted passkey — NOT about the session: the session may
+/// be perfectly valid (a failed step-up must not log the user out), and
+/// on the login screen there is no session to lose. Those 401s surface
+/// as a plain error where the action started.
 #[cfg(feature = "csr")]
 async fn error_message(response: gloo_net::http::Response) -> String {
     let status = response.status();
-    if status == 401 {
+    if status == 401 && !is_ceremony_url(&response) {
         notify_unauthorized();
     }
     match response.text().await {
         Ok(body) if !body.trim().is_empty() => format!("{status}: {body}"),
         _ => format!("request failed with status {status}"),
     }
+}
+
+/// True for the passkey ceremony endpoints, whose 401s must NOT bounce
+/// the app to the auth screen (see [`error_message`]). The session-gated
+/// passkey management endpoints (`/api/auth/passkeys*`) are deliberately
+/// not included: a 401 there DOES mean the session is gone.
+#[cfg(feature = "csr")]
+fn is_ceremony_url(response: &gloo_net::http::Response) -> bool {
+    let url = response.url();
+    ["/api/auth/register/", "/api/auth/login/", "/api/auth/step-up/"]
+        .iter()
+        .any(|prefix| url.contains(prefix))
 }
 
 // ---------------------------------------------------------------------
@@ -490,14 +506,54 @@ pub async fn bootstrap() -> Result<flasher_types::BootstrapResponse, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
+/// Outcome of an action the server may gate behind a recent passkey
+/// proof (step-up, "sudo mode"): `NeedsStepUp` for exactly the
+/// 403 "step-up required" response — the client runs the step-up ceremony
+/// and retries. Any other error is a plain `Err`.
+#[derive(Debug)]
+#[cfg_attr(not(feature = "csr"), allow(dead_code))] // variants built in csr only
+pub enum StepUp<T> {
+    /// The action went through.
+    Done(T),
+    /// The server's step-up window had expired: re-authenticate, retry.
+    NeedsStepUp,
+}
+
+/// The exact body the server sends with the step-up 403 (part of the
+/// contract — see `ApiError::StepUpRequired` in flasher-server).
+#[cfg(feature = "csr")]
+const STEP_UP_BODY: &str = "step-up required";
+
+/// Maps a response of a step-up-gated endpoint: the expected `success`
+/// status → `Done`, the step-up 403 → `NeedsStepUp`, anything else an
+/// error (via [`error_message`]).
+#[cfg(feature = "csr")]
+async fn step_up_outcome(
+    response: gloo_net::http::Response,
+    success: u16,
+) -> Result<StepUp<()>, String> {
+    if response.status() == success {
+        return Ok(StepUp::Done(()));
+    }
+    if response.status() == 403 {
+        let body = response.text().await.map_err(|err| err.to_string())?;
+        if body.trim() == STEP_UP_BODY {
+            return Ok(StepUp::NeedsStepUp);
+        }
+        return Err(format!("403: {}", body.trim()));
+    }
+    Err(error_message(response).await)
+}
+
 /// `POST /api/auth/register/start` — returns the raw options JSON text
 /// (the `webauthn` module converts it for `navigator.credentials`).
 /// `token` is the bootstrap token, sent only on the open first-run
-/// registration when the server requires it. A 403 (bad/missing token)
-/// is surfaced as the server's plain message without the status prefix —
-/// it is an expected outcome of a mistyped token, not a failure.
+/// registration when the server requires it. A 403 with a stale-session
+/// body is `NeedsStepUp` (add-passkey flow); any other 403 (bad/missing
+/// bootstrap token) is surfaced as the server's plain message without the
+/// status prefix — an expected outcome of a mistyped token, not a failure.
 #[cfg(feature = "csr")]
-pub async fn register_start(username: &str, token: Option<&str>) -> Result<String, String> {
+pub async fn register_start(username: &str, token: Option<&str>) -> Result<StepUp<String>, String> {
     let request = gloo_net::http::Request::post("/api/auth/register/start")
         .json(&flasher_types::RegisterStartRequest {
             username: username.to_owned(),
@@ -507,6 +563,7 @@ pub async fn register_start(username: &str, token: Option<&str>) -> Result<Strin
     let response = request.send().await.map_err(|err| err.to_string())?;
     if response.status() == 403 {
         return match response.text().await {
+            Ok(body) if body.trim() == STEP_UP_BODY => Ok(StepUp::NeedsStepUp),
             Ok(body) if !body.trim().is_empty() => Err(body),
             _ => Err("invalid bootstrap token".to_owned()),
         };
@@ -514,13 +571,17 @@ pub async fn register_start(username: &str, token: Option<&str>) -> Result<Strin
     if response.status() != 200 {
         return Err(error_message(response).await);
     }
-    response.text().await.map_err(|err| err.to_string())
+    let options = response.text().await.map_err(|err| err.to_string())?;
+    Ok(StepUp::Done(options))
 }
 
 /// `register_start` (ssr stub, never called).
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async, dead_code)]
-pub async fn register_start(_username: &str, _token: Option<&str>) -> Result<String, String> {
+pub async fn register_start(
+    _username: &str,
+    _token: Option<&str>,
+) -> Result<StepUp<String>, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
@@ -568,7 +629,10 @@ pub async fn login_start() -> Result<String, String> {
 }
 
 /// `POST /api/auth/login/finish` — sends the assertion JSON; returns the
-/// logged-in username (and the session cookie rides along).
+/// logged-in username (and the session cookie rides along). A 401 (the
+/// passkey is unknown server-side or the verification failed) gets a
+/// friendly message — the body is empty there, and the user must know
+/// their passkey was not recognized, not stare at a bare status code.
 #[cfg(feature = "csr")]
 pub async fn login_finish(assertion_json: &str) -> Result<String, String> {
     let request = gloo_net::http::Request::post("/api/auth/login/finish")
@@ -576,6 +640,9 @@ pub async fn login_finish(assertion_json: &str) -> Result<String, String> {
         .body(assertion_json)
         .map_err(|err| err.to_string())?;
     let response = request.send().await.map_err(|err| err.to_string())?;
+    if response.status() == 401 {
+        return Err("this passkey is not known to the server — try another one".to_owned());
+    }
     if response.status() != 200 {
         return Err(error_message(response).await);
     }
@@ -590,6 +657,50 @@ pub async fn login_finish(assertion_json: &str) -> Result<String, String> {
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async, dead_code)]
 pub async fn login_finish(_assertion_json: &str) -> Result<String, String> {
+    Err(SSR_STUB_ERROR.to_owned())
+}
+
+/// `POST /api/auth/step-up/start` — re-authentication for sensitive
+/// operations: returns the raw options JSON text (same shape as
+/// login/start). Requires a session.
+#[cfg(feature = "csr")]
+pub async fn step_up_start() -> Result<String, String> {
+    let response = gloo_net::http::Request::post("/api/auth/step-up/start")
+        .send()
+        .await
+        .map_err(|err| err.to_string())?;
+    if response.status() != 200 {
+        return Err(error_message(response).await);
+    }
+    response.text().await.map_err(|err| err.to_string())
+}
+
+/// `step_up_start` (ssr stub, never called).
+#[cfg(not(feature = "csr"))]
+#[allow(clippy::unused_async, dead_code)]
+pub async fn step_up_start() -> Result<String, String> {
+    Err(SSR_STUB_ERROR.to_owned())
+}
+
+/// `POST /api/auth/step-up/finish` — sends the assertion JSON (204 on
+/// success): re-stamps the session's `verified_at`, mints no new session.
+#[cfg(feature = "csr")]
+pub async fn step_up_finish(assertion_json: &str) -> Result<(), String> {
+    let request = gloo_net::http::Request::post("/api/auth/step-up/finish")
+        .header("Content-Type", "application/json")
+        .body(assertion_json)
+        .map_err(|err| err.to_string())?;
+    let response = request.send().await.map_err(|err| err.to_string())?;
+    if response.status() != 204 {
+        return Err(error_message(response).await);
+    }
+    Ok(())
+}
+
+/// `step_up_finish` (ssr stub, never called).
+#[cfg(not(feature = "csr"))]
+#[allow(clippy::unused_async, dead_code)]
+pub async fn step_up_finish(_assertion_json: &str) -> Result<(), String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
@@ -659,23 +770,21 @@ pub async fn rename_passkey(_id: i64, _name: &str) -> Result<(), String> {
 }
 
 /// `DELETE /api/auth/passkeys/{id}` — deletes a passkey (204). The server
-/// answers 409 "cannot delete your last passkey" for the final one; the
-/// caller surfaces that message.
+/// answers 409 "cannot delete your last passkey" for the final one (the
+/// caller surfaces that message) and 403 "step-up required" for a stale
+/// session (`NeedsStepUp` — re-authenticate and retry).
 #[cfg(feature = "csr")]
-pub async fn delete_passkey(id: i64) -> Result<(), String> {
+pub async fn delete_passkey(id: i64) -> Result<StepUp<()>, String> {
     let response = gloo_net::http::Request::delete(&format!("/api/auth/passkeys/{id}"))
         .send()
         .await
         .map_err(|err| err.to_string())?;
-    if response.status() != 204 {
-        return Err(error_message(response).await);
-    }
-    Ok(())
+    step_up_outcome(response, 204).await
 }
 
 /// `delete_passkey` (ssr stub, never called).
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async)]
-pub async fn delete_passkey(_id: i64) -> Result<(), String> {
+pub async fn delete_passkey(_id: i64) -> Result<StepUp<()>, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }

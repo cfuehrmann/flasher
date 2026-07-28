@@ -11,7 +11,7 @@ workspace = true
 [dependencies]
 thiserror.workspace = true
 serde_json.workspace = true
-# v4 for the random ceremony ids and session tokens (256-bit = two uuids).
+# v4 for the random ceremony ids and session tokens (244-bit = two uuids).
 uuid = { version = "1", features = ["v4"] }
 # default-features = false drops the (empty) `attestation` feature; we only
 # run unattested passkey ceremonies. `conditional-ui` (no extra deps) unlocks
