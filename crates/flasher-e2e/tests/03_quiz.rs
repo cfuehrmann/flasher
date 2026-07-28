@@ -1,6 +1,6 @@
 //! Quiz vertical-slice e2e tests: the full review round, SRS
-//! rescheduling, the empty-quiz done state, card creation (including
-//! validation), and keyboard shortcuts — all driven through the browser
+//! rescheduling, the empty-quiz done state, and card creation (including
+//! validation) — all driven through the browser
 //! the way a user would, with the database only used for seeding and
 //! white-box verification.
 
@@ -350,44 +350,5 @@ async fn add_card_creates_disabled_new_card() -> Result<()> {
             "empty-prompt submit must not create a card; store holds {total}"
         )));
     }
-    Ok(())
-}
-
-/// Keyboard flow: Space reveals the solution, `2` rates OK, and the done
-/// state appears.
-#[tokio::test]
-#[ignore = "browser"]
-async fn quiz_keyboard_shortcuts_drive_round() -> Result<()> {
-    let h = TestHarness::start().await?;
-    let (store, user_id) = seed_store(&h).await?;
-    let now = now_ms();
-    seed_card(
-        &store,
-        user_id,
-        "card-keys",
-        "Key prompt",
-        "Key solution",
-        CardState::New,
-        now - 60_000,
-        now - 1_000,
-        false,
-    )
-    .await?;
-
-    h.goto("/").await?;
-    h.wait_for_text("#quiz-prompt", "Key prompt", TIMEOUT)
-        .await?;
-
-    // Focus the page body (not a form field) so the global shortcuts are
-    // active, then press the keys a user would press.
-    let body = h.page.find_element("body").await.map_err(Error::Cdp)?;
-    body.click().await.map_err(Error::Cdp)?;
-    body.press_key(" ").await.map_err(Error::Cdp)?;
-    h.wait_for_text("#quiz-solution", "Key solution", TIMEOUT)
-        .await?;
-    h.screenshot("03_quiz/keyboard-solution").await?;
-    body.press_key("2").await.map_err(Error::Cdp)?;
-    h.wait_for_text("#quiz-done", "All done", TIMEOUT).await?;
-    h.screenshot("03_quiz/keyboard-done").await?;
     Ok(())
 }

@@ -82,7 +82,6 @@ body {
 /* Muted metadata text (status lines, dates, hints). */
 .quiz-status,
 .quiz-hint,
-.quiz-keys,
 .groom-status,
 .groom-due,
 .auth-hint,
@@ -381,24 +380,6 @@ textarea:focus-visible {
   flex: 1;
   padding: 0.75rem 1rem;
   font-size: 1.05rem;
-}
-
-.quiz-keys {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  margin: 0.75rem 0 0;
-}
-
-.quiz-keys kbd {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 0.05rem 0.4rem;
 }
 
 .quiz-status {
