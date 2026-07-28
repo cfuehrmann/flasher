@@ -772,7 +772,9 @@ async fn session_round_trip_and_logout() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let user = store.create_user("alice").await?;
 
-    store.create_session("tok-1", user.id, 10_000, 1_000).await?;
+    store
+        .create_session("tok-1", user.id, 10_000, 1_000)
+        .await?;
     let session_user = store
         .get_session_user("tok-1", 5_000)
         .await?
@@ -799,7 +801,9 @@ async fn expired_session_is_not_returned_and_is_deleted() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let user = store.create_user("alice").await?;
 
-    store.create_session("tok-1", user.id, 10_000, 1_000).await?;
+    store
+        .create_session("tok-1", user.id, 10_000, 1_000)
+        .await?;
     // At exactly expires_at the session is over.
     assert_eq!(store.get_session_user("tok-1", 10_000).await?, None);
     // The expired row was deleted eagerly: a later lookup at an earlier
@@ -829,13 +833,24 @@ async fn delete_other_sessions_keeps_only_the_current_one() -> TestResult {
     let alice = store.create_user("alice").await?;
     let bob = store.create_user("bob").await?;
 
-    store.create_session("tok-current", alice.id, 10_000, 1_000).await?;
-    store.create_session("tok-phone", alice.id, 10_000, 1_000).await?;
-    store.create_session("tok-laptop", alice.id, 10_000, 1_000).await?;
-    store.create_session("tok-bob", bob.id, 10_000, 1_000).await?;
+    store
+        .create_session("tok-current", alice.id, 10_000, 1_000)
+        .await?;
+    store
+        .create_session("tok-phone", alice.id, 10_000, 1_000)
+        .await?;
+    store
+        .create_session("tok-laptop", alice.id, 10_000, 1_000)
+        .await?;
+    store
+        .create_session("tok-bob", bob.id, 10_000, 1_000)
+        .await?;
 
     // Only alice's other sessions go; hers survives, bob's is untouched.
-    assert_eq!(store.delete_other_sessions(alice.id, "tok-current").await?, 2);
+    assert_eq!(
+        store.delete_other_sessions(alice.id, "tok-current").await?,
+        2
+    );
     assert!(
         store
             .get_session_user("tok-current", 5_000)
@@ -847,6 +862,9 @@ async fn delete_other_sessions_keeps_only_the_current_one() -> TestResult {
     assert!(store.get_session_user("tok-bob", 5_000).await?.is_some());
 
     // Idempotent: nothing left to delete.
-    assert_eq!(store.delete_other_sessions(alice.id, "tok-current").await?, 0);
+    assert_eq!(
+        store.delete_other_sessions(alice.id, "tok-current").await?,
+        0
+    );
     Ok(())
 }

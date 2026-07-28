@@ -64,17 +64,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!(user = %user.username, "auth: dev bypass (FLASHER_USER) — no session required");
         AppState::dev_bypass(store, auth, user.id)
     } else {
-        let bootstrap_token = std::env::var("FLASHER_BOOTSTRAP_TOKEN").ok().and_then(|token| {
-            if is_placeholder_bootstrap_token(&token) {
-                tracing::warn!(
-                    "FLASHER_BOOTSTRAP_TOKEN is the publicly known placeholder from \
+        let bootstrap_token = std::env::var("FLASHER_BOOTSTRAP_TOKEN")
+            .ok()
+            .and_then(|token| {
+                if is_placeholder_bootstrap_token(&token) {
+                    tracing::warn!(
+                        "FLASHER_BOOTSTRAP_TOKEN is the publicly known placeholder from \
                      deploy/flasher.service — treating it as UNSET. Set a real random token."
-                );
-                None
-            } else {
-                Some(token)
-            }
-        });
+                    );
+                    None
+                } else {
+                    Some(token)
+                }
+            });
         if bootstrap_token.is_none() {
             tracing::warn!(
                 "FLASHER_BOOTSTRAP_TOKEN is unset: while the system has ZERO passkeys, \

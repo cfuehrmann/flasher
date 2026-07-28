@@ -407,9 +407,13 @@ async fn error_message(response: gloo_net::http::Response) -> String {
 #[cfg(feature = "csr")]
 fn is_ceremony_url(response: &gloo_net::http::Response) -> bool {
     let url = response.url();
-    ["/api/auth/register/", "/api/auth/login/", "/api/auth/step-up/"]
-        .iter()
-        .any(|prefix| url.contains(prefix))
+    [
+        "/api/auth/register/",
+        "/api/auth/login/",
+        "/api/auth/step-up/",
+    ]
+    .iter()
+    .any(|prefix| url.contains(prefix))
 }
 
 // ---------------------------------------------------------------------

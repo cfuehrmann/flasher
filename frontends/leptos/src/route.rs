@@ -373,10 +373,7 @@ mod tests {
         // It renders on the quiz tab.
         assert_eq!(path_to_route("/quiz/solution").tab(), Tab::Quiz);
         // Anything below it is unknown and falls back like any typo.
-        assert_eq!(
-            path_to_route("/quiz/solution/x"),
-            Route::Tab(Tab::Quiz)
-        );
+        assert_eq!(path_to_route("/quiz/solution/x"), Route::Tab(Tab::Quiz));
     }
 
     #[test]
@@ -396,10 +393,7 @@ mod tests {
             Route::GroomEdit("card-1".to_owned())
         );
         // It renders on the groom tab.
-        assert_eq!(
-            path_to_route("/groom/edit/card-1").tab(),
-            Tab::Groom
-        );
+        assert_eq!(path_to_route("/groom/edit/card-1").tab(), Tab::Groom);
     }
 
     #[test]
@@ -422,18 +416,9 @@ mod tests {
         assert_eq!(path_to_route("/groom/edit"), Route::Tab(Tab::Groom));
         assert_eq!(path_to_route("/groom/edit/"), Route::Tab(Tab::Groom));
         // More than one segment below /edit is not an edit route.
-        assert_eq!(
-            path_to_route("/groom/edit/a/b"),
-            Route::Tab(Tab::Quiz)
-        );
+        assert_eq!(path_to_route("/groom/edit/a/b"), Route::Tab(Tab::Quiz));
         // Edit ids only exist for the groom tab.
-        assert_eq!(
-            path_to_route("/add/edit/card-1"),
-            Route::Tab(Tab::Quiz)
-        );
-        assert_eq!(
-            path_to_route("/quiz/edit/card-1"),
-            Route::Tab(Tab::Quiz)
-        );
+        assert_eq!(path_to_route("/add/edit/card-1"), Route::Tab(Tab::Quiz));
+        assert_eq!(path_to_route("/quiz/edit/card-1"), Route::Tab(Tab::Quiz));
     }
 }

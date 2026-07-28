@@ -313,7 +313,9 @@ impl TestHarness {
     /// e.g. to delete it via `Store::delete_session` and simulate a
     /// mid-session expiry.
     pub async fn session_token(&self) -> Result<Option<String>> {
-        let result = self.raw_cdp("Storage.getCookies", serde_json::json!({})).await?;
+        let result = self
+            .raw_cdp("Storage.getCookies", serde_json::json!({}))
+            .await?;
         let token = result
             .get("cookies")
             .and_then(serde_json::Value::as_array)

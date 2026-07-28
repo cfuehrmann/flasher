@@ -124,8 +124,24 @@ async fn solution_reveal_survives_reload() -> Result<()> {
     let h = TestHarness::start().await?;
     let (store, user_id) = seed_store(&h).await?;
     let now = now_ms();
-    seed_card(&store, user_id, "card-a", "Prompt A", "Solution A", now - 60_000).await?;
-    seed_card(&store, user_id, "card-b", "Prompt B", "Solution B", now - 30_000).await?;
+    seed_card(
+        &store,
+        user_id,
+        "card-a",
+        "Prompt A",
+        "Solution A",
+        now - 60_000,
+    )
+    .await?;
+    seed_card(
+        &store,
+        user_id,
+        "card-b",
+        "Prompt B",
+        "Solution B",
+        now - 30_000,
+    )
+    .await?;
 
     h.goto("/quiz").await?;
     h.wait_for_text("#quiz-prompt", "Prompt A", TIMEOUT).await?;
@@ -149,7 +165,8 @@ async fn solution_reveal_survives_reload() -> Result<()> {
             "restored solution state must not offer Show solution again",
         ));
     }
-    h.screenshot("09_state_restore/quiz-solution-restored").await?;
+    h.screenshot("09_state_restore/quiz-solution-restored")
+        .await?;
 
     // Rating returns to the prompt state and the URL to /quiz.
     h.click("#rate-ok").await?;
@@ -452,7 +469,8 @@ async fn auth_mode_editor_deep_link() -> Result<()> {
         )));
     }
     wait_for_path(&h, "/groom/edit/card-deep").await?;
-    h.screenshot("09_state_restore/auth-deep-link-editor").await?;
+    h.screenshot("09_state_restore/auth-deep-link-editor")
+        .await?;
     Ok(())
 }
 
@@ -532,7 +550,8 @@ async fn back_from_other_tab_reopens_editor() -> Result<()> {
     // Tab switch away (no typing, so no draft is orphaned).
     h.click("#tab-quiz").await?;
     wait_for_path(&h, "/quiz").await?;
-    h.wait_for_selector("#quiz-done, #quiz-prompt", TIMEOUT).await?;
+    h.wait_for_selector("#quiz-done, #quiz-prompt", TIMEOUT)
+        .await?;
     assert_absent(&h, "#editor-prompt").await?;
 
     // Back onto the editor URL: the editor re-opens on the same card.
@@ -618,6 +637,7 @@ async fn relogin_on_add_restores_draft_prefill() -> Result<()> {
         )));
     }
     assert_absent(&h, "#recovery-banner").await?;
-    h.screenshot("09_state_restore/relogin-add-prefilled").await?;
+    h.screenshot("09_state_restore/relogin-add-prefilled")
+        .await?;
     Ok(())
 }

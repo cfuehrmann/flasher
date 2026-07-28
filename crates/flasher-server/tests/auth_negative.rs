@@ -216,7 +216,9 @@ async fn register_finish_rejects_a_ceremony_bound_to_another_user() -> TestResul
     store
         .create_session("sess-alice", alice.id, i64::MAX, i64::MAX)
         .await?;
-    store.create_session("sess-bob", bob.id, i64::MAX, i64::MAX).await?;
+    store
+        .create_session("sess-bob", bob.id, i64::MAX, i64::MAX)
+        .await?;
     let (base, server) = start(AppState::new(store, test_auth()?)).await?;
 
     // Alice starts the ceremony (bound to her user handle)...
@@ -442,7 +444,9 @@ async fn bootstrap_token_rejects_missing_and_wrong_token() -> TestResult {
 async fn expired_session_is_rejected() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let alice = store.create_user("alice").await?;
-    store.create_session("dead-token", alice.id, 10_000, 10_000).await?;
+    store
+        .create_session("dead-token", alice.id, 10_000, 10_000)
+        .await?;
     let (base, server) = start(AppState::new(store, test_auth()?)).await?;
 
     let resp = reqwest::Client::new()
@@ -559,8 +563,12 @@ async fn passkey_delete_revokes_other_sessions_but_keeps_the_current() -> TestRe
     store
         .create_session("sess-current", alice.id, i64::MAX, i64::MAX)
         .await?;
-    store.create_session("sess-phone", alice.id, i64::MAX, i64::MAX).await?;
-    store.create_session("sess-bob", bob.id, i64::MAX, i64::MAX).await?;
+    store
+        .create_session("sess-phone", alice.id, i64::MAX, i64::MAX)
+        .await?;
+    store
+        .create_session("sess-bob", bob.id, i64::MAX, i64::MAX)
+        .await?;
     let (base, server) = start(AppState::new(store, test_auth()?)).await?;
     let client = reqwest::Client::new();
 
@@ -883,7 +891,9 @@ async fn step_up_with_another_users_passkey_is_rejected() -> TestResult {
         .await?
         .ok_or("alice must exist")?;
     let bob = store.create_user("bob").await?;
-    store.create_session("sess-bob", bob.id, i64::MAX, 0).await?;
+    store
+        .create_session("sess-bob", bob.id, i64::MAX, 0)
+        .await?;
 
     // Bob's session, alice's passkey in the ceremony.
     let (ceremony, options) = step_up_start(&base, "sess-bob").await?;

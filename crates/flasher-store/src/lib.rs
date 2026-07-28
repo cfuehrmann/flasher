@@ -777,7 +777,11 @@ impl Store {
     ///
     /// # Errors
     /// Returns an error on database failure.
-    pub async fn delete_other_sessions(&self, user_id: i64, keep_token: &str) -> Result<u64, Error> {
+    pub async fn delete_other_sessions(
+        &self,
+        user_id: i64,
+        keep_token: &str,
+    ) -> Result<u64, Error> {
         let result = sqlx::query("DELETE FROM sessions WHERE user_id = ? AND token != ?")
             .bind(user_id)
             .bind(keep_token)

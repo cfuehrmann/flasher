@@ -128,7 +128,10 @@ mod tests {
     #[test]
     fn now_millis_is_current_epoch_millis() {
         let t = super::now_millis();
-        assert!(t > 1_700_000_000_000, "expected a time after 2023-11-14, got {t}");
+        assert!(
+            t > 1_700_000_000_000,
+            "expected a time after 2023-11-14, got {t}"
+        );
         assert!(t <= wall_millis(), "time from the future: {t}");
     }
 }

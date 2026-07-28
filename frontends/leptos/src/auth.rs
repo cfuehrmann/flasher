@@ -38,9 +38,7 @@ async fn register_ceremony(username: &str, token: Option<&str>) -> Result<(), St
             match api::register_start(username, token).await? {
                 api::StepUp::Done(options) => options,
                 api::StepUp::NeedsStepUp => {
-                    return Err(
-                        "re-authentication did not stick — please try again".to_owned()
-                    );
+                    return Err("re-authentication did not stick — please try again".to_owned());
                 }
             }
         }
