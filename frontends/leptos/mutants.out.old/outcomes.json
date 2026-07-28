@@ -1,0 +1,1379 @@
+{
+  "outcomes": [
+    {
+      "scenario": "Baseline",
+      "summary": "Success",
+      "log_path": "log/baseline.log",
+      "diff_path": null,
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 18.446142693,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 9.621870978,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:81:9: replace Route::tab -> Tab with Default::default()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "Route::tab",
+            "return_type": "-> Tab",
+            "span": {
+              "start": {
+                "line": 79,
+                "column": 5
+              },
+              "end": {
+                "line": 86,
+                "column": 6
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 81,
+              "column": 9
+            },
+            "end": {
+              "line": 85,
+              "column": 10
+            }
+          },
+          "replacement": "Default::default()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__route.rs_line_81_col_9.log",
+      "diff_path": "diff/src__route.rs_line_81_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.250964366,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:98:5: replace path_to_route -> Route with Default::default()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "path_to_route",
+            "return_type": "-> Route",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 113,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 98,
+              "column": 5
+            },
+            "end": {
+              "line": 112,
+              "column": 34
+            }
+          },
+          "replacement": "Default::default()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__route.rs_line_98_col_5.log",
+      "diff_path": "diff/src__route.rs_line_98_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.251050704,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:100:14: replace == with != in path_to_route",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "path_to_route",
+            "return_type": "-> Route",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 113,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 100,
+              "column": 14
+            },
+            "end": {
+              "line": 100,
+              "column": 16
+            }
+          },
+          "replacement": "!=",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__route.rs_line_100_col_14.log",
+      "diff_path": "diff/src__route.rs_line_100_col_14.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.702029267,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.702136702,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:107:41: replace - with + in path_to_route",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "path_to_route",
+            "return_type": "-> Route",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 113,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 107,
+              "column": 41
+            },
+            "end": {
+              "line": 107,
+              "column": 42
+            }
+          },
+          "replacement": "+",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__route.rs_line_107_col_41.log",
+      "diff_path": "diff/src__route.rs_line_107_col_41.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.702820734,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.702595646,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:107:41: replace - with / in path_to_route",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "path_to_route",
+            "return_type": "-> Route",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 113,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 107,
+              "column": 41
+            },
+            "end": {
+              "line": 107,
+              "column": 42
+            }
+          },
+          "replacement": "/",
+          "genre": "BinaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__route.rs_line_107_col_41_001.log",
+      "diff_path": "diff/src__route.rs_line_107_col_41_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.702197462,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.702111791,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:108:12: delete ! in path_to_route",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "path_to_route",
+            "return_type": "-> Route",
+            "span": {
+              "start": {
+                "line": 89,
+                "column": 1
+              },
+              "end": {
+                "line": 113,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 108,
+              "column": 12
+            },
+            "end": {
+              "line": 108,
+              "column": 13
+            }
+          },
+          "replacement": "",
+          "genre": "UnaryOperator"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__route.rs_line_108_col_12.log",
+      "diff_path": "diff/src__route.rs_line_108_col_12.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.701666335,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.752309919,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:126:5: replace path_to_tab -> Tab with Default::default()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "path_to_tab",
+            "return_type": "-> Tab",
+            "span": {
+              "start": {
+                "line": 115,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 126,
+              "column": 5
+            },
+            "end": {
+              "line": 135,
+              "column": 6
+            }
+          },
+          "replacement": "Default::default()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__route.rs_line_126_col_5.log",
+      "diff_path": "diff/src__route.rs_line_126_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.251212389,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:131:9: delete match arm \"/add\" in path_to_tab",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "path_to_tab",
+            "return_type": "-> Tab",
+            "span": {
+              "start": {
+                "line": 115,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 131,
+              "column": 9
+            },
+            "end": {
+              "line": 131,
+              "column": 32
+            }
+          },
+          "replacement": "",
+          "genre": "MatchArm"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__route.rs_line_131_col_9.log",
+      "diff_path": "diff/src__route.rs_line_131_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.651807333,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.752239697,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:132:9: delete match arm \"/groom\" in path_to_tab",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "path_to_tab",
+            "return_type": "-> Tab",
+            "span": {
+              "start": {
+                "line": 115,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 132,
+              "column": 9
+            },
+            "end": {
+              "line": 132,
+              "column": 32
+            }
+          },
+          "replacement": "",
+          "genre": "MatchArm"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__route.rs_line_132_col_9.log",
+      "diff_path": "diff/src__route.rs_line_132_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.6518038,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.70270151,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:133:9: delete match arm \"/account\" in path_to_tab",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "path_to_tab",
+            "return_type": "-> Tab",
+            "span": {
+              "start": {
+                "line": 115,
+                "column": 1
+              },
+              "end": {
+                "line": 136,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 133,
+              "column": 9
+            },
+            "end": {
+              "line": 133,
+              "column": 36
+            }
+          },
+          "replacement": "",
+          "genre": "MatchArm"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__route.rs_line_133_col_9.log",
+      "diff_path": "diff/src__route.rs_line_133_col_9.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.652359366,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.702740486,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:143:5: replace tab_to_path -> &'static str with \"\"",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "tab_to_path",
+            "return_type": "-> &'static str",
+            "span": {
+              "start": {
+                "line": 138,
+                "column": 1
+              },
+              "end": {
+                "line": 149,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 143,
+              "column": 5
+            },
+            "end": {
+              "line": 148,
+              "column": 6
+            }
+          },
+          "replacement": "\"\"",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__route.rs_line_143_col_5.log",
+      "diff_path": "diff/src__route.rs_line_143_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.701807566,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.752238127,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:143:5: replace tab_to_path -> &'static str with \"xyzzy\"",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "tab_to_path",
+            "return_type": "-> &'static str",
+            "span": {
+              "start": {
+                "line": 138,
+                "column": 1
+              },
+              "end": {
+                "line": 149,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 143,
+              "column": 5
+            },
+            "end": {
+              "line": 148,
+              "column": 6
+            }
+          },
+          "replacement": "\"xyzzy\"",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "CaughtMutant",
+      "log_path": "log/src__route.rs_line_143_col_5_001.log",
+      "diff_path": "diff/src__route.rs_line_143_col_5_001.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.701978119,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.701966375,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:154:5: replace initial_route -> Route with Default::default()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "initial_route",
+            "return_type": "-> Route",
+            "span": {
+              "start": {
+                "line": 151,
+                "column": 1
+              },
+              "end": {
+                "line": 162,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 154,
+              "column": 5
+            },
+            "end": {
+              "line": 161,
+              "column": 6
+            }
+          },
+          "replacement": "Default::default()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__route.rs_line_154_col_5.log",
+      "diff_path": "diff/src__route.rs_line_154_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.250997229,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:167:5: replace initial_tab -> Tab with Default::default()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "initial_tab",
+            "return_type": "-> Tab",
+            "span": {
+              "start": {
+                "line": 164,
+                "column": 1
+              },
+              "end": {
+                "line": 168,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 167,
+              "column": 5
+            },
+            "end": {
+              "line": 167,
+              "column": 26
+            }
+          },
+          "replacement": "Default::default()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__route.rs_line_167_col_5.log",
+      "diff_path": "diff/src__route.rs_line_167_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.251016237,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:199:5: replace push_tab with ()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "push_tab",
+            "return_type": "",
+            "span": {
+              "start": {
+                "line": 193,
+                "column": 1
+              },
+              "end": {
+                "line": 205,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 199,
+              "column": 5
+            },
+            "end": {
+              "line": 204,
+              "column": 6
+            }
+          },
+          "replacement": "()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__route.rs_line_199_col_5.log",
+      "diff_path": "diff/src__route.rs_line_199_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.701750047,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.802549987,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:213:5: replace replace_tab with ()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "replace_tab",
+            "return_type": "",
+            "span": {
+              "start": {
+                "line": 207,
+                "column": 1
+              },
+              "end": {
+                "line": 219,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 213,
+              "column": 5
+            },
+            "end": {
+              "line": 218,
+              "column": 6
+            }
+          },
+          "replacement": "()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__route.rs_line_213_col_5.log",
+      "diff_path": "diff/src__route.rs_line_213_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.701956335,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.802085239,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:227:5: replace push_edit with ()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "push_edit",
+            "return_type": "",
+            "span": {
+              "start": {
+                "line": 221,
+                "column": 1
+              },
+              "end": {
+                "line": 233,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 227,
+              "column": 5
+            },
+            "end": {
+              "line": 232,
+              "column": 6
+            }
+          },
+          "replacement": "()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__route.rs_line_227_col_5.log",
+      "diff_path": "diff/src__route.rs_line_227_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.701842298,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.80236803,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:241:5: replace push_groom_edit with ()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "push_groom_edit",
+            "return_type": "",
+            "span": {
+              "start": {
+                "line": 235,
+                "column": 1
+              },
+              "end": {
+                "line": 247,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 241,
+              "column": 5
+            },
+            "end": {
+              "line": 246,
+              "column": 6
+            }
+          },
+          "replacement": "()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__route.rs_line_241_col_5.log",
+      "diff_path": "diff/src__route.rs_line_241_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.652980582,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.802777633,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:255:5: replace replace_quiz_solution with ()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "replace_quiz_solution",
+            "return_type": "",
+            "span": {
+              "start": {
+                "line": 249,
+                "column": 1
+              },
+              "end": {
+                "line": 264,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 255,
+              "column": 5
+            },
+            "end": {
+              "line": 263,
+              "column": 6
+            }
+          },
+          "replacement": "()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__route.rs_line_255_col_5.log",
+      "diff_path": "diff/src__route.rs_line_255_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.701844763,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.852490697,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:272:5: replace on_popstate -> WindowListenerHandle with Default::default()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "on_popstate",
+            "return_type": "-> WindowListenerHandle",
+            "span": {
+              "start": {
+                "line": 266,
+                "column": 1
+              },
+              "end": {
+                "line": 275,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 272,
+              "column": 5
+            },
+            "end": {
+              "line": 274,
+              "column": 7
+            }
+          },
+          "replacement": "Default::default()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "Unviable",
+      "log_path": "log/src__route.rs_line_272_col_5.log",
+      "diff_path": "diff/src__route.rs_line_272_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.251396736,
+          "process_status": {
+            "Failure": 101
+          },
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "Mutant": {
+          "name": "src/route.rs:303:5: replace with_history with ()",
+          "package": "flasher-leptos",
+          "file": "src/route.rs",
+          "function": {
+            "function_name": "with_history",
+            "return_type": "",
+            "span": {
+              "start": {
+                "line": 298,
+                "column": 1
+              },
+              "end": {
+                "line": 306,
+                "column": 2
+              }
+            }
+          },
+          "span": {
+            "start": {
+              "line": 303,
+              "column": 5
+            },
+            "end": {
+              "line": 305,
+              "column": 6
+            }
+          },
+          "replacement": "()",
+          "genre": "FnValue"
+        }
+      },
+      "summary": "MissedMutant",
+      "log_path": "log/src__route.rs_line_303_col_5.log",
+      "diff_path": "diff/src__route.rs_line_303_col_5.diff",
+      "phase_results": [
+        {
+          "phase": "Build",
+          "duration": 0.95233807,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--no-run",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0"
+          ]
+        },
+        {
+          "phase": "Test",
+          "duration": 0.802304815,
+          "process_status": "Success",
+          "argv": [
+            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+            "test",
+            "--verbose",
+            "--package=flasher-leptos@0.1.0",
+            "--no-default-features",
+            "--features",
+            "ssr"
+          ]
+        }
+      ]
+    }
+  ],
+  "total_mutants": 21,
+  "missed": 6,
+  "caught": 9,
+  "timeout": 0,
+  "unviable": 6,
+  "success": 0,
+  "start_time": "2026-07-28T06:40:11.894921582Z",
+  "end_time": "2026-07-28T06:41:03.478492724Z",
+  "cargo_mutants_version": "27.1.0"
+}

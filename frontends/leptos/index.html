@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Flasher — a spaced-repetition flashcard app." />
+    <meta name="theme-color" content="#0d1117" />
+    <title>Flasher</title>
+    <link data-trunk rel="css" href="/public/app.css" />
+    <link data-trunk rel="copy-file" href="/public/robots.txt" />
+    <link data-trunk rel="copy-file" href="/public/llms.txt" />
+    <link data-trunk rel="copy-file" href="/public/favicon.svg" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Vendored KaTeX 0.16.47 (static, immutable; copied verbatim to
+         dist/katex/ so the CSS's relative fonts/ refs stay intact).
+         Deliberately not linked here: the app injects stylesheet and
+         scripts lazily on the first card render (keeps them off the
+         initial critical path). -->
+    <link data-trunk rel="copy-dir" href="/vendor/katex" />
+    <link data-trunk rel="rust" data-bin="flasher-leptos" data-wasm-opt="s" />
+    <style>
+      /* Loading skeleton (inlined so it paints before app.css/wasm load).
+         Removed by main.rs as soon as the Leptos app mounts. */
+      #app-skeleton {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        background: #0d1117;
+        color: #e6edf3;
+        font-family: system-ui, sans-serif;
+      }
+      #app-skeleton .skeleton-wordmark {
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      #app-skeleton .skeleton-spinner {
+        width: 1.25rem;
+        height: 1.25rem;
+        border: 2px solid #30363d;
+        border-top-color: #8b949e;
+        border-radius: 50%;
+        animation: skeleton-spin 0.8s linear infinite;
+      }
+      @keyframes skeleton-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #app-skeleton .skeleton-spinner {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app-skeleton" role="status" aria-label="Loading Flasher">
+      <span class="skeleton-wordmark">Flasher</span>
+      <span class="skeleton-spinner" aria-hidden="true"></span>
+    </div>
+  </body>
+</html>

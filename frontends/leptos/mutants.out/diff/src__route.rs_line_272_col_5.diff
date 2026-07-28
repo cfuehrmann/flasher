@@ -1,0 +1,23 @@
+--- src/route.rs
++++ replace on_popstate -> WindowListenerHandle with Default::default()
+@@ -264,19 +264,17 @@
+ }
+ 
+ /// Registers the `popstate` handler (browser back/forward): the URL has
+ /// already changed, so the tab just follows — no `pushState` here or the
+ /// stack would grow on every back. The returned handle is kept alive by
+ /// the caller for the app's lifetime.
+ #[cfg(feature = "csr")]
+ pub fn on_popstate(on_navigate: impl Fn(Tab) + 'static) -> WindowListenerHandle {
+-    window_event_listener_untyped("popstate", move |_| {
+-        on_navigate(path_to_tab(&current_path()));
+-    })
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// ssr twin of [`push_tab`]: no history exists server-side; tab clicks
+ /// never fire there either.
+ #[cfg(not(feature = "csr"))]
+ pub fn push_tab(_tab: Tab) {}
+ 
+ /// ssr twin of [`replace_tab`]: no history exists server-side.

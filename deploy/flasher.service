@@ -1,0 +1,33 @@
+[Unit]
+Description=Flasher (Rust rewrite)
+After=network.target
+
+[Service]
+Type=simple
+User=flasher
+Group=flasher
+WorkingDirectory=/var/lib/flasher
+Environment=FLASHER_PORT=3000
+Environment=FLASHER_DIST=/opt/flasher/dist
+Environment=FLASHER_DB=/var/lib/flasher/flasher.db
+# !!! Set to the final domain BEFORE the first passkey registration.
+# Passkeys bind to the RP ID; they do not transfer to another domain.
+Environment=FLASHER_RP_ID=DOMAIN_HERE
+Environment=FLASHER_ORIGIN=https://DOMAIN_HERE
+# First boot only: required to claim the account during the open bootstrap
+# (zero passkeys). Remove after the first successful registration.
+Environment=FLASHER_BOOTSTRAP_TOKEN=CHANGE_ME_LONG_RANDOM
+# NEVER set FLASHER_USER here — that is the auth-free dev bypass.
+ExecStart=/opt/flasher/flasher
+Restart=on-failure
+RestartSec=2
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/flasher
+
+[Install]
+WantedBy=multi-user.target

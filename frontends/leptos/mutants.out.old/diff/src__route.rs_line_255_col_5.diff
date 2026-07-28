@@ -1,0 +1,29 @@
+--- src/route.rs
++++ replace replace_quiz_solution with ()
+@@ -247,25 +247,17 @@
+ }
+ 
+ /// Rewrites the current history entry to `/quiz/solution` when the quiz
+ /// solution is revealed — a REPLACE, not a push: revealing must not pile
+ /// up history entries, and browser Back afterwards leaves the quiz
+ /// instead of merely un-revealing.
+ #[cfg(feature = "csr")]
+ pub fn replace_quiz_solution() {
+-    if current_path() != "/quiz/solution" {
+-        with_history(|history| {
+-            _ = history.replace_state_with_url(
+-                &wasm_bindgen::JsValue::NULL,
+-                "",
+-                Some("/quiz/solution"),
+-            );
+-        });
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Registers the `popstate` handler (browser back/forward): the URL has
+ /// already changed, so the tab just follows — no `pushState` here or the
+ /// stack would grow on every back. The returned handle is kept alive by
+ /// the caller for the app's lifetime.
+ #[cfg(feature = "csr")]
+ pub fn on_popstate(on_navigate: impl Fn(Tab) + 'static) -> WindowListenerHandle {

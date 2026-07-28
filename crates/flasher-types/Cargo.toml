@@ -1,0 +1,21 @@
+[package]
+name = "flasher-types"
+description = "Single contract authority for all Flasher API payloads"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Enables the `sqlx::Type` impl on `CardState` (SQLite TEXT). Only
+# `flasher-store` turns this on; server and frontend stay sqlx-free.
+sqlx = ["dep:sqlx"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sqlx = { version = "0.8", default-features = false, features = [
+    "sqlite",
+], optional = true }

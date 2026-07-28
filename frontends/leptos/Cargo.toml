@@ -1,0 +1,103 @@
+# Deliberately separate cargo workspace: wasm-only deps must never leak
+# into host-target `cargo test --workspace` at the repo root.
+[workspace]
+
+[package]
+name = "flasher-leptos"
+description = "Leptos CSR frontend for Flasher"
+edition = "2024"
+version = "0.1.0"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["csr"]
+csr = ["leptos/csr"]
+ssr = ["leptos/ssr"]
+
+# Same lint profile as the root workspace (frontends/leptos is detached,
+# so it cannot use `lints.workspace = true`).
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+
+[dependencies]
+# Exact pin: leptos tracks a fast-moving ecosystem; pin precisely and bump
+# deliberately, mirroring the omega project convention.
+leptos = { version = "=0.8.20" }
+# Exact pin: must match the wasm-bindgen CLI version used by Trunk (0.2.126),
+# otherwise the wasm ABI between generated glue and lib may diverge.
+wasm-bindgen = { version = "=0.2.126" }
+# default-features = false drops unneeded gloo-net modules; `http` is the
+# fetch wrapper and `json` its serde request/response bodies.
+gloo-net = { version = "0.6", default-features = false, features = ["http", "json"] }
+# Exact pin: must match the wasm-bindgen ABI pin above (js-sys releases
+# move in lockstep with wasm-bindgen). Used only for the browser clock
+# (js_sys::Date::now) behind the groom tab's "due now" label — formatting
+# itself is pure Rust so the ssr build never touches js-sys at runtime.
+js-sys = { version = "=0.3.103" }
+# WebAuthn passkey ceremonies (Phase 5B): navigator.credentials.create/get
+# plus the PublicKeyCredential response getters. Exact pin: web-sys
+# releases in lockstep with the wasm-bindgen ABI pin above. Only the
+# credential-management features are enabled; the JSON↔ArrayBuffer
+# conversion itself is done with plain js-sys objects (no unstable
+# web_sys_unstable_apis APIs like toJSON/parseCreationOptionsFromJSON).
+# Phase 6.5 added Location/History for the hand-rolled tab routing
+# (pushState/replaceState/popstate — deliberately no leptos_router).
+web-sys = { version = "=0.3.103", features = [
+    "AuthenticatorAssertionResponse",
+    "AuthenticatorAttestationResponse",
+    "AuthenticationExtensionsClientOutputs",
+    "CredentialCreationOptions",
+    "CredentialRequestOptions",
+    "CredentialsContainer",
+    "History",
+    "Location",
+    "Navigator",
+    "PublicKeyCredential",
+    "RequestCredentials",
+    "Window",
+] }
+# Awaits the Promise returned by navigator.credentials.create/get. Part of
+# the wasm-bindgen project; exact pin to match the ABI pin above.
+wasm-bindgen-futures = { version = "=0.4.76" }
+console_error_panic_hook = "0.1"
+# Card-content rendering (Phase 4A): pulldown-cmark parses GFM in wasm.
+# default-features off drops the `getopts` CLI helper; `html` is the
+# HTML emitter. GFM tables and `$`/`$$` math are runtime Options flags,
+# not cargo features. Pinned to 0.13 (the current API-stable line).
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+# Sanitizes the pulldown-cmark output before it reaches inner_html:
+# raw HTML in card content (scripts, onerror handlers, ...) is stripped.
+ammonia = "4"
+flasher-types = { path = "../../crates/flasher-types" }
+# Pure Rust (no deps, no I/O), so it is wasm-safe: shared UTC date
+# formatting for the groom tab's due labels.
+flasher-core = { path = "../../crates/flasher-core" }
+
+# Strip symbols in dev builds: Trunk only runs wasm-opt on release builds,
+# so the debug bundle (what `just wasm-size-check` measures) is the raw
+# wasm-bindgen output — and leptos view-code monomorphization inflates its
+# name section to several times the actual code size (groom pushed it past
+# the 5700 KiB budget: 5.5 MiB names vs 1.25 MiB code). The browser only
+# loses function names in dev stack traces.
+[profile.dev]
+strip = "symbols"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+# wasm-bindgen itself is imported directly (JsCast for the WebAuthn glue);
+# nothing in this crate is a pin-only dependency.
+[package.metadata.cargo-machete]
+ignored = []

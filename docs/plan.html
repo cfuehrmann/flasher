@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flasher Rewrite — Plan</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1d212b;
+    --border: #2a3040;
+    --text: #d8dee9;
+    --muted: #8b93a5;
+    --accent: #7aa2f7;
+    --green: #9ece6a;
+    --yellow: #e0af68;
+    --red: #f7768e;
+    --violet: #bb9af7;
+    --mono: "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .layout { display: flex; max-width: 1280px; margin: 0 auto; }
+  nav {
+    position: sticky; top: 0; align-self: flex-start;
+    width: 250px; flex: 0 0 250px; height: 100vh; overflow-y: auto;
+    padding: 2rem 1.2rem; border-right: 1px solid var(--border);
+  }
+  nav h1 { font-size: 1.05rem; margin: 0 0 .2rem; color: #fff; }
+  nav .sub { font-size: .8rem; color: var(--muted); margin-bottom: 1.4rem; }
+  nav a {
+    display: block; color: var(--muted); text-decoration: none;
+    font-size: .88rem; padding: .28rem .5rem; border-radius: 6px;
+  }
+  nav a:hover { background: var(--panel-2); color: var(--text); }
+  nav a.l2 { padding-left: 1.4rem; font-size: .84rem; }
+  main { flex: 1; min-width: 0; padding: 2.5rem 3rem 6rem; }
+  h2 {
+    font-size: 1.5rem; color: #fff; margin: 3rem 0 1rem;
+    padding-top: 1rem; border-top: 1px solid var(--border);
+  }
+  h2:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+  h3 { font-size: 1.1rem; color: #e6e9f0; margin: 1.8rem 0 .6rem; }
+  p { margin: .6rem 0; }
+  code {
+    font-family: var(--mono); font-size: .86em;
+    background: var(--panel-2); padding: .1em .4em; border-radius: 4px;
+  }
+  pre {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem 1.2rem; overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; font-size: .85rem; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: .3rem 0; }
+  .lede { font-size: 1.05rem; color: var(--muted); max-width: 70ch; }
+  .badge {
+    display: inline-block; font-size: .72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em;
+    padding: .12em .6em; border-radius: 999px; vertical-align: middle;
+  }
+  .b-open   { background: #2a3040; color: var(--muted); }
+  .b-decided{ background: #1e2a1e; color: var(--green); }
+  .b-doing  { background: #2a2416; color: var(--yellow); }
+  .b-done   { background: #16261e; color: var(--green); }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.1rem 1.3rem; margin: 1rem 0;
+  }
+  .card h3 { margin-top: 0; }
+  .card .why { color: var(--muted); font-size: .92rem; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } nav { display: none; } main { padding: 1.5rem; } }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { text-align: left; padding: .5rem .8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; }
+  .issue { border-left: 3px solid var(--accent); }
+  .phase-head { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; }
+  .phase-head .goal { color: var(--muted); font-size: .95rem; font-weight: 400; }
+  .checks { list-style: none; padding-left: 0; }
+  .checks li { padding-left: 1.6rem; position: relative; }
+  .checks li::before { content: "☐"; position: absolute; left: .2rem; color: var(--muted); }
+  .checks li.done::before { content: "☑"; color: var(--green); }
+  .note {
+    background: #1a2233; border: 1px solid #2c3a55; border-radius: 8px;
+    padding: .8rem 1.1rem; font-size: .92rem; margin: 1rem 0;
+  }
+  .note b { color: var(--accent); }
+  .risk { border-left: 3px solid var(--yellow); }
+  footer { color: var(--muted); font-size: .82rem; margin-top: 4rem; }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <h1>Flasher Rewrite</h1>
+  <div class="sub">Living plan · v1.1 (e2e-primary doctrine) · 2026-07-27</div>
+  <a href="#summary">1. Executive summary</a>
+  <a href="#issues">2. Issues → remedies</a>
+  <a href="#decisions">3. Key decisions</a>
+  <a href="#stack" class="l2">Tech stack</a>
+  <a href="#open" class="l2">Open decisions</a>
+  <a href="#architecture">4. Target architecture</a>
+  <a href="#layout" class="l2">Repo layout</a>
+  <a href="#data" class="l2">Data &amp; migration</a>
+  <a href="#auth" class="l2">Passkey auth</a>
+  <a href="#testing">5. Testing strategy</a>
+  <a href="#gates">6. Quality gates</a>
+  <a href="#cv">7. Computer vision loop</a>
+  <a href="#phases">8. Phases</a>
+  <a href="#ux">9. UX direction</a>
+  <a href="#deploy">10. Deployment</a>
+  <a href="#lighthouse">11. Lighthouse</a>
+  <a href="#risks">12. Risks</a>
+</nav>
+<main>
+
+<h2 id="summary">1. Executive summary</h2>
+<p class="lede">
+  Rewrite Flasher as a single-stack Rust application: <b>axum</b> backend,
+  <b>SQLite</b> storage, <b>Leptos (WASM)</b> frontend, passkey-only auth.
+  One build command, one binary to deploy, no Node.js anywhere, end-to-end
+  browser tests, cargo-mutants mutation testing — closely following the
+  conventions proven in the <code>omega</code> project. The old .NET/React code
+  stays fully intact in the same repository until the rewrite is live.
+</p>
+<p>
+  The full spec this plan answers is preserved at
+  <a href="spec.md"><code>docs/spec.md</code></a>. This HTML is the living plan;
+  update it as decisions are made and phases complete.
+</p>
+
+<h2 id="issues">2. Issues → remedies</h2>
+
+<div class="card issue">
+  <h3>Issue 1 — Dev experience &amp; deployment</h3>
+  <p><b>Today:</b> two stacks (.NET 10 + Vite/React), no single start command, no shared types
+  across the API (hand-written TS type guards in <code>frontend/src/Api.ts</code>), .NET required on the host.</p>
+  <p><b>Remedy:</b> one Rust workspace. Shared types crate is the single contract authority for
+  API payloads (the Omega "contract authority" pattern). One <code>just</code> command builds and runs
+  everything; deployment is one static binary + one SQLite file.</p>
+</div>
+
+<div class="card issue">
+  <h3>Issue 2 — Data storage</h3>
+  <p><b>Today:</b> JSON files (<code>cards.json</code> per user) fully rewritten on every mutation,
+  in-memory caches to compensate, users provisioned by hand-editing <code>profile.json</code>.</p>
+  <p><b>Remedy:</b> SQLite — lighter than Postgres, zero server process, transactional, single-file
+  backups, and a first-class Rust story. A built-in, idempotent migration command imports the existing
+  JSON stores with a dry-run mode and a verification report (§4 Data &amp; migration).</p>
+</div>
+
+<div class="card issue">
+  <h3>Issue 3 — Dated UX</h3>
+  <p><b>Remedy:</b> rebuild the UI in Leptos with a deliberate design pass (§9). Every UX change is
+  verified with the computer-vision loop (§7) before reporting back.</p>
+</div>
+
+<div class="card issue">
+  <h3>Issue 4 — Dependency churn</h3>
+  <p><b>Today:</b> recurring GitHub vulnerability alerts, mostly transitive npm deps.</p>
+  <p><b>Remedy:</b> eliminating the npm ecosystem entirely is the single biggest win — the frontend is
+  compiled by cargo/Trunk, so <code>node_modules</code> disappears. On the Rust side: lean direct deps
+  (<code>default-features = false</code> as a rule, no <code>features = ["full"]</code>),
+  <code>cargo machete</code> in the gate for unused deps, <code>cargo-deny</code> for advisories/licenses/dupes,
+  and exact pins with justification comments for the wasm-ABI-sensitive set — all Omega conventions.</p>
+</div>
+
+<div class="card issue">
+  <h3>Issue 5 — Authentication</h3>
+  <p><b>Today:</b> password + JWT with per-process ephemeral RSA keys (all sessions die on restart),
+  no registration flow at all.</p>
+  <p><b>Remedy:</b> passkey-only auth via <code>webauthn-rs</code>: register with a passkey, add/name/delete
+  additional passkeys. Auth lives in its own crate behind a clean boundary with configurable relying-party
+  settings, so it can later be extracted into a central passkey service for your domain without a rewrite (§4 Passkey auth).</p>
+</div>
+
+<h2 id="decisions">3. Key decisions</h2>
+
+<h3 id="stack">Tech stack <span class="badge b-decided">proposed</span></h3>
+<table>
+  <tr><th>Concern</th><th>Choice</th><th>Rationale</th></tr>
+  <tr><td>Language</td><td><b>Rust</b> (workspace, edition 2024)</td><td>Your stated preference; Omega proved iteration speed is fine with incremental builds + nextest; best-in-class mutation testing (cargo-mutants).</td></tr>
+  <tr><td>HTTP server</td><td><b>axum 0.8</b> + tower-http</td><td>Same as Omega; serve API + static frontend + (if needed) WS from one port.</td></tr>
+  <tr><td>Frontend</td><td><b>Leptos 0.8 CSR/WASM</b>, Trunk build, detached workspace</td><td>Reuses Omega's exact setup (lib+bin split, csr/ssr feature flip, insta snapshot tests on host target). Removes Node.js. Full-stack type safety via shared types crate.</td></tr>
+  <tr><td>Database</td><td><b>SQLite</b> via <b>sqlx</b> (runtime-checked queries) + <code>sqlx::migrate!</code></td><td>Lighter than Postgres as spec prefers; embedded migrations = good migration experience; runtime-checked queries keep builds hermetic (no DATABASE_URL needed at compile time).</td></tr>
+  <tr><td>Auth</td><td><b>webauthn-rs</b> passkeys, server-side sessions (cookie)</td><td>Modern passkey UX per spec; sessions replace the ephemeral-JWT hack; survives restarts.</td></tr>
+  <tr><td>Markdown/math</td><td><b>pulldown-cmark</b> → ammonia → KaTeX</td><td>Rust-side render + sanitize (GFM tables + math, bare-URL autolink pre-pass); KaTeX vendored (0.16.47) and lazy-injected — measured Lighthouse win over index.html linking. Replaces the react-markdown/remark/rehype stack.</td></tr>
+  <tr><td>Browser e2e</td><td><b>chromiumoxide</b> (CDP, headless Chrome)</td><td>Omega's harness: ephemeral ports, TempDir data, per-test browser profile, parallel-safe. CDP virtual authenticators make real passkey e2e possible.</td></tr>
+  <tr><td>Snapshots</td><td><b>insta</b> (json/yaml + redactions)</td><td>Replaces Verify.Http; same "fewer hand-written assertions" benefit you already like.</td></tr>
+  <tr><td>Mutation testing</td><td><b>cargo-mutants</b></td><td>Omega's setup ports directly: targeted justfile recipes, <code>--cap-lints=true</code>, <code>--in-place</code>, clean-tree guard, systemd memory cap.</td></tr>
+  <tr><td>Task runner</td><td><b>just</b></td><td>Single entry point for build/test/run/gate/mutants.</td></tr>
+</table>
+
+<h3 id="open">Open decisions <span class="badge b-open">needs your call</span></h3>
+<div class="grid2">
+  <div class="card">
+    <h3>D1 — Repo strategy</h3>
+    <p><b>Recommendation: same repo.</b> New code grows in <code>crates/</code>, <code>frontends/</code>,
+    root <code>Cargo.toml</code>/<code>justfile</code>; old <code>backend/</code> + <code>frontend/</code> stay untouched
+    until cutover, then get deleted in one commit. History and docs stay in one place; no cross-repo coordination.</p>
+    <p class="why">Alternative: parallel repo (cleaner slate, but splits history and doubles housekeeping).</p>
+  </div>
+  <div class="card">
+    <h3>D2 — Passkey service scope</h3>
+    <p><b>Recommendation: in-app now, extraction-ready.</b> Auth as its own crate
+    (<code>flasher-auth</code>) with a trait boundary and isolated user/credential tables. Extracting a
+    central domain-wide passkey service later becomes a lift of one crate, not an untangling.</p>
+    <p class="why">Alternative: defer passkeys until the central service exists (blocks issue 5 indefinitely).</p>
+  </div>
+  <div class="card">
+    <h3>D3 — SQL layer</h3>
+    <p><b>Recommendation: sqlx, runtime-checked.</b> Compile-time-checked queries need a live DB or
+    offline cache during every build — a tax on every contributor/CI run. Runtime-checked keeps builds
+    hermetic; integration tests against real SQLite provide the safety net.</p>
+    <p class="why">Alternative: rusqlite (sync, simpler; but async sqlx fits axum better).</p>
+  </div>
+  <div class="card">
+    <h3>D4 — Frontend styling</h3>
+    <p><b>Recommendation: hand-rolled modern CSS</b> (custom properties, no framework) or a tiny utility
+    layer. Replaces w3-css. No npm, no build tooling beyond Trunk, full control over the redesign.</p>
+    <p class="why">Alternative: port a CSS framework (adds weight and churn; w3-css is part of the dated look).</p>
+  </div>
+</div>
+
+<h2 id="architecture">4. Target architecture</h2>
+
+<h3 id="layout">Repo layout (after rewrite, old code removed)</h3>
+<pre><code>flasher/
+├── Cargo.toml                 # workspace, [lints], shared deps
+├── justfile                   # build / test / run / gate / mutants
+├── crates/
+│   ├── flasher-types/         # CONTRACT AUTHORITY: API + domain types (serde)
+│   ├── flasher-store/         # SQLite impl (sqlx), embedded migrations
+│   ├── flasher-auth/          # passkeys (webauthn-rs), sessions — extraction-ready
+│   ├── flasher-core/          # domain logic: SRS scheduling, search, autosave rules
+│   ├── flasher-server/        # axum app: routes, static serving, lib.rs + thin main.rs
+│   ├── flasher-migrate/       # JSON filestore → SQLite importer (dry-run, verify)
+│   ├── flasher-auth/          # passkeys (webauthn-rs), challenges, sessions — extraction-ready
+│   └── flasher-e2e/           # chromiumoxide browser harness
+├── frontends/
+│   └── leptos/                # DETACHED cargo workspace, lib+bin, csr/ssr features
+├── docs/
+│   ├── spec.md                # the original spec (preserved)
+│   └── plan.html              # this file (living)
+├── backend/  frontend/        # OLD .NET + React — untouched until cutover
+└── scripts/                   # pre-commit hook, mutants-guard, …
+</code></pre>
+
+<p><b>Contract authority:</b> <code>flasher-types</code> defines every API payload once, in Rust.
+Server handlers and the Leptos frontend both depend on it — API drift becomes a compile error.
+This delivers the "automatic type safety during usage of the Web API" the spec asks for, with no
+codegen step. Following Omega's loud-schema-change rule: no defensive <code>#[serde(default)]</code> —
+schema drift fails loudly, migrations handle stored data.</p>
+
+<p><b>Domain logic lives in <code>flasher-core</code></b>, pure and DB-free: the SRS scheduling rule
+(currently <code>NextTime = now + (now − ChangeTime) × multiplier</code> with <code>OkMultiplier=1.8</code>,
+<code>FailedMultiplier=0.5555</code>, new-card waiting 30 min — ported verbatim from
+<code>backend/Flasher.Host/Handlers/CardsHandler.cs</code>), search, autosave semantics. Pure functions
+are the prime mutation-testing target.</p>
+
+<h3 id="data">Data &amp; migration</h3>
+<p><b>Schema (SQLite):</b></p>
+<pre><code>users(id, username, created_at)
+passkeys(id, user_id → users, credential_id UNIQUE, data /* serialized passkey */, name, created_at, last_used_at)
+sessions(token, user_id → users, expires_at)
+cards(id, user_id → users, prompt, solution,
+      state CHECK(state IN ('new','ok','failed')),
+      change_time, next_time, disabled)
+autosaves(user_id → users PRIMARY KEY, prompt, solution, updated_at, card_id NULL)
+</code></pre>
+<ul>
+  <li>Migrations: <code>sqlx::migrate!("./migrations")</code> embedded in the binary — runs on startup, so deployment upgrades are automatic. Roll-forward only; backups before each migration run.</li>
+  <li><b>JSON → SQLite import:</b> <code>flasher migrate --from ../flasher-store [--dry-run]</code>. Idempotent (safe to re-run), prints a per-user verification report (card counts, state histogram) and exits non-zero on mismatch. The old JSON store remains the source of truth until cutover is verified.</li>
+  <li>SRS tunables (<code>Cards:*</code>) become config keys with the same defaults.</li>
+</ul>
+<div class="note"><b>Fixture status (2026-07-27):</b> golden test uses a synthetic fixture derived
+exactly from the C# FileStore schema. Additionally, the importer was validated against the real
+production store (mounted read-only at <code>/home/carsten/mnt/flasher-store</code>): 163 cards
+(ok=46, failed=117, 113 disabled) imported into a scratch db, verification report OK, re-run
+idempotent. (<code>/home/carsten/web-site-comments/</code> turned out to be website-comment data,
+not flasher cards.)</div>
+
+<h3 id="auth">Passkey auth</h3>
+<ul>
+  <li><code>webauthn-rs</code> for ceremonies; sessions are opaque tokens in a <code>__Host-session</code> cookie (Secure, HttpOnly, SameSite=Strict) — same cookie posture as today, but stateless secrets gone; restart-safe.</li>
+  <li>First-run: if <code>users</code> is empty, the UI offers <b>initial registration</b> (creates first user + first passkey). Afterwards, registration of additional users is admin-gated (single-user app today; keep it simple).</li>
+  <li>Passkey management screen: add a passkey, rename, delete (with "can't delete your last passkey" guard).</li>
+  <li><b>E2E-testable:</b> Chrome DevTools Protocol virtual authenticators (<code>WebAuthn.addVirtualAuthenticator</code>) let the chromiumoxide harness run real registration/login ceremonies headlessly.</li>
+  <li>Relying-party ID/origin are config (<code>FLASHER_RP_ID</code>, <code>FLASHER_ORIGIN</code>) — the seam for a future central passkey service.</li>
+</ul>
+
+<h2 id="testing">5. Testing strategy</h2>
+<p>Owner directive (2026-07-27, supersedes the original API-test plan): <b>the web app in a real
+browser — clicking like a user — is the only valid public test surface. The Web API is internal
+and gets no behavior tests.</b> The old app's 55 Verify.Http API snapshots are therefore
+<i>not</i> ported; they are replaced by browser journeys. This also reshapes the phases:
+features land as <b>vertical slices</b> (domain + API + UI + browser test together), not
+backend-first.</p>
+<table>
+  <tr><th>Layer</th><th>Approach</th><th>Tooling</th></tr>
+  <tr><td><b>Browser e2e (primary)</b></td><td>Real user journeys by clicking through the Leptos app in headless Chromium: quiz, groom, edit/autosave/recover, passkey ceremonies (CDP virtual authenticator). All <code>#[ignore = "browser"]</code> so the normal gate stays Chrome-free. DOM snapshots (insta) where they yield readable behavior descriptions.</td><td>chromiumoxide, nextest <code>--run-ignored ignored-only</code>, insta</td></tr>
+  <tr><td>Domain unit tests</td><td>Pure SRS/search logic; mutation-tested exhaustively — every mutant caught or documented equivalent</td><td>nextest, cargo-mutants</td></tr>
+  <tr><td>Store &amp; migration</td><td>Real SQLite in TempDir; golden import test (fixture → snapshot of DB contents; re-run → idempotent)</td><td>insta</td></tr>
+  <tr><td>Frontend SSR snapshots</td><td>Host-target render snapshots via the ssr feature flip (Omega pattern) — fast markup feedback</td><td>insta yaml</td></tr>
+  <tr><td>Web API</td><td>No dedicated behavior tests (internal surface). Covered transitively by browser e2e; smoke-level checks only (health). <b>Sanctioned exception (round 4):</b> auth security negative paths (session/ceremony/ownership/token rejections) get handler-level tests — attackers care about exactly those lines.</td><td>—</td></tr>
+  <tr><td>Mutation</td><td>Periodic full sweeps + targeted recipes after writing tests; survivors = test gaps, documented in <code>.cargo/mutants.toml</code> or killed</td><td>cargo-mutants, justfile recipes, systemd memory cap</td></tr>
+</table>
+
+<h2 id="gates">6. Quality gates (token-cost control)</h2>
+<div class="note"><b>Adversarial review (owner directive, 2026-07-27):</b> at every phase boundary,
+a fresh subagent with <b>clean context</b> reviews the landed work. The reviewer is given
+<i>only</i> the specs (<code>docs/spec.md</code>, <code>docs/plan.html</code>) and pointers to the
+code — <b>no priming</b>: no implementation narrative, no list of known deviations, no hints where
+to look. It must find issues independently. <b>Amendment (owner, 2026-07-28): the review must include
+a behavioral test</b> — actually drive the app in a browser (scratch tests via the flasher-e2e harness
+are allowed; temporary files must be removed so the tree is left unchanged), and judge UX and latency,
+not just code. Findings are triaged before the next phase starts.
+First review: after Phase 2 (Phases 0–2).</div>
+<div class="note"><b>Review round 1 (after Phase 2, 2026-07-27):</b> unprimed clean-context review —
+0 critical, 4 major, 10 minor. Majors (all fixed + verified): importer could silently revert live
+SRS progress (now conflict-detecting with <code>--overwrite</code> escape hatch); search regressed to
+ASCII-only case folding (now full Unicode, reference ordering); e2e could test stale artifacts
+(always rebuild + freshness check); e2e ran in no gate (now part of <code>just gate</code>).
+Minors fixed: m5–m12 (search ordering, shallow verify, no pre-migration backup, SRS config,
+user-resolution footgun, hook restaging, user-scoped set-state, plan drift). Deferred: m13 (port-pick
+TOCTOU, rare flake), m14 (docs — corrected). <b>Standing practice (owner, 2026-07-27): keep running
+unprimed adversarial reviews after further phases, where/when appropriate.</b></div>
+<div class="note"><b>Review round 2 (after Phase 3, 2026-07-27):</b> 0 critical, 2 major, 9 minor.
+Majors (fixed): <code>FLASHER_PAGE_SIZE</code> knob vs hard-coded UI page size → <code>page_size</code> now in
+the find contract; PATCH lacked the reference's autosave-invalidation side effect → ported (content
+edits only, not disabled-toggles). Minors fixed: /api/* SPA-fallback leak, groom ordering/race/double-fetch,
+utc_date moved to flasher-core (mutation-reachable), verify doc overclaim, backup rotation (keep 10).
+Mutation: flasher-core 84/84 caught, flasher-store 38 caught / 18 unviable / 0 missed. Deferred: m9 (PATCH content fields ship
+before their UI — deliberate, editor is Phase 4). <b>m7 resolved (owner, 2026-07-27):</b> delete and
+reset-progress are both legitimate intents and both stay offered for every card, including learned
+ones — but the delete confirmation must visibly surface the card's existing progress. Not to be
+revisited.</div>
+<div class="note"><b>Review round 3 (after Phase 4, 2026-07-28):</b> 0 critical, 1 major, 8 minor.
+Major (fixed): bare URLs no longer autolinked (GFM regression on 11 real cards) → pre-parse autolink
+pass with code-span/link-destination awareness + 10 unit tests + e2e. Minors fixed: PATCH deleted the
+draft even on failed updates (now only after successful content change, deliberate deviation from C#),
+editor busy-guard now covers Save (stale-draft + double-create races), Cancel deletes the draft
+(reference semantics), e2e staleness guard now watches <code>vendor/</code>, .gitignore gaps
+(<code>/flasher.db</code>, <code>/backups/</code>). KaTeX XSS surface probed hard
+(<code>trust:false</code>; \url/\href/\includegraphics/\html* all inert) — holds; vendored assets
+byte-identical to npm. Deferred: m8 (SPA fallback masks missing static assets — accepted).</div>
+<div class="note"><b>Review round 4 (after Phase 5, security focus, 2026-07-28):</b> 0 critical, 3 major,
+10 minor. Majors (fixed): bootstrap token was unreachable from the UI + register_finish claim window
+(both closed; token field + re-check); security-critical negative paths had zero tests (sanctioned
+doctrine exception, <code>auth_negative.rs</code> with full softpasskey ceremonies); unbounded challenge
+store (cap 100 → 503). Minors fixed: duplicate-credential 409, race-safe last-passkey delete, cookie
+last-match, ceremony-cookie clearing, constant-time token compare, CSP + nosniff headers (CSP with
+per-build inline-script hashes). Decisions recorded: sessions survive passkey deletion (by design;
+"log out everywhere" is a possible later feature); token entropy doc corrected (244 bits, 2×UUIDv4).
+Process note carried to morning report: everything still uncommitted.</div>
+<p>Quality gates cost time; needless bugfixes burn tokens. The gate runs before every commit and is cheap enough to never skip:</p>
+<ul>
+  <li><b>Pre-commit hook as the whole CI</b> (Omega pattern, no GitHub Actions needed): fast paths by staged-file type — docs-only skips, rust-only runs <code>just rust-gate</code>, frontend changes add the leptos build + snapshots, full gate adds browser e2e. Auto-<code>cargo fmt</code> + restage.</li>
+  <li><b>Rust gate:</b> <code>cargo clippy --all-targets -- -D warnings</code> (workspace lints: clippy all+pedantic, <code>unsafe_code = forbid</code>, unwrap/expect/panic = warn) → nextest (with cargo-test fallback) → <code>cargo machete</code> (unused deps) → <code>cargo deny check</code> (advisories, licenses, duplicate versions).</li>
+  <li><b>Frontend gate:</b> trunk build + host-target snapshot tests + wasm size budget check (fail if the bundle grows beyond a set threshold — keeps pulldown-cmark-style discipline).</li>
+  <li><b>Dependency hygiene:</b> exact pins + justification comments for wasm-ABI-sensitive crates; <code>default-features = false</code> as the default; renovate/dependabot not needed initially — <code>cargo deny</code> surfaces advisories on each gate run.</li>
+  <li><b>Mutation testing stays periodic</b> (not per-commit — it's slow by nature), run manually via <code>just mutants-*</code> recipes, like Omega.</li>
+</ul>
+
+<h2 id="cv">7. Computer-vision verification loop</h2>
+<p>Omega's chromiumoxide harness is extended with one capability: <b>screenshot capture</b>.</p>
+<ul>
+  <li><code>just screenshots</code>: boots server + headless Chrome, walks the key screens (login, quiz prompt, quiz solution, edit, groom, passkey settings) at desktop + mobile widths, writes PNGs to <code>test-output/screenshots/</code>.</li>
+  <li><b>Workflow rule for UX work:</b> after any UI change, the agent regenerates screenshots and reads them (multimodal) before reporting back — catching layout breakage, contrast issues, overflow, and "dated look" regressions without human round-trips.</li>
+  <li>Optional later: committed baseline screenshots for pixel-diffing. Start without it (flaky by nature); add only if manual CV review proves insufficient.</li>
+</ul>
+
+<h2 id="phases">8. Phases</h2>
+<p class="lede">Each phase ends green: gate passes, tests written, targeted mutation run clean on new logic. Old app keeps running throughout; cutover is the last step.</p>
+
+<div class="card">
+  <div class="phase-head"><h3>Phase 0 — Foundations</h3><span class="badge b-done">done 2026-07-27</span><span class="goal">One-command Rust skeleton + e2e harness</span></div>
+  <ul class="checks">
+    <li class="done">Workspace + detached leptos workspace, lints, <code>-D warnings</code>; Leptos pinned <code>=0.8.20</code></li>
+    <li class="done"><code>just server</code>: trunk bundle + axum on one port; health round-trip via shared <code>flasher-types</code></li>
+    <li class="done">Pre-commit hook, gate recipes (clippy/nextest/machete/deny) — <code>just gate</code> PASS</li>
+    <li class="done"><code>flasher-e2e</code>: chromiumoxide harness (ephemeral ports, per-test browser profile), smoke test + desktop/mobile screenshots (<code>just e2e</code>, <code>just screenshots</code>)</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="phase-head"><h3>Phase 1 — Storage</h3><span class="badge b-done">done 2026-07-27</span><span class="goal">SQLite + JSON migration</span></div>
+  <ul class="checks">
+    <li class="done"><code>flasher-store</code>: sqlx + SQLite (WAL, FK on), embedded migration 0001 (users, passkeys, sessions, cards, autosaves), repository API, 12 tests</li>
+    <li class="done"><code>flasher-migrate</code>: <code>--from/--db/--dry-run</code>, idempotent upserts, per-user verification report; golden + idempotence + dry-run + corrupt-input tests (insta)</li>
+    <li class="done">Old JSON format pinned down: PascalCase fields, State as PascalCase string, ISO 8601 local DateTime</li>
+  </ul>
+</div>
+
+<p class="lede" style="margin-top:2rem">From here on, features land as <b>vertical slices</b>: domain + internal API + Leptos UI +
+browser e2e (clicking) together — never a backend without its user-facing test surface.</p>
+
+<div class="card">
+  <div class="phase-head"><h3>Phase 2 — Quiz slice</h3><span class="badge b-done">done 2026-07-27</span><span class="goal">The core loop works in the browser</span></div>
+  <ul class="checks">
+    <li class="done"><code>flasher-core</code>: SRS ported exactly from C# (ok ×1.8 / failed ×0.5555 of elapsed interval, new-card wait 30 min on create); 24/24 mutants caught; tunables configurable via env</li>
+    <li class="done">Cards endpoints (next, create-as-disabled, set-ok, set-failed); single-user mode (<code>FLASHER_USER</code> optional, single-db-user auto-resolution) as the Phase-5 auth seam</li>
+    <li class="done">Quiz UI: prompt → reveal → rate, keyboard shortcuts (Space / 1 / 2), add-card form, done/error states; 4 SSR tests</li>
+    <li class="done">5 browser e2e tests clicking through the full round incl. SRS white-box checks; wired into <code>just gate</code>; staleness guards (server always rebuilt, dist freshness-checked)</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="phase-head"><h3>Phase 3 — Groom slice</h3><span class="badge b-done">done 2026-07-27</span><span class="goal">Manage cards</span></div>
+  <ul class="checks">
+    <li class="done">Endpoints: find (Unicode-fold search, reference ordering, page size 10 via <code>FLASHER_PAGE_SIZE</code>), PATCH (prompt/solution/disabled), DELETE card, DELETE history (state=new, +30 min)</li>
+    <li class="done">Groom tab: 300 ms-debounced search, paged list (badges, due dates), enable/disable, delete + reset-progress behind confirm modal</li>
+    <li class="done">7 browser e2e journeys incl. cross-feature "disabled → enable → quizzable"; Lighthouse still 100/100/100/100; debug wasm stripped (name-section bloat), budget check holds</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="phase-head"><h3>Phase 4 — Editor slice</h3><span class="badge b-done">done 2026-07-28</span><span class="goal">Write cards comfortably</span></div>
+  <ul class="checks">
+    <li class="done">Markdown (pulldown-cmark → ammonia → one sanctioned inner_html) + KaTeX (vendored 0.16.47, lazy-injected off the critical path); bare-URL autolink pre-pass (GFM parity); 17 pipeline unit tests + e2e incl. XSS probes</li>
+    <li class="done">Editor: side-by-side live preview, 5 s autosave with dirty-tracking + indicator, recovery banner (recover/discard, deleted-card fallback); Cancel deletes the draft (reference semantics)</li>
+    <li class="done">Autosave backend: migration 0002 (<code>autosaves.card_id</code>), PUT/GET/DELETE; 5 browser e2e (22→24 total); Lighthouse 89–90 (LCP = wasm boot, accepted)</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="phase-head"><h3>Phase 5 — Passkey auth slice</h3><span class="badge b-done">done 2026-07-28</span><span class="goal">Issue 5 done</span></div>
+  <ul class="checks">
+    <li class="done"><code>flasher-auth</code> (webauthn-rs 0.5): username-less login (<code>allowCredentials: []</code>), one-shot challenge store (capped), server-side sessions (<code>__Host-session</code>, 7 d), bootstrap claim flow with optional <code>FLASHER_BOOTSTRAP_TOKEN</code></li>
+    <li class="done">UI: centered auth card (first-run register / one-button login), Account tab (add/rename/delete passkeys, last-passkey guard), 401-bounce; dev bypass (<code>FLASHER_USER</code>) keeps all prior e2e auth-free</li>
+    <li class="done">Browser e2e via CDP virtual authenticator: register → login → logout → manage, 29/29 total; CSP + nosniff headers</li>
+    <li class="done">Review round 4 (security focus): 0 critical, 3 major, 10 minor — all majors + most minors fixed; negative-path tests sanctioned as doctrine exception; mutants on auth crates</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="phase-head"><h3>Phase 6 — Design polish</h3><span class="badge b-done">done 2026-07-28</span><span class="goal">Issue 3 done</span></div>
+  <ul class="checks">
+    <li class="done">Token-based CSS system (custom properties, dark-first); chrome recedes (ghost nav), consistent panels/button hierarchy, focus-visible states, mobile stacking everywhere</li>
+    <li class="done"><code>just screenshots</code> now captures all 10 key screens at desktop + mobile with rich realistic content; every PNG CV-inspected and iterated</li>
+    <li class="done">Lighthouse: 88 / 100 / <b>100</b> / 100 (best-practices recovered — session probe returns 200 null instead of an expected 401 console error); perf 88 is the wasm-boot LCP floor, accepted per "within reason"</li>
+    <li class="done">Mutation hardening after round 4: flasher-auth 47 caught/0 missed, flasher-server 103 caught/0 missed, markdown pipeline 67 caught/0 missed — doctrine "caught, unviable, or documented" holds everywhere</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="phase-head"><h3>Phase 6.5 — URL routing &amp; UX fixes</h3><span class="badge b-done">done 2026-07-28</span><span class="goal">F5 keeps the page; groom paging reachable</span></div>
+  <ul class="checks">
+    <li class="done"><b>URL routing:</b> hand-rolled History API (no router dep); tabs at <code>/quiz /add /groom /account</code>, deep links survive the auth flow, reload keeps the tab, editor overlay gets its own history entry (Back just closes it)</li>
+    <li class="done"><b>Groom paging</b> bar moved above the list</li>
+    <li class="done">Per-page Lighthouse unlocked: all four pages 88/100/100/100/100; the outlier (<code>/add</code> at 84) was KaTeX lazy-loading on the empty editor preview — now content-gated (<code>needs_katex</code>)</li>
+    <li class="done">Review round 5: 0 critical, 1 major (Back/tab-switch could orphan an autosave draft — editor history entry + banner re-arming), 6 minor (immutable cache on missing assets, WAL gitignore, popstate-on-auth-screen, hook fast-path holes, katex-negative e2e, per-page lighthouse recipe) — all fixed; 38 e2e</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="phase-head"><h3>Phase 6.6 — Session state survives refresh</h3><span class="badge b-done">done 2026-07-28</span><span class="goal">F5 restores the full UI state</span></div>
+  <ul class="checks">
+    <li class="done">Route model <code>Route{Tab, QuizSolution, GroomEdit(id)}</code> (pure, unit-tested); reveal → replaceState <code>/quiz/solution</code> (no history spam, Back leaves quiz); editor at <code>/groom/edit/{id}</code> with new <code>GET /api/cards/{id}</code></li>
+    <li class="done">Fresh-load restore: matching server draft prefills the editor (F5 = mini crash recovery, banner suppressed inline); non-matching draft still banners; deleted card → tab fallback + banner; auth deep links land in the editor</li>
+    <li class="done">7 new e2e (45/45 total): reveal/replaceState semantics, draft restore, deleted-card fallback, add-tab prefill, auth editor deep link; Lighthouse unchanged (88/100/100/100/100 per page)</li>
+    <li class="done">Review round 6: 3 majors (popstate flattened <code>/groom/edit/{id}</code> to Quiz; re-login on /add lost draft prefill + banner; active-tab click remounted and wiped state) + minors — all fixed, shared restore helper so fresh-load and popstate rules can't drift; 51 e2e; route.rs mutants clean (9 caught/6 unviable/0 missed)</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="phase-head"><h3>Phase 7 — Cutover &amp; cleanup</h3><span class="badge b-doing">in progress</span><span class="goal">Old stack retired</span></div>
+  <ul class="checks">
+    <li class="done"><b>Single-user model (owner question, 2026-07-28):</b> structural — registration
+    without a session exists only while the system has zero passkeys; after the owner's first
+    registration that door is closed forever. The claim window itself is guarded by
+    <code>FLASHER_BOOTSTRAP_TOKEN</code> (removed after claiming). <code>FLASHER_USER</code> (dev bypass)
+    must never be set in production.</li>
+    <li class="done">Deployment kit: <code>deploy/DEPLOY.md</code> runbook (executable by kimi-code on the
+    server), <code>deploy/flasher.service</code> (systemd, hardened), <code>deploy/nginx-flasher.conf</code>.
+    Strategy: build on the server (laptop glibc too new), copy prebuilt dist, parallel-run beside the old
+    app, then switch the vhost. <b>Caveat:</b> passkeys bind to the domain — decide the final domain
+    BEFORE the first registration.</li>
+    <li>Run JSON→SQLite migration on the production store (step in DEPLOY.md), verify report, back up JSON</li>
+    <li>Soak, then retire the old .NET service + vhost; keep the old JSON store untouched as backup</li>
+    <li>Delete <code>backend/</code>, <code>frontend/</code>, root <code>appsettings*.json</code>, stub <code>package-lock.json</code> in one commit; update READMEs</li>
+    <li>Full mutation sweep as baseline for the new codebase</li>
+  </ul>
+</div>
+
+<h2 id="ux">9. UX direction (for Phase 4)</h2>
+<div class="note"><b>Reference:</b> the owner's <code>fido2-blueprint</code> repo (cloned at
+<code>/home/carsten/fido2-blueprint</code>) is the inspiration source for passkey UX flows and
+visual design ideas. It's Next.js — the stack is explicitly not adopted, only the UX/structure.</div>
+<ul>
+  <li><b>Design language:</b> clean, focused, dark-theme-first flashcard UI; system fonts, CSS custom properties, no framework. The card content is the hero — chrome recedes.</li>
+  <li><b>Quiz screen:</b> large readable prompt, keyboard-first (Space = reveal, 1/2 or arrows = failed/ok), visible next-due feedback after rating.</li>
+  <li><b>Groom screen:</b> fast search-as-you-type, clear state badges (new/ok/failed/disabled), undo-ish safety on destructive actions (confirm modal, as today).</li>
+  <li><b>Editor:</b> side-by-side Markdown preview (today it's render-on-save only), autosave indicator, KaTeX in preview.</li>
+  <li><b>Auth screens:</b> passkey-native flow — one button, browser prompt, done. Passkey management table with names + last-used.</li>
+  <li><b>Mobile:</b> responsive from the start; CV screenshots at both widths enforce it.</li>
+</ul>
+
+<h2 id="deploy">10. Deployment</h2>
+<ul>
+  <li><b>Artifact:</b> one statically-linked-ish server binary + embedded or co-located <code>dist/</code> bundle. No .NET, no Node, no build tooling on the host.</li>
+  <li><b>Data:</b> one SQLite file + a <code>backups/</code> dir (pre-migration automatic backups; nightly copy is trivial since it's a single file, ideally with the SQLite backup API).</li>
+  <li><b>Reverse proxy:</b> keep the existing <code>/flasher_api/</code> convention or simplify to same-origin <code>/api/</code> — decide at cutover; cookie config already assumes HTTPS.</li>
+  <li><b>Service:</b> a small systemd unit; config via env vars or a single TOML file replacing <code>appsettings*.json</code>.</li>
+</ul>
+
+<h2 id="lighthouse">11. Lighthouse (spec, 2026-07-27) <span class="badge b-done">early pass done</span></h2>
+<ul>
+  <li>Optimize Lighthouse scores <b>within reason</b> — no chasing 100 at all costs, no heroics.</li>
+  <li class="done"><b>Early pass (2026-07-27): 100 / 100 / 100 / 100</b> (perf/a11y/best-practices/SEO).
+  LCP 20.5s → 1.8s. Changes: release wasm via wasm-opt (3.8 MB → 222 KB, 86 KB brotli),
+  CompressionLayer, immutable caching for hashed assets, static loading skeleton, contrast fixes,
+  meta/robots.txt/llms.txt. Measure on demand with <code>just lighthouse</code>.</li>
+  <li>Re-check after each UI-heavy phase.</li>
+</ul>
+
+<h2 id="risks">12. Risks &amp; mitigations</h2>
+<div class="card risk">
+  <ul>
+    <li><b>KaTeX in wasm</b> — the riskiest dependency swap (react-markdown ecosystem → pulldown-cmark + KaTeX). <i>Mitigate: spike it in Phase 0/1 as a throwaway rendering test before committing to Phase 4.</i></li>
+    <li><b>Passkey e2e via CDP</b> — virtual authenticator support in chromiumoxide is raw-CDP territory. <i>Mitigate: spike during Phase 3 start; fallback is mocking the navigator.credentials layer for e2e while keeping real ceremonies in manual testing.</i></li>
+    <li><b>Leptos churn</b> — 0.8 is current but the ecosystem moves. <i>Mitigate: exact pins (Omega pattern), upgrades are deliberate events.</i></li>
+    <li><b>Scope creep on the redesign</b> — issue 3 has no spec. <i>Mitigate: §9 is the boundary; anything beyond it is a separate, later decision. CV screenshots make "good enough" reviewable.</i></li>
+    <li><b>Parallel-repo drift</b> — if D1 flips to a parallel repo, keeping this plan and the spec in sync doubles. <i>Mitigate: recommendation is same-repo; revisit only if a concrete problem appears.</i></li>
+  </ul>
+</div>
+
+<footer>
+  Living document — update on every decision and phase transition.
+  Spec: <code>docs/spec.md</code> · Plan: <code>docs/plan.html</code> · Generated 2026-07-27.
+</footer>
+
+</main>
+</div>
+</body>
+</html>

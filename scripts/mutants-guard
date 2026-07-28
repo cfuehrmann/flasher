@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Refuse to run cargo-mutants on a dirty tree unless MUTANTS_ALLOW_DIRTY=1.
+set -euo pipefail
+
+if [[ "${MUTANTS_ALLOW_DIRTY:-0}" != "1" ]] && [[ -n "$(git status --porcelain)" ]]; then
+    echo "cargo-mutants refuses a dirty git tree: commit or stash first," >&2
+    echo "or set MUTANTS_ALLOW_DIRTY=1 to override." >&2
+    exit 1
+fi

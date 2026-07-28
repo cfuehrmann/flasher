@@ -1,0 +1,54 @@
+[package]
+name = "flasher-server"
+description = "Axum server for Flasher: API endpoints plus static frontend hosting"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "flasher"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+flasher-auth = { path = "../flasher-auth" }
+flasher-core = { path = "../flasher-core" }
+flasher-store = { path = "../flasher-store" }
+flasher-types = { path = "../flasher-types" }
+# `net` is needed for TcpListener on top of the workspace feature set.
+tokio = { workspace = true, features = ["net"] }
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid = { version = "1", features = ["v4"] }
+# CSP inline-script hashes (Trunk injects an inline bootstrap <script>
+# into index.html; the CSP allows exactly those snippets by sha-256).
+base64 = "0.22"
+sha2 = "0.10"
+
+[dev-dependencies]
+# Dev-only HTTP client for the integration test; rustls avoids a system
+# OpenSSL dependency, `json` deserializes responses into flasher-types.
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls",
+    "json",
+] }
+serde_json.workspace = true
+# Fault injection for the store-error mapping tests (e.g. a trigger
+# aborting the passkey INSERT with a non-UNIQUE error), via Store::pool.
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "sqlite",
+    "macros",
+] }
+# Software authenticator for the auth negative-path tests (same pattern
+# as flasher-auth's dev-dependency).
+webauthn-authenticator-rs = { version = "0.5", default-features = false, features = [
+    "softpasskey",
+] }

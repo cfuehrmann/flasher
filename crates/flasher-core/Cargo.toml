@@ -1,0 +1,11 @@
+[package]
+name = "flasher-core"
+description = "Pure spaced-repetition domain logic for Flasher (no I/O, no DB)"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]

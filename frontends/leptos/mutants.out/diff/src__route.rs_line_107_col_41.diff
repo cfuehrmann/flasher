@@ -1,0 +1,21 @@
+--- src/route.rs
++++ replace - with + in path_to_route
+@@ -99,17 +99,17 @@
+     let lower = trimmed.to_ascii_lowercase();
+     if lower == "/quiz/solution" {
+         return Route::QuizSolution;
+     }
+     if let Some(rest) = lower.strip_prefix("/groom/edit/") {
+         // The id is sliced out of the ORIGINAL path (ids are
+         // case-sensitive; the static prefix is not). More than one
+         // segment is not an edit route and falls back like any typo.
+-        let id = &trimmed[trimmed.len() - rest.len()..];
++        let id = &trimmed[trimmed.len() + /* ~ changed by cargo-mutants ~ */ rest.len()..];
+         if !id.contains('/') {
+             return Route::GroomEdit(id.to_owned());
+         }
+     }
+     Route::Tab(path_to_tab(path))
+ }
+ 
+ /// Maps a URL path to a tab. Anything unknown — including typos the

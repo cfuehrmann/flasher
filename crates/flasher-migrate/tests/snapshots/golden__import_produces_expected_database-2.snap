@@ -1,0 +1,86 @@
+---
+source: crates/flasher-migrate/tests/golden.rs
+expression: dump(&store).await?
+---
+{
+  "autosaves": [
+    {
+      "card_id": "5d7f9a1b-7c9d-4e1f-a5b6-8d0c2e4f6a8c",
+      "prompt": "draft prompt",
+      "solution": "draft solution",
+      "updated_at": 1700000000000,
+      "user_id": 2
+    }
+  ],
+  "cards": [
+    {
+      "change_time": 1713600000000,
+      "disabled": true,
+      "id": "1e3a5c7e-5f7a-4c9e-d3b4-6f0a2e4c6a8d",
+      "next_time": 1714204800000,
+      "prompt": "Obsolete card",
+      "solution": "no longer needed",
+      "state": "ok",
+      "user_id": 1
+    },
+    {
+      "change_time": 1714543200000,
+      "disabled": false,
+      "id": "3f6a1c2e-9b4d-4e8a-a1c5-7d2f0b9e6a31",
+      "next_time": 1714543500000,
+      "prompt": "What is the capital of France?",
+      "solution": "Paris",
+      "state": "new",
+      "user_id": 1
+    },
+    {
+      "change_time": 1714544130500,
+      "disabled": false,
+      "id": "7b2e4d6f-1a3c-4f5b-9d8e-2c6a0b4d8e1f",
+      "next_time": 1715148930500,
+      "prompt": "2 + 2 = ?",
+      "solution": "4",
+      "state": "ok",
+      "user_id": 1
+    },
+    {
+      "change_time": 1714548600123,
+      "disabled": false,
+      "id": "9c4f6a8b-3d5e-4a7c-b1f2-4e8d0c6a2b4d",
+      "next_time": 1714548900123,
+      "prompt": "Largest planet?",
+      "solution": "Jupiter",
+      "state": "failed",
+      "user_id": 1
+    },
+    {
+      "change_time": 1718023512987,
+      "disabled": false,
+      "id": "5d7f9a1b-7c9d-4e1f-a5b6-8d0c2e4f6a8c",
+      "next_time": 1718023812987,
+      "prompt": "HTTP status for \"not found\"?",
+      "solution": "404",
+      "state": "new",
+      "user_id": 2
+    }
+  ],
+  "passkeys": [],
+  "sessions": [],
+  "users": [
+    {
+      "created_at": 1700000000000,
+      "id": 1,
+      "username": "alice"
+    },
+    {
+      "created_at": 1700000000000,
+      "id": 2,
+      "username": "bob"
+    },
+    {
+      "created_at": 1700000000000,
+      "id": 3,
+      "username": "carol"
+    }
+  ]
+}

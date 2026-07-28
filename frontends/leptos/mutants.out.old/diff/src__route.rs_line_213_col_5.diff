@@ -1,0 +1,26 @@
+--- src/route.rs
++++ replace replace_tab with ()
+@@ -205,22 +205,17 @@
+ }
+ 
+ /// Rewrites the current history entry to the tab's path without adding an
+ /// entry — used once at startup to canonicalize `/` to `/quiz`, and when
+ /// the editor overlay closes via Save/Cancel to turn its `/edit` entry
+ /// back into the tab underneath (no stale `/edit` entries on the stack).
+ #[cfg(feature = "csr")]
+ pub fn replace_tab(tab: Tab) {
+-    let path = tab_to_path(tab);
+-    if current_path() != path {
+-        with_history(|history| {
+-            _ = history.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(path));
+-        });
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Pushes the editor overlay's entry (`<tab>/edit`) when an editing
+ /// session opens over a tab. One entry per session: browser Back while
+ /// editing then pops just the overlay (popstate back to the tab path)
+ /// instead of also navigating away from the tab.
+ #[cfg(feature = "csr")]
+ pub fn push_edit(tab: Tab) {

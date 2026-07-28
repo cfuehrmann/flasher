@@ -1,0 +1,19 @@
+gitignore = true
+exclude_globs = ["crates/flasher-e2e/**"]
+# Documented equivalent/untestable mutants, each with a justification.
+exclude_re = [
+    # flasher-auth base64url: n = (b0 << 16) | (b1 << 8) | b2 — the three
+    # operands occupy disjoint bit ranges (16-23, 8-15, 0-7), so | and ^
+    # compute the identical value for every possible input. Equivalent.
+    "replace \\| with \\^ in base64url",
+    # flasher-server main(): process bootstrap (tracing init, env config,
+    # DB connect, bind, serve). Not unit-testable in-process; verified by
+    # the e2e suite booting the real server binary (just gate).
+    "replace main -> Result",
+    # flasher-server main() `if swept > 0`: the comparison only decides
+    # whether the informational startup log line "deleted N expired
+    # sessions" is emitted; no behavior depends on it.
+    "replace > with == in main",
+    "replace > with < in main",
+    "replace > with >= in main",
+]

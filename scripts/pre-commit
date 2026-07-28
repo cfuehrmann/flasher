@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Pre-commit hook: this IS the CI. Fast paths by staged-file type.
+set -euo pipefail
+
+# Git exports these for hooks; leaving them set breaks cargo/git subshells
+# when the repo is used from a linked worktree (worktree hazard).
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE || true
+
+cd "$(git rev-parse --show-toplevel)"
+
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+if [[ -z "$staged" ]]; then
+    exit 0
+fi
+
+# Docs-only commits (*.md, docs/** incl. *.html, LICENSE) skip the gate.
+if ! grep -vE '\.md$|^docs/|^LICENSE$' <<<"$staged" | grep -q .; then
+    echo "pre-commit: docs-only changes, skipping gate"
+    exit 0
+fi
+
+# Auto-format, then restage formatting fixes. Fully staged files are
+# re-added; partially staged files (staged AND unstaged hunks) are NOT —
+# re-adding them would sweep the unstaged hunks into the commit.
+mapfile -t staged_paths <<<"$staged"
+
+# Remember which staged paths have unstaged changes, with a content hash
+# so we can tell afterwards whether fmt touched them.
+declare -A partial_hash=()
+for p in "${staged_paths[@]}"; do
+    if ! git diff --quiet -- "$p"; then
+        partial_hash["$p"]="$(sha1sum -- "$p" | cut -d' ' -f1)"
+    fi
+done
+
+cargo fmt --all
+if [[ -f frontends/leptos/Cargo.toml ]]; then
+    cargo fmt --manifest-path frontends/leptos/Cargo.toml
+fi
+
+fmt_modified_partial=()
+for p in "${staged_paths[@]}"; do
+    if [[ -v "partial_hash[$p]" ]]; then
+        after="$(sha1sum -- "$p" | cut -d' ' -f1)"
+        if [[ "$after" != "${partial_hash[$p]}" ]]; then
+            fmt_modified_partial+=("$p")
+        fi
+    else
+        git add -- "$p"
+    fi
+done
+if ((${#fmt_modified_partial[@]})); then
+    echo "pre-commit: cargo fmt modified partially staged files; they were NOT restaged — re-stage them manually:" >&2
+    printf '  %s\n' "${fmt_modified_partial[@]}" >&2
+fi
+
+# Rust-only changes skip the browser e2e/web side; frontend changes run the full gate.
+# Browser-test (crates/flasher-e2e) and hook/script (scripts) changes also run the
+# full gate: the e2e tests are `#[ignore = "browser"]` so rust-gate never executes
+# them, and hook changes otherwise get no gate at all.
+if grep -qE '^frontends/|^crates/flasher-e2e/|^scripts/' <<<"$staged"; then
+    if ! just gate; then
+        echo "pre-commit: gate FAILED — full log: test-output/gate-latest.log" >&2
+        exit 1
+    fi
+elif grep -qE '\.rs$|(^|/)Cargo\.(toml|lock)$|^justfile$' <<<"$staged"; then
+    if ! just rust-gate; then
+        echo "pre-commit: rust-gate FAILED" >&2
+        exit 1
+    fi
+fi

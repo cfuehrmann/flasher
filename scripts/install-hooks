@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Install git hooks, worktree-aware (works for the main worktree and linked worktrees).
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+hooks_dir="$(git rev-parse --git-path hooks)"
+mkdir -p "$hooks_dir"
+
+# Symlink so hook updates in the repo take effect without reinstalling.
+ln -sf "$(pwd)/scripts/pre-commit" "$hooks_dir/pre-commit"
+chmod +x "$hooks_dir/pre-commit"
+echo "Installed pre-commit hook -> $hooks_dir/pre-commit"

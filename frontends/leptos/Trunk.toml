@@ -1,0 +1,7 @@
+[build]
+dist = "dist"
+public_url = "/"
+
+# Only used for standalone frontend development (`trunk serve`).
+[serve]
+port = 8080

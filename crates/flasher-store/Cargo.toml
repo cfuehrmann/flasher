@@ -1,0 +1,43 @@
+[package]
+name = "flasher-store"
+description = "SQLite persistence for Flasher (sqlx, embedded migrations, runtime-checked queries)"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+# NOTE: dependency versions are declared locally per crate for now;
+# centralization into [workspace.dependencies] in the root Cargo.toml
+# happens in a later phase.
+[dependencies]
+flasher-types = { path = "../flasher-types", features = ["sqlx"] }
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+# default-features = false: sqlx pulls in a lot by default (multiple
+# databases, TLS stacks, ...); we only need SQLite on the tokio/rustls
+# runtime plus the macros for FromRow and the embedded `migrate!`.
+# Query checking stays at runtime (no query! macros, no DATABASE_URL).
+# `time` for the UTC timestamp in pre-migration backup file names.
+# default-features = false; `std` for `now_utc`, `macros` for the
+# compile-time-checked format description, `formatting` to render it.
+time = { version = "0.3", default-features = false, features = [
+    "std",
+    "macros",
+    "formatting",
+] }
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "sqlite",
+    "macros",
+    "migrate",
+] }
+
+[dev-dependencies]
+# `macros` for #[tokio::test], `rt-multi-thread` for the test runtime.
+tokio = { version = "1", default-features = false, features = [
+    "macros",
+    "rt-multi-thread",
+] }
+tempfile = "3"

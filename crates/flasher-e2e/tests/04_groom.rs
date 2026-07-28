@@ -1,0 +1,584 @@
+//! Groom tab e2e tests: search-as-you-type (with full unicode case
+//! folding), paging, the enable/disable toggle, delete with a confirm
+//! modal (including the last-item-on-page fallback), progress reset, and
+//! the cross-feature round "disabled card becomes quizzable once enabled"
+//! — all click-driven through the browser, with the database only used
+//! for seeding and white-box verification.
+
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use chromiumoxide::cdp::browser_protocol::input::InsertTextParams;
+use flasher_e2e::{E2E_USER, Error, Result, TestHarness};
+use flasher_store::{CardState, NewCard, Store};
+
+/// Timeout for every DOM wait; generous because the wasm bundle has to
+/// download and boot first (same reasoning as the harness default).
+const TIMEOUT: Duration = Duration::from_secs(15);
+
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(0))
+}
+
+// The error is only formatted, but `map_err` needs an owned receiver.
+#[allow(clippy::needless_pass_by_value)]
+fn store_err(err: flasher_store::Error) -> Error {
+    Error::message(format!("store error: {err}"))
+}
+
+/// Opens the second WAL connection for seeding/verification and resolves
+/// the e2e user's id.
+async fn seed_store(h: &TestHarness) -> Result<(Store, i64)> {
+    let store = h.seed_store().await.map_err(store_err)?;
+    let user = store
+        .get_user_by_name(E2E_USER)
+        .await
+        .map_err(store_err)?
+        .ok_or_else(|| Error::message(format!("user {E2E_USER} not found")))?;
+    Ok((store, user.id))
+}
+
+/// Inserts one card with exact scheduling fields.
+#[allow(clippy::too_many_arguments)]
+async fn seed_card(
+    store: &Store,
+    user_id: i64,
+    id: &str,
+    prompt: &str,
+    solution: &str,
+    state: CardState,
+    change_time: i64,
+    next_time: i64,
+    disabled: bool,
+) -> Result<()> {
+    store
+        .insert_card(&NewCard {
+            user_id,
+            id: id.to_owned(),
+            prompt: prompt.to_owned(),
+            solution: solution.to_owned(),
+            state,
+            change_time,
+            next_time,
+            disabled,
+        })
+        .await
+        .map_err(store_err)
+}
+
+/// Seeds `n` enabled state=new cards `P01..Pn` (`card-p01..`) with
+/// ascending `next_time` values, so the list order is deterministic.
+async fn seed_page_cards(store: &Store, user_id: i64, n: usize, id_prefix: &str) -> Result<()> {
+    let now = now_ms();
+    for i in 1..=n {
+        let offset = i64::try_from(i).unwrap_or(i64::MAX) * 60_000;
+        seed_card(
+            store,
+            user_id,
+            &format!("{id_prefix}{i:02}"),
+            &format!("P{i:02}"),
+            &format!("S{i:02}"),
+            CardState::New,
+            now,
+            now + offset,
+            false,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+/// Opens the app and switches to the Groom tab, waiting until the search
+/// input is there.
+async fn goto_groom(h: &TestHarness) -> Result<()> {
+    h.goto("/").await?;
+    h.click("#tab-groom").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await
+}
+
+/// Number of card rows currently rendered.
+async fn row_count(h: &TestHarness) -> Result<usize> {
+    h.eval::<usize>("document.querySelectorAll('.groom-row').length")
+        .await
+}
+
+/// Polls until no element matches `sel` (row/badge/modal removal).
+async fn wait_until_gone(h: &TestHarness, sel: &str, timeout: Duration) -> Result<()> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let exists: bool = h
+            .eval(&format!("!!document.querySelector('{sel}')"))
+            .await?;
+        if !exists {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(Error::message(format!(
+                "{sel} still present after {timeout:?}"
+            )));
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+/// Search-as-you-type: typing `äpfel` (lowercase) matches `Äpfel und
+/// Birnen` via full unicode case folding and hides `Zebra`; clearing the
+/// input brings both cards back.
+#[tokio::test]
+#[ignore = "browser"]
+async fn search_filters_with_unicode_folding() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    seed_card(
+        &store,
+        user_id,
+        "card-aepfel",
+        "Äpfel und Birnen",
+        "Obst",
+        CardState::New,
+        now,
+        now + 60_000,
+        false,
+    )
+    .await?;
+    seed_card(
+        &store,
+        user_id,
+        "card-zebra",
+        "Zebra",
+        "Tier",
+        CardState::New,
+        now,
+        now + 120_000,
+        false,
+    )
+    .await?;
+
+    goto_groom(&h).await?;
+    h.wait_for_text("#groom-page-info", "of 2", TIMEOUT).await?;
+
+    // chromiumoxide's `type_str` maps every char to a physical key and
+    // has no key for `ä`; `Input.insertText` is the IME-style path real
+    // unicode input takes, and it fires the same input events.
+    h.click("#groom-search").await?;
+    h.page
+        .execute(InsertTextParams::new("äpfel"))
+        .await
+        .map_err(Error::Cdp)?;
+    h.wait_for_text("#groom-page-info", "of 1", TIMEOUT).await?;
+    let results = h.text_content("#groom-results").await?;
+    if !results.contains("Äpfel und Birnen") {
+        return Err(Error::message(format!(
+            "filtered list should contain Äpfel und Birnen, shows: {results:?}"
+        )));
+    }
+    if results.contains("Zebra") {
+        return Err(Error::message(format!(
+            "filtered list must not contain Zebra, shows: {results:?}"
+        )));
+    }
+    h.screenshot("04_groom/search-filtered").await?;
+
+    // Clear the input like a user: one Backspace per typed character.
+    let input = h
+        .page
+        .find_element("#groom-search")
+        .await
+        .map_err(Error::Cdp)?;
+    for _ in 0.."äpfel".chars().count() {
+        input.press_key("Backspace").await.map_err(Error::Cdp)?;
+    }
+    h.wait_for_text("#groom-page-info", "of 2", TIMEOUT).await?;
+    let results = h.text_content("#groom-results").await?;
+    for prompt in ["Äpfel und Birnen", "Zebra"] {
+        if !results.contains(prompt) {
+            return Err(Error::message(format!(
+                "cleared search should list {prompt:?}, shows: {results:?}"
+            )));
+        }
+    }
+    h.screenshot("04_groom/search-cleared").await?;
+    Ok(())
+}
+
+/// Paging: 12 enabled cards spread over two server-side pages; the
+/// prev/next buttons and the "showing X–Y of Z" line stay in sync.
+#[tokio::test]
+#[ignore = "browser"]
+async fn paging_walks_two_pages() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    seed_page_cards(&store, user_id, 12, "card-p").await?;
+
+    goto_groom(&h).await?;
+    h.wait_for_text("#groom-page-info", "showing 1–10 of 12", TIMEOUT)
+        .await?;
+    if row_count(&h).await? != 10 {
+        return Err(Error::message("page 1 should show 10 rows"));
+    }
+    if !h
+        .eval::<bool>("document.querySelector('#groom-prev').disabled")
+        .await?
+    {
+        return Err(Error::message("prev should be disabled on page 1"));
+    }
+    let results = h.text_content("#groom-results").await?;
+    if !results.contains("P01") || !results.contains("P10") || results.contains("P11") {
+        return Err(Error::message(format!(
+            "page 1 should show P01..P10, shows: {results:?}"
+        )));
+    }
+    h.screenshot("04_groom/paging-page1").await?;
+
+    h.click("#groom-next").await?;
+    h.wait_for_text("#groom-page-info", "showing 11–12 of 12", TIMEOUT)
+        .await?;
+    if row_count(&h).await? != 2 {
+        return Err(Error::message("page 2 should show 2 rows"));
+    }
+    if !h
+        .eval::<bool>("document.querySelector('#groom-next').disabled")
+        .await?
+    {
+        return Err(Error::message("next should be disabled on the last page"));
+    }
+    let results = h.text_content("#groom-results").await?;
+    if !results.contains("P11") || !results.contains("P12") {
+        return Err(Error::message(format!(
+            "page 2 should show P11 and P12, shows: {results:?}"
+        )));
+    }
+    h.screenshot("04_groom/paging-page2").await?;
+
+    h.click("#groom-prev").await?;
+    h.wait_for_text("#groom-page-info", "showing 1–10 of 12", TIMEOUT)
+        .await?;
+    if row_count(&h).await? != 10 {
+        return Err(Error::message("page 1 should show 10 rows again"));
+    }
+    Ok(())
+}
+
+/// Enable/disable toggle: the row badge and the store row follow each
+/// click immediately.
+#[tokio::test]
+#[ignore = "browser"]
+async fn disable_enable_toggle() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    seed_card(
+        &store,
+        user_id,
+        "card-toggle",
+        "Toggle prompt",
+        "Toggle solution",
+        CardState::New,
+        now,
+        now + 60_000,
+        false,
+    )
+    .await?;
+
+    goto_groom(&h).await?;
+    h.wait_for_selector("#toggle-disabled-card-toggle", TIMEOUT)
+        .await?;
+
+    h.click("#toggle-disabled-card-toggle").await?;
+    h.wait_for_selector("#disabled-card-toggle", TIMEOUT)
+        .await?;
+    if h.text_content("#toggle-disabled-card-toggle").await? != "Enable" {
+        return Err(Error::message("toggle should read Enable once disabled"));
+    }
+    let card = store
+        .get_card(user_id, "card-toggle")
+        .await
+        .map_err(store_err)?
+        .ok_or_else(|| Error::message("card-toggle vanished"))?;
+    if !card.disabled {
+        return Err(Error::message("store row should be disabled=true"));
+    }
+    h.screenshot("04_groom/disabled-badge").await?;
+
+    h.click("#toggle-disabled-card-toggle").await?;
+    wait_until_gone(&h, "#disabled-card-toggle", TIMEOUT).await?;
+    if h.text_content("#toggle-disabled-card-toggle").await? != "Disable" {
+        return Err(Error::message("toggle should read Disable once enabled"));
+    }
+    let card = store
+        .get_card(user_id, "card-toggle")
+        .await
+        .map_err(store_err)?
+        .ok_or_else(|| Error::message("card-toggle vanished"))?;
+    if card.disabled {
+        return Err(Error::message("store row should be disabled=false"));
+    }
+    Ok(())
+}
+
+/// Delete: the confirm modal shows the prompt, Cancel keeps the card,
+/// Delete removes it from the list and the store.
+#[tokio::test]
+#[ignore = "browser"]
+async fn delete_with_confirm_modal() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    seed_card(
+        &store,
+        user_id,
+        "card-delete",
+        "Doomed prompt",
+        "Doomed solution",
+        CardState::New,
+        now,
+        now + 60_000,
+        false,
+    )
+    .await?;
+
+    goto_groom(&h).await?;
+    h.wait_for_selector("#groom-row-card-delete", TIMEOUT)
+        .await?;
+
+    h.click("#delete-card-delete").await?;
+    h.wait_for_selector("#groom-modal", TIMEOUT).await?;
+    let modal = h.text_content("#groom-modal").await?;
+    if !modal.contains("Really delete this card?") || !modal.contains("Doomed prompt") {
+        return Err(Error::message(format!(
+            "modal should ask about the card, shows: {modal:?}"
+        )));
+    }
+    h.screenshot("04_groom/delete-modal").await?;
+
+    h.click("#modal-cancel").await?;
+    wait_until_gone(&h, "#groom-modal", TIMEOUT).await?;
+    h.wait_for_selector("#groom-row-card-delete", TIMEOUT)
+        .await?;
+
+    h.click("#delete-card-delete").await?;
+    h.wait_for_selector("#groom-modal", TIMEOUT).await?;
+    h.click("#modal-confirm").await?;
+    h.wait_for_text("#groom-empty", "No cards match", TIMEOUT)
+        .await?;
+    h.screenshot("04_groom/delete-done").await?;
+    if store
+        .get_card(user_id, "card-delete")
+        .await
+        .map_err(store_err)?
+        .is_some()
+    {
+        return Err(Error::message("store row should be gone after delete"));
+    }
+    Ok(())
+}
+
+/// Deleting the last row of page 2 lands back on page 1 with the
+/// refreshed count.
+#[tokio::test]
+#[ignore = "browser"]
+async fn delete_last_item_on_page_goes_back() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    seed_page_cards(&store, user_id, 11, "card-q").await?;
+
+    goto_groom(&h).await?;
+    h.wait_for_text("#groom-page-info", "showing 1–10 of 11", TIMEOUT)
+        .await?;
+    h.click("#groom-next").await?;
+    h.wait_for_text("#groom-page-info", "showing 11–11 of 11", TIMEOUT)
+        .await?;
+    if row_count(&h).await? != 1 {
+        return Err(Error::message("page 2 should show exactly 1 row"));
+    }
+
+    h.click("#delete-card-q11").await?;
+    h.wait_for_selector("#groom-modal", TIMEOUT).await?;
+    h.click("#modal-confirm").await?;
+    h.wait_for_text("#groom-page-info", "showing 1–10 of 10", TIMEOUT)
+        .await?;
+    if row_count(&h).await? != 10 {
+        return Err(Error::message("should be back on page 1 with 10 rows"));
+    }
+    let (_cards, count) = store
+        .search_cards(user_id, None, 0, 100)
+        .await
+        .map_err(store_err)?;
+    if count != 10 {
+        return Err(Error::message(format!(
+            "store should hold 10 cards after the delete, holds {count}"
+        )));
+    }
+    h.screenshot("04_groom/delete-last-item-back").await?;
+    Ok(())
+}
+
+/// Reset progress: confirm modal, badge flips to `new`, and the store row
+/// is rescheduled to `now + 30 min`.
+#[tokio::test]
+#[ignore = "browser"]
+async fn reset_progress_with_confirm_modal() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    seed_card(
+        &store,
+        user_id,
+        "card-reset",
+        "Reset prompt",
+        "Reset solution",
+        CardState::Ok,
+        now - 3_600_000,
+        now + 3_600_000,
+        false,
+    )
+    .await?;
+
+    goto_groom(&h).await?;
+    h.wait_for_text("#state-card-reset", "ok", TIMEOUT).await?;
+
+    h.click("#reset-card-reset").await?;
+    h.wait_for_selector("#groom-modal", TIMEOUT).await?;
+    let modal = h.text_content("#groom-modal").await?;
+    if !modal.contains("Reset learning progress for this card?") || !modal.contains("Reset prompt")
+    {
+        return Err(Error::message(format!(
+            "modal should ask about the reset, shows: {modal:?}"
+        )));
+    }
+    h.screenshot("04_groom/reset-modal").await?;
+
+    h.click("#modal-confirm").await?;
+    h.wait_for_text("#state-card-reset", "new", TIMEOUT).await?;
+    h.screenshot("04_groom/reset-done").await?;
+
+    let card = store
+        .get_card(user_id, "card-reset")
+        .await
+        .map_err(store_err)?
+        .ok_or_else(|| Error::message("card-reset vanished"))?;
+    if card.state != CardState::New {
+        return Err(Error::message(format!(
+            "state should be new after reset, is {:?}",
+            card.state
+        )));
+    }
+    // The server sets change_time = now and next_time = now + 30 min with
+    // the same clock reading, so the difference is exact up to rounding.
+    let waiting = card.next_time - card.change_time;
+    if (waiting - 1_800_000).abs() > 3_000 {
+        return Err(Error::message(format!(
+            "next_time should be ≈ change_time + 1800000 ms, difference is {waiting} ms"
+        )));
+    }
+    if card.next_time <= now_ms() {
+        return Err(Error::message("next_time should be in the future"));
+    }
+    Ok(())
+}
+
+/// The money test of the slice: a disabled due card is not quizzable;
+/// enabling it in Groom makes it appear in the Quiz tab.
+#[tokio::test]
+#[ignore = "browser"]
+async fn disabled_card_not_quizzable_until_enabled() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    seed_card(
+        &store,
+        user_id,
+        "card-cross",
+        "Cross feature prompt",
+        "Cross feature solution",
+        CardState::New,
+        now - 60_000,
+        now - 1_000,
+        true,
+    )
+    .await?;
+
+    h.goto("/").await?;
+    h.wait_for_text("#quiz-done", "All done", TIMEOUT).await?;
+    h.screenshot("04_groom/cross-quiz-done").await?;
+
+    h.click("#tab-groom").await?;
+    h.wait_for_selector("#toggle-disabled-card-cross", TIMEOUT)
+        .await?;
+    h.click("#toggle-disabled-card-cross").await?;
+    wait_until_gone(&h, "#disabled-card-cross", TIMEOUT).await?;
+
+    h.click("#tab-quiz").await?;
+    h.wait_for_text("#quiz-prompt", "Cross feature prompt", TIMEOUT)
+        .await?;
+    h.screenshot("04_groom/cross-quizzable").await?;
+    Ok(())
+}
+
+/// Owner decision (2026-07-27): full delete stays available for learned
+/// cards, but the confirmation must surface the existing progress. A new
+/// (unlearned) card's modal shows no such warning.
+#[tokio::test]
+#[ignore = "browser"]
+async fn delete_modal_warns_about_existing_progress() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    seed_card(
+        &store,
+        user_id,
+        "card-learned",
+        "Learned prompt",
+        "Learned solution",
+        CardState::Ok,
+        now - 3_600_000,
+        now + 86_400_000,
+        false,
+    )
+    .await?;
+    seed_card(
+        &store,
+        user_id,
+        "card-fresh",
+        "Fresh prompt",
+        "Fresh solution",
+        CardState::New,
+        now,
+        now + 60_000,
+        false,
+    )
+    .await?;
+
+    goto_groom(&h).await?;
+    h.wait_for_selector("#groom-row-card-fresh", TIMEOUT)
+        .await?;
+
+    // Learned card: warning names the state and the permanence.
+    h.click("#delete-card-learned").await?;
+    h.wait_for_selector("#modal-progress-warning", TIMEOUT)
+        .await?;
+    let warning = h.text_content("#modal-progress-warning").await?;
+    if !warning.contains("learning progress") || !warning.contains("ok") {
+        return Err(Error::message(format!(
+            "warning should mention progress and state, shows: {warning:?}"
+        )));
+    }
+    h.screenshot("04_groom/delete-modal-progress-warning")
+        .await?;
+    h.click("#modal-cancel").await?;
+    wait_until_gone(&h, "#groom-modal", TIMEOUT).await?;
+
+    // Fresh card: same modal, no warning.
+    h.click("#delete-card-fresh").await?;
+    h.wait_for_selector("#groom-modal", TIMEOUT).await?;
+    let modal = h.text_content("#groom-modal").await?;
+    if modal.contains("learning progress") {
+        return Err(Error::message(format!(
+            "new card's modal must not warn about progress, shows: {modal:?}"
+        )));
+    }
+    h.click("#modal-cancel").await?;
+    Ok(())
+}

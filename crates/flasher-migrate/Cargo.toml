@@ -1,0 +1,49 @@
+[package]
+name = "flasher-migrate"
+description = "Imports an old .NET FileStore directory (JSON files) into the SQLite store"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "flasher-migrate"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+# NOTE: dependency versions are declared locally per crate for now;
+# centralization into [workspace.dependencies] in the root Cargo.toml
+# happens in a later phase.
+[dependencies]
+flasher-store = { path = "../flasher-store" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+# `time` over `chrono`: smaller dependency tree and no `oldtime`/RUSTSEC
+# baggage. default-features = false; `std` for Error impls, `parsing` for
+# Rfc3339/format descriptions, `macros` for the compile-time-checked
+# `format_description!` fallback. No clock features needed: epoch millis
+# come from `unix_timestamp()`.
+time = { version = "0.3", default-features = false, features = [
+    "std",
+    "parsing",
+    "macros",
+] }
+# Async main: `macros` for #[tokio::main], `rt-multi-thread` for the runtime.
+tokio = { version = "1", default-features = false, features = [
+    "macros",
+    "rt-multi-thread",
+] }
+
+[dev-dependencies]
+# `json` enables assert_json_snapshot!; otherwise defaults are fine.
+insta = { version = "1", features = ["json"] }
+tempfile = "3"
+# For the full-database dump in the golden test; same feature rationale
+# as flasher-store, minus `migrate` (the store runs the migrations).
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "sqlite",
+    "macros",
+] }

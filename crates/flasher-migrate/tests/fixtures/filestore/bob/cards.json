@@ -1,0 +1,11 @@
+[
+  {
+    "Id": "5d7f9a1b-7c9d-4e1f-a5b6-8d0c2e4f6a8c",
+    "Prompt": "HTTP status for \"not found\"?",
+    "Solution": "404",
+    "State": "New",
+    "ChangeTime": "2024-06-10T14:45:12.9876543+02:00",
+    "NextTime": "2024-06-10T14:50:12.9876543+02:00",
+    "Disabled": false
+  }
+]

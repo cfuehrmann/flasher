@@ -1,0 +1,7 @@
+# Flasher
+
+> A spaced-repetition flashcard app: create cards, review them in a quiz, and let the SRS scheduler decide what is due next.
+
+## Links
+
+- [Source code](https://github.com/cfuehrmann/flasher)

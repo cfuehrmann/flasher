@@ -1,0 +1,29 @@
+[package]
+name = "flasher-auth"
+description = "Passkey (WebAuthn) ceremonies for Flasher: webauthn-rs wrapper, in-memory challenge store, session tokens"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde_json.workspace = true
+# v4 for the random ceremony ids and session tokens (256-bit = two uuids).
+uuid = { version = "1", features = ["v4"] }
+# default-features = false drops the (empty) `attestation` feature; we only
+# run unattested passkey ceremonies. `conditional-ui` (no extra deps) unlocks
+# the discoverable (username-less) authentication API; the forced
+# `mediation: "conditional"` hint is dropped again in start_authentication
+# because login here is button-driven, not autofill.
+webauthn-rs = { version = "0.5", default-features = false, features = [
+    "conditional-ui",
+] }
+
+[dev-dependencies]
+# Software authenticator for the pure-Rust ceremony round-trip test.
+webauthn-authenticator-rs = { version = "0.5", default-features = false, features = [
+    "softpasskey",
+] }

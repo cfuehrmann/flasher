@@ -1,2 +1,16 @@
 zelix.log.*
 .omega/sessions
+
+# --- Rust rewrite tooling ---
+/target
+/frontends/leptos/dist
+/frontends/leptos/target
+/test-output
+# cargo-mutants scratch/output artifacts
+/mutants.out
+/mutants.out.old/
+.cargo-mutants*
+
+# Local database (incl. the WAL sidecar files) and its backups
+/flasher.db*
+/backups/

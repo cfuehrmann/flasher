@@ -1,0 +1,10 @@
+---
+source: crates/flasher-migrate/tests/golden.rs
+expression: render_report(&report)
+---
+user "alice": 4 cards (new=1, ok=2, failed=1), 1 disabled, autosave: no — verify: OK
+  note: ignoring PasswordHash for user "alice" (auth becomes passkeys)
+user "bob": 1 cards (new=1, ok=0, failed=0), 0 disabled, autosave: yes — verify: OK
+  note: ignoring PasswordHash for user "bob" (auth becomes passkeys)
+user "carol": 0 cards (new=0, ok=0, failed=0), 0 disabled, autosave: no — verify: OK
+OK

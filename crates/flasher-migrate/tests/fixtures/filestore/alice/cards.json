@@ -1,0 +1,38 @@
+[
+  {
+    "Id": "3f6a1c2e-9b4d-4e8a-a1c5-7d2f0b9e6a31",
+    "Prompt": "What is the capital of France?",
+    "Solution": "Paris",
+    "State": "New",
+    "ChangeTime": "2024-05-01T08:00:00+02:00",
+    "NextTime": "2024-05-01T08:05:00+02:00",
+    "Disabled": false
+  },
+  {
+    "Id": "7b2e4d6f-1a3c-4f5b-9d8e-2c6a0b4d8e1f",
+    "Prompt": "2 + 2 = ?",
+    "Solution": "4",
+    "State": "Ok",
+    "ChangeTime": "2024-05-01T08:15:30.5+02:00",
+    "NextTime": "2024-05-08T08:15:30.5+02:00",
+    "Disabled": false
+  },
+  {
+    "Id": "9c4f6a8b-3d5e-4a7c-b1f2-4e8d0c6a2b4d",
+    "Prompt": "Largest planet?",
+    "Solution": "Jupiter",
+    "State": "Failed",
+    "ChangeTime": "2024-05-01T09:30:00.1234567+02:00",
+    "NextTime": "2024-05-01T09:35:00.1234567+02:00",
+    "Disabled": false
+  },
+  {
+    "Id": "1e3a5c7e-5f7a-4c9e-d3b4-6f0a2e4c6a8d",
+    "Prompt": "Obsolete card",
+    "Solution": "no longer needed",
+    "State": "Ok",
+    "ChangeTime": "2024-04-20T10:00:00+02:00",
+    "NextTime": "2024-04-27T10:00:00+02:00",
+    "Disabled": true
+  }
+]

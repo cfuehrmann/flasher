@@ -1,0 +1,894 @@
+/* Flasher — design system (Phase 6).
+ *
+ * Dark-theme-first, hand-rolled, no framework. The card content is the
+ * hero; chrome (nav, footer, metadata) recedes into muted colors and
+ * quiet surfaces. Everything derives from the tokens below: one spacing
+ * scale (0.25rem steps), one radius pair, one accent with contrast-
+ * checked action colors (white text >= 4.5:1, Lighthouse color-contrast).
+ */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #1c2129;
+  --border: #30363d;
+  --border-subtle: #21262d;
+
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+
+  /* Darker than GitHub's #1f6feb / #238636 / #da3633: white text needs
+     >= 4.5:1 contrast (Lighthouse color-contrast audit). */
+  --accent: #1a5fd7;
+  --accent-hover: #2f6fdd;
+  --accent-border: #388bfd;
+  --accent-soft: rgba(56, 139, 253, 0.14);
+  --accent-text: #79b8ff;
+
+  --ok: #196c2e;
+  --ok-hover: #1f7a33;
+  --ok-border: #2ea043;
+
+  --danger: #b62324;
+  --danger-hover: #c03028;
+  --danger-border: #f85149;
+
+  --warn: #d29922;
+
+  --radius: 8px;
+  --radius-sm: 6px;
+
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(56, 139, 253, 0.35);
+}
+
+.app {
+  max-width: 42rem;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 1rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.app h1 {
+  font-size: 1.4rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+/* Muted metadata text (status lines, dates, hints). */
+.quiz-status,
+.quiz-hint,
+.quiz-keys,
+.groom-status,
+.groom-due,
+.auth-hint,
+.auth-label,
+.draft-indicator,
+.health,
+.passkey-dates,
+#groom-page-info,
+.editor label,
+.groom label {
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* Header + nav tabs (chrome recedes: ghost tabs, quiet active state)  */
+/* ------------------------------------------------------------------ */
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tabs button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.tabs button:not(:disabled):hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.tabs button.active,
+.tabs button.active:not(:disabled):hover {
+  background: var(--accent-soft);
+  border-color: rgba(56, 139, 253, 0.4);
+  color: var(--accent-text);
+}
+
+/* Narrow screens: brand on one row, the four tabs share the next. */
+@media (max-width: 40rem) {
+  .app h1 {
+    font-size: 1.25rem;
+  }
+
+  .tabs {
+    flex: 1 1 100%;
+    order: 2;
+  }
+
+  .tabs button {
+    flex: 1;
+    padding: 0.4rem 0.25rem;
+    font-size: 0.9rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Buttons: one sizing, three semantics (primary / ok / destructive).  */
+/* ------------------------------------------------------------------ */
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+button:not(:disabled):hover {
+  background: var(--border);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent-border);
+  font-weight: 600;
+}
+
+button.primary:not(:disabled):hover {
+  background: var(--accent-hover);
+}
+
+button.ok {
+  background: var(--ok);
+  border-color: var(--ok-border);
+  font-weight: 600;
+}
+
+button.ok:not(:disabled):hover {
+  background: var(--ok-hover);
+}
+
+button.failed {
+  background: var(--danger);
+  border-color: var(--danger-border);
+  font-weight: 600;
+}
+
+button.failed:not(:disabled):hover {
+  background: var(--danger-hover);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Keyboard users always see where they are (a11y). */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Panels: one surface treatment for every card in the app.            */
+/* ------------------------------------------------------------------ */
+
+.quiz-card,
+.editor,
+.passkeys-card,
+.auth-card,
+.modal,
+.groom-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.quiz-card,
+.editor,
+.passkeys-card {
+  padding: 1.25rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Rendered card content (MarkdownView): Markdown + KaTeX.             */
+/* ------------------------------------------------------------------ */
+
+.md {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+.md.solution {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md p,
+.md ul,
+.md ol,
+.md table,
+.md pre,
+.md blockquote {
+  margin: 0 0 0.75rem;
+}
+
+.md ul,
+.md ol {
+  padding-left: 1.5rem;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 1.25rem 0 0.5rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.md h1 {
+  font-size: 1.45rem;
+}
+
+.md h2 {
+  font-size: 1.3rem;
+}
+
+.md h3 {
+  font-size: 1.15rem;
+}
+
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 1.05rem;
+}
+
+.md table {
+  border-collapse: collapse;
+  max-width: 100%;
+}
+
+.md th,
+.md td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+}
+
+.md th {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+
+.md code {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.md pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+
+.md pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.md a {
+  color: var(--accent-text);
+}
+
+.md blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Display math must scroll sideways instead of overflowing on mobile. */
+.md .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Quiz tab (keyboard-first: big actions, visible key hints).          */
+/* ------------------------------------------------------------------ */
+
+.quiz-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.quiz-buttons button {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  font-size: 1.05rem;
+}
+
+.quiz-keys {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin: 0.75rem 0 0;
+}
+
+.quiz-keys kbd {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+}
+
+.quiz-status {
+  margin: 0 0 0.5rem;
+}
+
+.quiz-hint {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* Empty / done state: centered, calm; the headline is content, not
+   metadata, so it keeps the primary text color. */
+#quiz-done {
+  text-align: center;
+  padding: 2.5rem 1.25rem;
+}
+
+#quiz-done .quiz-status {
+  color: var(--text);
+  font-size: 1.05rem;
+  margin-bottom: 0.25rem;
+}
+
+#quiz-done .quiz-hint {
+  margin-top: 0.25rem;
+}
+
+.error,
+.form-error {
+  color: var(--danger-border);
+}
+
+.form-ok {
+  color: #3fb950;
+}
+
+/* ------------------------------------------------------------------ */
+/* Card editor (split view + autosave)                                 */
+/* ------------------------------------------------------------------ */
+
+/* The split-pane editor needs more room than the single-column tabs. */
+.app:has(.editor) {
+  max-width: 64rem;
+}
+
+.editor h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.editor-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+/* Stacked (inputs above preview) on narrow screens. */
+@media (max-width: 48rem) {
+  .app:has(.editor) {
+    max-width: 42rem;
+  }
+
+  .editor-panes {
+    grid-template-columns: 1fr;
+  }
+}
+
+.editor label {
+  display: block;
+  font-size: 0.85rem;
+  margin: 0.75rem 0 0.375rem;
+}
+
+.editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.625rem;
+  resize: vertical;
+  transition: border-color 120ms ease;
+}
+
+.editor textarea:focus-visible {
+  border-color: var(--accent-border);
+}
+
+.editor-preview {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 1rem;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-wrap: break-word;
+}
+
+.editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.draft-indicator {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+}
+
+/* Draft recovery banner (app start with a leftover autosave). */
+.draft-banner {
+  background: var(--surface);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.draft-banner-text {
+  margin: 0;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.draft-banner-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Groom tab                                                           */
+/* ------------------------------------------------------------------ */
+
+.groom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.groom label {
+  display: block;
+  font-size: 0.85rem;
+  margin: 0 0 0.375rem;
+}
+
+.groom input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.625rem;
+  transition: border-color 120ms ease;
+}
+
+.groom input:focus-visible {
+  border-color: var(--accent-border);
+}
+
+.groom-status {
+  margin: 0;
+}
+
+.groom-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.groom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+.groom-row-main {
+  min-width: 0;
+}
+
+.groom-prompt {
+  margin: 0 0 0.375rem;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  /* 2-line preview clamp for long prompts. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.groom-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+/* Same contrast-checked colors as the quiz buttons (>= 4.5:1 on white). */
+.badge.state-new {
+  background: var(--accent);
+}
+
+.badge.state-ok {
+  background: var(--ok);
+}
+
+.badge.state-failed {
+  background: var(--danger);
+}
+
+.badge.disabled {
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+}
+
+.groom-due {
+  font-variant-numeric: tabular-nums;
+}
+
+.groom-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.groom-actions button {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* Narrow screens: the row stacks — prompt + meta full width, actions
+   wrap onto their own row below instead of crushing the prompt. */
+@media (max-width: 40rem) {
+  .groom-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.625rem;
+  }
+
+  .groom-actions {
+    flex-wrap: wrap;
+  }
+}
+
+.groom-paging {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+#groom-page-info {
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+/* Confirm modal (delete / reset progress / delete passkey)            */
+/* ------------------------------------------------------------------ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(1, 4, 9, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.modal {
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 26rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.modal-text {
+  margin: 0 0 1rem;
+}
+
+.modal-prompt {
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.modal-progress-warning {
+  color: var(--warn);
+  background: rgba(210, 153, 34, 0.1);
+  border: 1px solid rgba(210, 153, 34, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (max-width: 40rem) {
+  .modal-buttons button {
+    flex: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Footer                                                              */
+/* ------------------------------------------------------------------ */
+
+.bottom {
+  margin-top: auto;
+}
+
+.health {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Auth screens + Account tab                                          */
+/* ------------------------------------------------------------------ */
+
+/* Centered single-card layout for the splash and the auth screen. */
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.auth-card {
+  padding: 2rem;
+  width: 23rem;
+  max-width: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.auth-card h1 {
+  text-align: center;
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.auth-card input {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.625rem;
+  transition: border-color 120ms ease;
+}
+
+.auth-card input:focus-visible {
+  border-color: var(--accent-border);
+}
+
+.auth-hint {
+  margin: 0;
+}
+
+/* Sits directly above its input inside the 1rem card gap. */
+.auth-label {
+  font-size: 0.85rem;
+  margin-bottom: -0.625rem;
+}
+
+/* Account tab. */
+.account {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.account-identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.account-user {
+  margin: 0;
+}
+
+.passkeys-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.passkeys-card h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.passkeys-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.passkey-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.passkey-row:last-child {
+  border-bottom: none;
+}
+
+.passkey-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.passkey-dates {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.passkey-actions,
+.passkey-rename {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.passkey-actions button {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.passkey-rename input {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.5rem;
+}
+
+.passkeys-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
