@@ -7,9 +7,10 @@ SRC=/opt/flasher/src
 APP=/opt/flasher
 
 # Be independent of the caller's environment: rustup's toolchain lives in
-# the installing user's home (root on the production server) and plain
-# `sudo` does not put it on PATH.
-for env_file in /root/.cargo/env "$HOME/.cargo/env"; do
+# the installing user's home and plain `sudo` does not put it on PATH.
+# (Production server: toolchain was installed as user carsten at install
+# time, hence that fallback.)
+for env_file in /root/.cargo/env /home/carsten/.cargo/env "$HOME/.cargo/env"; do
     if [ -f "$env_file" ]; then
         # shellcheck disable=SC1090
         . "$env_file"
