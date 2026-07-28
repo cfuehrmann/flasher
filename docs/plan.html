@@ -410,7 +410,7 @@ browser e2e (clicking) together — never a backend without its user-facing test
   <ul class="checks">
     <li class="done"><code>flasher-core</code>: SRS ported exactly from C# (ok ×1.8 / failed ×0.5555 of elapsed interval, new-card wait 30 min on create); 24/24 mutants caught; tunables configurable via env</li>
     <li class="done">Cards endpoints (next, create-as-disabled, set-ok, set-failed); single-user mode (<code>FLASHER_USER</code> optional, single-db-user auto-resolution) as the Phase-5 auth seam</li>
-    <li class="done">Quiz UI: prompt → reveal → rate, keyboard shortcuts (Space / 1 / 2), add-card form, done/error states; 4 SSR tests</li>
+    <li class="done">Quiz UI: prompt → reveal → rate, add-card form, done/error states; 4 SSR tests</li>
     <li class="done">5 browser e2e tests clicking through the full round incl. SRS white-box checks; wired into <code>just gate</code>; staleness guards (server always rebuilt, dist freshness-checked)</li>
   </ul>
 </div>
@@ -507,7 +507,7 @@ browser e2e (clicking) together — never a backend without its user-facing test
 visual design ideas. It's Next.js — the stack is explicitly not adopted, only the UX/structure.</div>
 <ul>
   <li><b>Design language:</b> clean, focused, dark-theme-first flashcard UI; system fonts, CSS custom properties, no framework. The card content is the hero — chrome recedes.</li>
-  <li><b>Quiz screen:</b> large readable prompt, keyboard-first (Space = reveal, 1/2 or arrows = failed/ok), visible next-due feedback after rating.</li>
+  <li><b>Quiz screen:</b> large readable prompt, tap-first (quizzing happens on the phone — no keyboard shortcuts), visible next-due feedback after rating.</li>
   <li><b>Groom screen:</b> fast search-as-you-type, clear state badges (new/ok/failed/disabled), undo-ish safety on destructive actions (confirm modal, as today).</li>
   <li><b>Editor:</b> side-by-side Markdown preview (today it's render-on-save only), autosave indicator, KaTeX in preview.</li>
   <li><b>Auth screens:</b> passkey-native flow — one button, browser prompt, done. Passkey management table with names + last-used.</li>

@@ -11,10 +11,6 @@
 //! un-revealing), rating swaps it back to `/quiz`. A fresh load of
 //! `/quiz/solution` fetches the next due card and shows it ALREADY
 //! revealed; a fresh load of `/quiz` starts at the prompt as before.
-//!
-//! Keyboard shortcuts: Space/Enter shows the solution, `1` rates failed,
-//! `2` rates ok. The handler ignores keys while an input or textarea has
-//! focus so typing in the Add card form is never hijacked.
 
 use flasher_types::CardResponse;
 use leptos::prelude::*;
@@ -120,27 +116,6 @@ pub fn Quiz() -> impl IntoView {
     #[cfg(feature = "csr")]
     Effect::new(move |_| fetch_next.run(()));
 
-    // Global keyboard shortcuts (client-side only; `window()` does not
-    // exist under ssr).
-    #[cfg(feature = "csr")]
-    {
-        let handle = window_event_listener(leptos::ev::keydown, move |ev| {
-            if typing_in_form_field() {
-                return;
-            }
-            match (state.get_untracked(), ev.key().as_str()) {
-                (QuizState::Prompt(_), " " | "Enter") => {
-                    ev.prevent_default();
-                    show_solution.run(());
-                }
-                (QuizState::Solution(card), "1") => rate.run((card.id, false)),
-                (QuizState::Solution(card), "2") => rate.run((card.id, true)),
-                _ => {}
-            }
-        });
-        on_cleanup(move || handle.remove());
-    }
-
     view! {
         <section class="quiz">
             {move || match state.get() {
@@ -161,9 +136,6 @@ pub fn Quiz() -> impl IntoView {
                                 "Show solution"
                             </button>
                         </div>
-                        <p class="quiz-keys">
-                            <kbd>"Space"</kbd> " show solution"
-                        </p>
                     </div>
                 }
                     .into_any(),
@@ -192,9 +164,6 @@ pub fn Quiz() -> impl IntoView {
                                 "OK"
                             </button>
                         </div>
-                        <p class="quiz-keys">
-                            <kbd>"1"</kbd> " failed · " <kbd>"2"</kbd> " ok"
-                        </p>
                     </div>
                 }
                     .into_any(),
@@ -225,14 +194,4 @@ pub fn Quiz() -> impl IntoView {
             }}
         </section>
     }
-}
-
-/// Whether the keyboard focus is currently inside a form field — in that
-/// case global quiz shortcuts must not fire.
-#[cfg(feature = "csr")]
-fn typing_in_form_field() -> bool {
-    document().active_element().is_some_and(|el| {
-        let tag = el.tag_name();
-        tag == "INPUT" || tag == "TEXTAREA" || tag == "SELECT"
-    })
 }
