@@ -1,46 +1,49 @@
-# Getting Started with Create React App
+# Flasher
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A personal spaced-repetition flashcard app. Rust backend (axum + SQLite),
+Leptos/wasm frontend, passkey authentication. Live at
+https://flasher.carstenfuehrmann.org (single-user).
 
-## Available Scripts
+Formerly a .NET + React app; fully rewritten in Rust (see `docs/spec.md`
+for the why and `docs/plan.html` for the living plan). The old code was
+removed in the Phase-7 cleanup; it lives on in git history.
 
-In the project directory, you can run:
+## Quick start
 
-### `yarn start`
+```sh
+just server     # dev run: builds the frontend + serves everything on :3000
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+Open http://localhost:3000. Development runs in an auth-free single-user
+bypass (`FLASHER_USER`, default `dev`); passkey auth activates when that
+variable is unset.
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Working in this repo
 
-### `yarn test`
+Read **`AGENTS.md`** — it defines the testing doctrine (browser e2e as the
+only public test surface), the quality gates, the adversarial-review
+protocol, and the feature workflow. The short version:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```sh
+just gate       # THE quality gate: clippy, tests, machete, deny, browser e2e
+just e2e        # browser tests (headless Chromium, click-driven)
+just lighthouse # per-page Lighthouse scores
+just mutants <crate>   # targeted mutation testing
+```
 
-### `yarn build`
+## Layout
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- `crates/` — backend workspace (types/core/store/auth/server/e2e/migrate)
+- `frontends/leptos/` — detached Leptos workspace (Trunk build)
+- `deploy/` — systemd unit, Caddy site, `update.sh`, `DEPLOY.md`
+- `docs/` — `spec.md`, `plan.html`
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Deployment
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+See `deploy/DEPLOY.md`. Updates: push to GitHub, then
+`sudo /opt/flasher/update.sh` on the server (pull → build → restart →
+health check).
 
-### `yarn eject`
+## License
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+MIT (see `LICENSE`).

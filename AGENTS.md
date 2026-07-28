@@ -30,8 +30,10 @@ it literally; the conventions below are battle-tested and non-optional.
 - `deploy/` — systemd unit, Caddyfile, `update.sh`, `DEPLOY.md`.
 - `docs/` — `spec.md` (original spec), `plan.html` (living plan — keep it
   current with every phase/feature; low verbosity for done items).
-- `backend/`, `frontend/` — the OLD app (.NET/React), kept as behavioral
-  reference until the Phase-7 cleanup. Never modify; port behavior from it.
+- The old .NET/React app was deleted in the Phase-7 cleanup. It remains in
+  git history as the behavioral reference — when porting behavior, look it
+  up there (e.g. `git show master~N:backend/...` or the pre-cleanup commit)
+  and cite provenance in comments.
 
 ## Commands (justfile is the entry point)
 
@@ -136,5 +138,4 @@ fix real ones, record deferrals in `docs/plan.html`.
 - Don't add API-level behavior tests (see doctrine; auth exception noted).
 - Don't add a router/state-manager/CSS-framework/npm dependency.
 - Don't skip the adversarial review or the mutation run because "small".
-- Don't edit the old `backend/`/`frontend/` code.
 - Don't commit `flasher.db`, `backups/`, `mutants.out*` (gitignored).

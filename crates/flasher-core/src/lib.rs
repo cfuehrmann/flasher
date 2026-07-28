@@ -3,7 +3,8 @@
 //! This crate is a line-for-line port of the *scheduling rules* of the
 //! old .NET backend (`backend/Flasher.Host/Handlers/Cards/CardsHandler.cs`,
 //! `backend/Flasher.Host/CardsOptions.cs` with the defaults from
-//! `backend/Flasher.Host/appsettings.json`). Only the arithmetic is
+//! `backend/Flasher.Host/appsettings.json`; the old code was removed in
+//! the Phase-7 cleanup — see git history). Only the arithmetic is
 //! ported; the surrounding request handling differs deliberately — the
 //! C# `SetState` returned the *next* due card, while `flasher-server`
 //! returns the *rated* card and the frontend refetches the next card.

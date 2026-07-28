@@ -1,5 +1,0 @@
-﻿{
-  response: {
-    Status: 404 Not Found
-  }
-}
