@@ -81,17 +81,16 @@ systemctl daemon-reload && systemctl enable --now flasher
 journalctl -u flasher -n 20   # expect "listening" + open-bootstrap warning
 ```
 
-### A5. nginx + TLS — [server]
+### A5. Caddy + TLS — [server]
 
-```sh
-install -m644 /opt/flasher/src/deploy/nginx-flasher.conf /etc/nginx/sites-available/flasher
-ln -s /etc/nginx/sites-available/flasher /etc/nginx/sites-enabled/flasher
-certbot --nginx -d flasher.carstenfuehrmann.org   # one-time cert
-nginx -t && systemctl reload nginx
-```
+The server uses Caddy (automatic HTTPS — no certbot needed). Add the site
+block from `/opt/flasher/src/deploy/Caddyfile` to the existing Caddyfile
+(e.g. `/etc/caddy/Caddyfile`), then `caddy validate` (if available) and
+`systemctl reload caddy`. Caddy fetches the certificate for
+`flasher.carstenfuehrmann.org` on first request.
 
-Keep the old flasher's vhost/location untouched until the soak is over —
-rollback is removing the new vhost.
+Keep the old flasher's site untouched until the soak is over — rollback is
+removing the new block.
 
 ### A6. Claim your account — [browser, one-time]
 
@@ -110,7 +109,7 @@ survives), add a second passkey in Account.
 
 ### A8. Retire the old app — [server, after a soak period]
 
-Stop/disable the old .NET service, remove its nginx bits. KEEP the old JSON
+Stop/disable the old .NET service, remove its vhost/site config. KEEP the old JSON
 `flasher-store` directory untouched as a backup.
 
 ---

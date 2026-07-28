@@ -1,0 +1,10 @@
+# Flasher (Rust rewrite) — Caddy site block for flasher.carstenfuehrmann.org
+#
+# Add this block to the existing Caddyfile (e.g. /etc/caddy/Caddyfile) and
+# reload: `systemctl reload caddy` (or `caddy reload`).
+# Caddy obtains and renews the TLS certificate automatically — no certbot.
+# The app serves UI + /api on the same port and binds 127.0.0.1 only.
+
+flasher.carstenfuehrmann.org {
+	reverse_proxy 127.0.0.1:3000
+}

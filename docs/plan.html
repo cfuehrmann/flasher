@@ -481,7 +481,8 @@ browser e2e (clicking) together — never a backend without its user-facing test
     must never be set in production.</li>
     <li class="done">Deployment kit: <code>deploy/DEPLOY.md</code> runbook (Part A one-time install
     executable by kimi-code; Part B AI-free one-command update), <code>deploy/flasher.service</code>
-    (systemd, hardened), <code>deploy/nginx-flasher.conf</code> (subdomain vhost),
+    (systemd, hardened), <code>deploy/Caddyfile</code> (subdomain site block; server uses Caddy,
+    automatic TLS),
     <code>deploy/update.sh</code>. Strategy: build on the server (laptop glibc too new), parallel vhost
     beside the old app, retire old app after soak. RP ID <code>carstenfuehrmann.org</code> is
     domain-level → passkeys work domain-wide (fits the central-passkey-service idea).</li>
