@@ -173,16 +173,15 @@ mutants CRATE FILE="":
     fi
     cargo mutants "${args[@]}"
 
-# Full mutation sweep in copy mode with a scratch dir.
+# Full mutation sweep in-place (reuses the warm target cache, fastest
+# measured; cargo-mutants 27 dropped --tmpdir and forbids --in-place with -j).
 # systemd-run wrapping: runaway mutants get OOM-killed in their own cgroup and recorded as caught.
 mutants-all:
     #!/usr/bin/env bash
     set -euo pipefail
     scripts/mutants-guard
-    mkdir -p ~/.cache/cargo-mutants-tmp
     systemd-run --user --scope -p MemoryMax=20G -p MemorySwapMax=0 -p OOMPolicy=continue \
-        cargo mutants --workspace --cap-lints=true -j1 \
-        --tmpdir ~/.cache/cargo-mutants-tmp
+        cargo mutants --workspace --cap-lints=true --in-place
 
 # Install git hooks (worktree-aware).
 install-hooks:

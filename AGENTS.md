@@ -67,9 +67,23 @@ it literally; the conventions below are battle-tested and non-optional.
    --no-default-features --features ssr`) for markup/route logic.
 5. **Mutation testing** (cargo-mutants): after writing tests, run
    `just mutants <crate>` (or the leptos manifest-path variant for
-   frontend logic). Every mutant must be CAUGHT, UNVIABLE, or documented
-   in `.cargo/mutants.toml` (resp. `frontends/leptos/.cargo/mutants.toml`)
-   as equivalent/browser-only. Survivors = test gaps; kill them.
+   frontend logic); `just mutants-all` for a full workspace sweep. The
+   point is multi-fold, not just a coverage number:
+   - *Test completeness*: line coverage says code ran; a killed mutant
+     says a test would notice it breaking.
+   - *Dead-code detection*: a survivor may mean there is no real-life
+     use case — if no test can observe the change, maybe nothing needs
+     the code. Check for callers before reaching for a test.
+   - *Harness gaps*: survivors in glue code can reveal a layer with no
+     test surface at all (e.g. a CLI `main` nothing drives).
+   Triage every survivor on its merits — never discount one as trivial
+   unread, never disable a mutant to make it go away. Each survivor gets
+   exactly one fate: write the missing test (the default), delete the
+   dead code, document it in `.cargo/mutants.toml` (resp.
+   `frontends/leptos/.cargo/mutants.toml`) as equivalent/browser-only
+   with a real justification, or — rarely — a code comment explaining
+   why it is deliberately left uncovered. Every mutant must end CAUGHT,
+   UNVIABLE, or documented.
 6. Computer-vision loop: after any UI change, regenerate screenshots and
    READ the PNGs before declaring done. If it looks broken, it is broken.
 

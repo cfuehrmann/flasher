@@ -111,3 +111,24 @@ async fn main() -> ExitCode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    /// Independent wall clock for the test (deliberately not `now_millis`,
+    /// so a `now_millis` mutant can't move both the reference and the
+    /// value under test).
+    fn wall_millis() -> i64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+    }
+
+    #[test]
+    fn now_millis_is_current_epoch_millis() {
+        let t = super::now_millis();
+        assert!(t > 1_700_000_000_000, "expected a time after 2023-11-14, got {t}");
+        assert!(t <= wall_millis(), "time from the future: {t}");
+    }
+}

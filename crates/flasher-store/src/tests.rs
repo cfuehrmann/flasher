@@ -1,7 +1,7 @@
 //! Observable-behavior tests for `Store`, run against real `SQLite`
 //! (in-memory, plus one tempfile-backed test for `connect`).
 
-use super::{Card, CardState, NewCard, Store};
+use super::{Card, CardState, Error, NewCard, Store};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -64,6 +64,17 @@ async fn create_and_get_user() -> TestResult {
 
     // Duplicate name (even with different case) is rejected.
     assert!(store.create_user("ALICE").await.is_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn get_user_by_id_finds_existing_and_misses_unknown() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let user = store.create_user("alice").await?;
+
+    let id = user.id;
+    assert_eq!(store.get_user_by_id(id).await?, Some(user));
+    assert_eq!(store.get_user_by_id(id + 1).await?, None);
     Ok(())
 }
 
@@ -712,6 +723,14 @@ async fn duplicate_credential_id_is_a_unique_violation() -> TestResult {
     };
     assert!(err.is_unique_violation(), "got: {err}");
     Ok(())
+}
+
+#[test]
+fn non_database_error_is_not_a_unique_violation() {
+    // The false arm matters: flasher-server maps is_unique_violation() to
+    // 409 vs 500, so a non-UNIQUE failure must not look like a duplicate.
+    let err = Error::from(std::io::Error::other("boom"));
+    assert!(!err.is_unique_violation(), "got: {err}");
 }
 
 #[tokio::test]
