@@ -46,6 +46,8 @@ it literally; the conventions below are battle-tested and non-optional.
   git tree or `MUTANTS_ALLOW_DIRTY=1`.
 - Deploy: push to GitHub, then `sudo /opt/flasher/update.sh` on the
   server (pull → build backend+frontend → restart → health check).
+- Merging PRs: merge commits are disabled on the repo — always
+  `gh pr merge <n> --squash --delete-branch`.
 
 ## Testing doctrine (the owner cares about this deeply)
 
