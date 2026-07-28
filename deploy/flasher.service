@@ -10,10 +10,15 @@ WorkingDirectory=/var/lib/flasher
 Environment=FLASHER_PORT=3000
 Environment=FLASHER_DIST=/opt/flasher/dist
 Environment=FLASHER_DB=/var/lib/flasher/flasher.db
-# !!! Set to the final domain BEFORE the first passkey registration.
-# Passkeys bind to the RP ID; they do not transfer to another domain.
-Environment=FLASHER_RP_ID=DOMAIN_HERE
-Environment=FLASHER_ORIGIN=https://DOMAIN_HERE
+# Public URL: https://carstenfuehrmann.org/flasher/
+# RP ID is domain-level — passkeys registered here are valid for any app
+# on carstenfuehrmann.org (the future central-passkey-service direction).
+Environment=FLASHER_RP_ID=carstenfuehrmann.org
+Environment=FLASHER_ORIGIN=https://carstenfuehrmann.org
+# REQUIRED but not yet implemented (Phase 7 task "base path"): the app
+# must serve under /flasher/. Until that lands, deploy at a subdomain or
+# at the domain root instead.
+# Environment=FLASHER_BASE_PATH=/flasher
 # First boot only: required to claim the account during the open bootstrap
 # (zero passkeys). Remove after the first successful registration.
 Environment=FLASHER_BOOTSTRAP_TOKEN=CHANGE_ME_LONG_RANDOM

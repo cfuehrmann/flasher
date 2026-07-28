@@ -480,10 +480,15 @@ browser e2e (clicking) together — never a backend without its user-facing test
     <code>FLASHER_BOOTSTRAP_TOKEN</code> (removed after claiming). <code>FLASHER_USER</code> (dev bypass)
     must never be set in production.</li>
     <li class="done">Deployment kit: <code>deploy/DEPLOY.md</code> runbook (executable by kimi-code on the
-    server), <code>deploy/flasher.service</code> (systemd, hardened), <code>deploy/nginx-flasher.conf</code>.
-    Strategy: build on the server (laptop glibc too new), copy prebuilt dist, parallel-run beside the old
-    app, then switch the vhost. <b>Caveat:</b> passkeys bind to the domain — decide the final domain
-    BEFORE the first registration.</li>
+    server), <code>deploy/flasher.service</code> (systemd, hardened), <code>deploy/nginx-flasher.conf</code>
+    — filled for <b>https://carstenfuehrmann.org/flasher/</b>. Strategy: build on the server (laptop glibc
+    too new), copy prebuilt dist, parallel-run beside the old app, then switch the vhost location.
+    RP ID <code>carstenfuehrmann.org</code> is domain-level → passkeys work domain-wide (fits the
+    central-passkey-service idea).</li>
+    <li><b>Prerequisite: base-path support.</b> The app assumes the domain root; production serves it under
+    <code>/flasher/</code>. Needed: URL prefix handling in frontend (trunk <code>public_url</code>, router,
+    API/fetch paths) + server mount prefix (<code>FLASHER_BASE_PATH</code>). Zero-code alternative:
+    subdomain (e.g. <code>flasher.carstenfuehrmann.org</code>, RP ID stays the parent domain).</li>
     <li>Run JSON→SQLite migration on the production store (step in DEPLOY.md), verify report, back up JSON</li>
     <li>Soak, then retire the old .NET service + vhost; keep the old JSON store untouched as backup</li>
     <li>Delete <code>backend/</code>, <code>frontend/</code>, root <code>appsettings*.json</code>, stub <code>package-lock.json</code> in one commit; update READMEs</li>
