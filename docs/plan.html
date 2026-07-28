@@ -497,7 +497,8 @@ browser e2e (clicking) together — never a backend without its user-facing test
     <li>Run JSON→SQLite migration on the production store (step in DEPLOY.md), verify report, back up JSON</li>
     <li>Soak, then retire the old .NET service + vhost; keep the old JSON store untouched as backup</li>
     <li>Delete <code>backend/</code>, <code>frontend/</code>, root <code>appsettings*.json</code>, stub <code>package-lock.json</code> in one commit; update READMEs</li>
-    <li>Full mutation sweep as baseline for the new codebase</li>
+    <li class="done">Full mutation sweep as baseline for the new codebase (owner, 2026-07-29: 5 remaining
+    mutants killed — completely clean across all crates)</li>
   </ul>
 </div>
 
