@@ -23,9 +23,18 @@ cd "$SRC"
 # script (e.g. cloned by root at install time). Accept this exact path.
 git config --global --add safe.directory "$SRC" 2>/dev/null || true
 old=$(git rev-parse --short HEAD)
+self_before=$(sha256sum "$0" | cut -d' ' -f1)
 git pull --ff-only
 new=$(git rev-parse --short HEAD)
 echo "updating $old -> $new"
+
+# If the pull replaced this script, restart into the new version — bash
+# would otherwise keep executing the old content at a stale byte offset.
+self_after=$(sha256sum "$0" | cut -d' ' -f1)
+if [ "$self_before" != "$self_after" ]; then
+    echo "update.sh changed; restarting with the new version"
+    exec "$0" "$@"
+fi
 
 # Build everything first; only swap artifacts on success.
 cargo build --release -p flasher-server -p flasher-migrate
