@@ -25,15 +25,15 @@ kimi-code on the server.
 ### A1. Source on the server — [laptop + server]
 
 `update.sh` (Part B) works via `git pull`, so the source must be a real
-clone, not a tarball:
+clone, not a tarball. The repo is public, so use the credential-free HTTPS
+remote (pulls need no key as any user; pushes happen from the laptop):
 
 ```sh
 # laptop: push the repo (once)
 git push origin master
 
 # server:
-git clone git@github.com:cfuehrmann/flasher.git /opt/flasher/src
-# (needs a read deploy key or your GitHub auth on the server)
+git clone https://github.com/cfuehrmann/flasher.git /opt/flasher/src
 ```
 
 ### A2. Toolchain + build — [server]
