@@ -7,6 +7,9 @@ SRC=/opt/flasher/src
 APP=/opt/flasher
 
 cd "$SRC"
+# The checkout may be owned by a different user than the one running this
+# script (e.g. cloned by root at install time). Accept this exact path.
+git config --global --add safe.directory "$SRC" 2>/dev/null || true
 old=$(git rev-parse --short HEAD)
 git pull --ff-only
 new=$(git rev-parse --short HEAD)
