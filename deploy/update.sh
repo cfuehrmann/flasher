@@ -6,6 +6,17 @@ set -euo pipefail
 SRC=/opt/flasher/src
 APP=/opt/flasher
 
+# Be independent of the caller's environment: rustup's toolchain lives in
+# the installing user's home (root on the production server) and plain
+# `sudo` does not put it on PATH.
+for env_file in /root/.cargo/env "$HOME/.cargo/env"; do
+    if [ -f "$env_file" ]; then
+        # shellcheck disable=SC1090
+        . "$env_file"
+        break
+    fi
+done
+
 cd "$SRC"
 # The checkout may be owned by a different user than the one running this
 # script (e.g. cloned by root at install time). Accept this exact path.
