@@ -332,16 +332,14 @@ SRS progress (now conflict-detecting with <code>--overwrite</code> escape hatch)
 ASCII-only case folding (now full Unicode, reference ordering); e2e could test stale artifacts
 (always rebuild + freshness check); e2e ran in no gate (now part of <code>just gate</code>).
 Minors fixed: m5–m12 (search ordering, shallow verify, no pre-migration backup, SRS config,
-user-resolution footgun, hook restaging, user-scoped set-state, plan drift). Deferred: m13 (port-pick
-TOCTOU, rare flake), m14 (docs — corrected). <b>Standing practice (owner, 2026-07-27): keep running
+user-resolution footgun, hook restaging, user-scoped set-state, plan drift, m14 docs). <b>Standing practice (owner, 2026-07-27): keep running
 unprimed adversarial reviews after further phases, where/when appropriate.</b></div>
 <div class="note"><b>Review round 2 (after Phase 3, 2026-07-27):</b> 0 critical, 2 major, 9 minor.
 Majors (fixed): <code>FLASHER_PAGE_SIZE</code> knob vs hard-coded UI page size → <code>page_size</code> now in
 the find contract; PATCH lacked the reference's autosave-invalidation side effect → ported (content
 edits only, not disabled-toggles). Minors fixed: /api/* SPA-fallback leak, groom ordering/race/double-fetch,
 utc_date moved to flasher-core (mutation-reachable), verify doc overclaim, backup rotation (keep 10).
-Mutation: flasher-core 84/84 caught, flasher-store 38 caught / 18 unviable / 0 missed. Deferred: m9 (PATCH content fields ship
-before their UI — deliberate, editor is Phase 4). <b>m7 resolved (owner, 2026-07-27):</b> delete and
+Mutation: flasher-core 84/84 caught, flasher-store 38 caught / 18 unviable / 0 missed. <b>m7 resolved (owner, 2026-07-27):</b> delete and
 reset-progress are both legitimate intents and both stay offered for every card, including learned
 ones — but the delete confirmation must visibly surface the card's existing progress. Not to be
 revisited.</div>
@@ -353,7 +351,7 @@ editor busy-guard now covers Save (stale-draft + double-create races), Cancel de
 (reference semantics), e2e staleness guard now watches <code>vendor/</code>, .gitignore gaps
 (<code>/flasher.db</code>, <code>/backups/</code>). KaTeX XSS surface probed hard
 (<code>trust:false</code>; \url/\href/\includegraphics/\html* all inert) — holds; vendored assets
-byte-identical to npm. Deferred: m8 (SPA fallback masks missing static assets — accepted).</div>
+byte-identical to npm.</div>
 <div class="note"><b>Review round 4 (after Phase 5, security focus, 2026-07-28):</b> 0 critical, 3 major,
 10 minor. Majors (fixed): bootstrap token was unreachable from the UI + register_finish claim window
 (both closed; token field + re-check); security-critical negative paths had zero tests (sanctioned
@@ -371,12 +369,7 @@ survive passkey deletion"); step-up "sudo mode" for add/remove passkey (10-min
 UI); ceremony-endpoint 401s no longer bounce a valid session to the login screen and failed logins
 show a friendly message (both reproduced by the review); HSTS in the Caddyfile; the placeholder
 bootstrap token is treated as unset; the 244-bit entropy doc is now actually corrected. Mutants:
-flasher-store 89 caught/0 missed, flasher-server 107 caught/0 missed. Deferred: second-tab
-<code>login/start</code> clobbers the first tab's ceremony cookie (confusing, low impact);
-unauthenticated challenge-cap DoS (~20 req/min locks logins out — per-IP rate limit at Caddy would
-close it); bootstrap finish TOCTOU (proven practically unwinnable over HTTP; an atomic
-INSERT…WHERE would close it for free); open bootstrap creates a user row per call (bounded by the
-window + token).</div>
+flasher-store 89 caught/0 missed, flasher-server 107 caught/0 missed.</div>
 <p>Quality gates cost time; needless bugfixes burn tokens. The gate runs before every commit and is cheap enough to never skip:</p>
 <ul>
   <li><b>Pre-commit hook as the whole CI</b> (Omega pattern, no GitHub Actions needed): fast paths by staged-file type — docs-only skips, rust-only runs <code>just rust-gate</code>, frontend changes add the leptos build + snapshots, full gate adds browser e2e. Auto-<code>cargo fmt</code> + restage.</li>
