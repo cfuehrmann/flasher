@@ -410,7 +410,7 @@ pub fn App() -> impl IntoView {
                 view! {
         <main class="app">
             <header class="top">
-                <h1>"Flasher"</h1>
+                <img src="/favicon.svg" alt="Flasher" class="brand-logo"/>
                 <nav class="tabs">
                     <button
                         type="button"

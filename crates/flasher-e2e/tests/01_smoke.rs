@@ -26,10 +26,15 @@ async fn home_boots_and_shows_server_health() -> Result<()> {
             "expected page title \"Flasher\", got {title:?}"
         )));
     }
-    let body = h.page_text().await?;
-    if !body.contains("Flasher") {
+    // The header brand is an icon-only <img>; its alt text is the
+    // "Flasher" equivalent, but it isn't part of body.textContent like
+    // the old <h1> was, so check it directly instead of scanning text.
+    let logo_alt: Option<String> = h
+        .eval("document.querySelector('header.top img.brand-logo')?.getAttribute('alt')")
+        .await?;
+    if logo_alt.as_deref() != Some("Flasher") {
         return Err(Error::message(format!(
-            "expected rendered page to contain \"Flasher\", got: {body:?}"
+            "expected header logo alt=\"Flasher\", got {logo_alt:?}"
         )));
     }
 

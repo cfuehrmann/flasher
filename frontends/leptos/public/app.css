@@ -72,13 +72,6 @@ body {
   gap: 1rem;
 }
 
-.app h1 {
-  font-size: 1.4rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  margin: 0;
-}
-
 /* Muted metadata text (status lines, dates, hints). */
 .quiz-status,
 .quiz-hint,
@@ -109,6 +102,12 @@ body {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.brand-logo {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+}
+
 .tabs {
   display: flex;
   gap: 0.25rem;
@@ -133,20 +132,15 @@ body {
   color: var(--accent-text);
 }
 
-/* Narrow screens: brand on one row, the four tabs share the next. */
-@media (max-width: 40rem) {
-  .app h1 {
-    font-size: 1.25rem;
-  }
-
+/* Narrow screens: compact the tab buttons so the logo and all four
+   tabs still fit on one row. */
+@media (max-width: 26rem) {
   .tabs {
-    flex: 1 1 100%;
-    order: 2;
+    gap: 0.15rem;
   }
 
   .tabs button {
-    flex: 1;
-    padding: 0.4rem 0.25rem;
+    padding: 0.4rem 0.5rem;
     font-size: 0.9rem;
   }
 }
