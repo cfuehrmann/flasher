@@ -417,7 +417,7 @@ browser e2e (clicking) together — never a backend without its user-facing test
   <ul class="checks">
     <li class="done"><code>flasher-core</code>: SRS ported exactly from C# (ok ×1.8 / failed ×0.5555 of elapsed interval, new-card wait 30 min on create); 24/24 mutants caught; tunables configurable via env</li>
     <li class="done">Cards endpoints (next, create-as-disabled, set-ok, set-failed); single-user mode (<code>FLASHER_USER</code> optional, single-db-user auto-resolution) as the Phase-5 auth seam</li>
-    <li class="done">Quiz UI: prompt → reveal → rate, add-card form, done/error states; 4 SSR tests</li>
+    <li class="done">Quiz UI: prompt → reveal → rate, add-card form, done/error states; 1 SSR test (initial loading render — fetch and rating only run under csr)</li>
     <li class="done">5 browser e2e tests clicking through the full round incl. SRS white-box checks; wired into <code>just gate</code>; staleness guards (server always rebuilt, dist freshness-checked)</li>
   </ul>
 </div>

@@ -8,7 +8,7 @@
 #![cfg(feature = "ssr")]
 
 use flasher_leptos::{
-    AccountTab, App, AuthScreenTab, EditTarget, EditorCloseOutcome, EditorTab, GroomTab,
+    AccountTab, App, AuthScreenTab, EditTarget, EditorCloseOutcome, EditorTab, GroomTab, QuizTab,
 };
 use leptos::prelude::*;
 
@@ -152,6 +152,14 @@ fn editor_falls_back_to_new_mode_for_deleted_card() {
     assert!(html.contains("new-prompt"), "rendered html: {html}");
     assert!(html.contains("New card"), "rendered html: {html}");
     assert!(html.contains("Draft prompt"), "rendered html: {html}");
+}
+
+#[test]
+fn quiz_tab_renders_its_initial_state() {
+    // The next-card fetch only runs under csr, so the ssr render stays
+    // in the loading state.
+    let html = view! { <QuizTab/> }.to_html();
+    assert!(html.contains("quiz-loading"), "rendered html: {html}");
 }
 
 #[test]
