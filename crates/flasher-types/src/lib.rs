@@ -78,6 +78,17 @@ pub struct CardResponse {
     pub disabled: bool,
 }
 
+/// Body of `POST /api/cards/{id}/set-ok|set-failed`: the `change_time`
+/// of the card as the client last saw it. The server applies the rating
+/// only when the stored `change_time` still matches (conditional update);
+/// otherwise it answers 409, so a duplicated or stale rating can never
+/// silently re-schedule the card off its just-written `change_time`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct SetCardStateRequest {
+    /// Unix epoch millis.
+    pub change_time: i64,
+}
+
 /// Body of `POST /api/cards`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CreateCardRequest {

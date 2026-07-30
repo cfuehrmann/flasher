@@ -509,11 +509,13 @@ browser e2e (clicking) together — never a backend without its user-facing test
     old code lives in git history as behavioral reference. Real README written.</li>
     <li class="done">Full mutation sweep as baseline for the new codebase (owner, 2026-07-29: 5 remaining
     mutants killed — completely clean across all crates)</li>
-    <li><b>Known issue (review round 7, 2026-07-30):</b> rapid double-rating in the quiz corrupts
-    the SRS schedule — rating buttons are not disabled while the POST is in flight and the server's
-    <code>set_state</code> is a non-atomic read-modify-write, so a second request collapses the interval
-    to ~0 and the card comes straight back. Fix direction: guard <code>rate</code>/disable buttons
-    in flight, and/or make the endpoint conditional on the shown <code>change_time</code>.</li>
+    <li class="done"><b>Known issue (review round 7, 2026-07-30), fixed 2026-07-30 (#124):</b> rapid
+    double-rating in the quiz corrupted the SRS schedule — rating buttons were not disabled while the
+    POST was in flight and the server's <code>set_state</code> was a non-atomic read-modify-write, so a
+    second request collapsed the interval to ~0 and the card came straight back. Fixed both layers:
+    the quiz guards <code>rate</code>/disables the buttons in flight, and set-ok/set-failed are now
+    compare-and-set on the shown <code>change_time</code> (409 on mismatch; the store applies the
+    update in one conditional statement). Regression e2e: a 10-click burst applies exactly one rating.</li>
   </ul>
 </div>
 

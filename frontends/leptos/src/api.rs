@@ -11,7 +11,9 @@ use flasher_types::{
     NextCardResponse,
 };
 #[cfg(feature = "csr")]
-use flasher_types::{CardUpdateRequest, CreateCardRequest, PutAutoSaveRequest};
+use flasher_types::{
+    CardUpdateRequest, CreateCardRequest, PutAutoSaveRequest, SetCardStateRequest,
+};
 
 /// The error every non-`csr` stub returns.
 #[cfg(not(feature = "csr"))]
@@ -90,41 +92,46 @@ pub async fn create_card(_prompt: &str, _solution: &str) -> Result<CardResponse,
     Err(SSR_STUB_ERROR.to_owned())
 }
 
-/// `POST /api/cards/{id}/set-ok`.
+/// `POST /api/cards/{id}/set-ok`. `change_time` is the value of the card
+/// as rendered; the server rejects the rating with 409 when the card has
+/// moved since (see [`set_state`]).
 #[cfg(feature = "csr")]
-pub async fn set_ok(id: &str) -> Result<(), String> {
-    set_state(id, "set-ok").await
+pub async fn set_ok(id: &str, change_time: i64) -> Result<(), String> {
+    set_state(id, "set-ok", change_time).await
 }
 
 /// `POST /api/cards/{id}/set-ok` (ssr stub, never called).
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async)]
-pub async fn set_ok(_id: &str) -> Result<(), String> {
+pub async fn set_ok(_id: &str, _change_time: i64) -> Result<(), String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
-/// `POST /api/cards/{id}/set-failed`.
+/// `POST /api/cards/{id}/set-failed`. See [`set_ok`] for `change_time`.
 #[cfg(feature = "csr")]
-pub async fn set_failed(id: &str) -> Result<(), String> {
-    set_state(id, "set-failed").await
+pub async fn set_failed(id: &str, change_time: i64) -> Result<(), String> {
+    set_state(id, "set-failed", change_time).await
 }
 
 /// `POST /api/cards/{id}/set-failed` (ssr stub, never called).
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async)]
-pub async fn set_failed(_id: &str) -> Result<(), String> {
+pub async fn set_failed(_id: &str, _change_time: i64) -> Result<(), String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
 /// Shared body of the two rating endpoints; the updated card in the
 /// response is irrelevant because the next card is re-fetched afterwards.
+/// A 409 means a concurrent/duplicated rating already moved the card
+/// (issue #124): that is not an error for the quiz — the next fetch
+/// simply re-reads the current state — so it is folded into `Ok(())`.
 #[cfg(feature = "csr")]
-async fn set_state(id: &str, action: &str) -> Result<(), String> {
-    let response = gloo_net::http::Request::post(&format!("/api/cards/{id}/{action}"))
-        .send()
-        .await
+async fn set_state(id: &str, action: &str, change_time: i64) -> Result<(), String> {
+    let request = gloo_net::http::Request::post(&format!("/api/cards/{id}/{action}"))
+        .json(&SetCardStateRequest { change_time })
         .map_err(|err| err.to_string())?;
-    if response.status() != 200 {
+    let response = request.send().await.map_err(|err| err.to_string())?;
+    if response.status() != 200 && response.status() != 409 {
         return Err(error_message(response).await);
     }
     Ok(())

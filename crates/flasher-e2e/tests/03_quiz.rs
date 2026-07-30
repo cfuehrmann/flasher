@@ -234,6 +234,77 @@ async fn rating_reschedules_cards_by_srs_multipliers() -> Result<()> {
     Ok(())
 }
 
+/// Regression test for issue #124: rapid double-rating must apply
+/// exactly one rating. A synchronous burst of OK clicks on the only due
+/// card (the review's repro: double-taps within the response window)
+/// must leave the card rescheduled by 1.8 × its last interval — not
+/// collapsed to ~now by a second request racing the first — and the
+/// quiz must reach the done state instead of showing the card again.
+#[tokio::test]
+#[ignore = "browser"]
+async fn rapid_double_rating_applies_exactly_once() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    let change_a = now - 3_600_000;
+    seed_card(
+        &store,
+        user_id,
+        "card-a",
+        "Prompt A",
+        "Solution A",
+        CardState::Ok,
+        change_a,
+        now - 60_000,
+        false,
+    )
+    .await?;
+
+    h.goto("/").await?;
+    h.wait_for_text("#quiz-prompt", "Prompt A", TIMEOUT).await?;
+    h.click("#show-solution").await?;
+    h.wait_for_text("#quiz-solution", "Solution A", TIMEOUT)
+        .await?;
+
+    // The double-tap burst: ten clicks dispatched synchronously, before
+    // any response can arrive. The in-flight guard (and the disabled
+    // buttons) must swallow everything after the first.
+    h.eval::<bool>(
+        "(() => { for (let i = 0; i < 10; i++) \
+         document.querySelector('#rate-ok').click(); return true; })()",
+    )
+    .await?;
+
+    // Exactly one rating was applied: the card is gone and stays gone.
+    h.wait_for_selector("#quiz-done", TIMEOUT).await?;
+
+    let card = store
+        .get_card(user_id, "card-a")
+        .await
+        .map_err(store_err)?
+        .ok_or_else(|| Error::message("card-a vanished"))?;
+    if card.state != CardState::Ok {
+        return Err(Error::message(format!(
+            "card-a should be ok, is {:?}",
+            card.state
+        )));
+    }
+    if card.next_time <= now_ms() {
+        return Err(Error::message(format!(
+            "card-a next_time collapsed to the past ({} <= now) — \
+             a second rating recomputed the interval off the first",
+            card.next_time
+        )));
+    }
+    assert_multiplier(
+        "card-a",
+        card.change_time - change_a,
+        1.8,
+        card.next_time - card.change_time,
+    )?;
+    Ok(())
+}
+
 /// Nothing due: only future-due and disabled cards exist, so the done
 /// state shows immediately.
 #[tokio::test]

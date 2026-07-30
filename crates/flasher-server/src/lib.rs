@@ -16,8 +16,8 @@
 //! | `PATCH /api/cards/{id}`          | 200 `CardResponse`     | 404, 422, 500 |
 //! | `DELETE /api/cards/{id}`         | 204                    | 404, 500    |
 //! | `DELETE /api/history/{id}`       | 200 `CardResponse`     | 404, 500    |
-//! | `POST /api/cards/{id}/set-ok`    | 200 `CardResponse`     | 404, 500    |
-//! | `POST /api/cards/{id}/set-failed`| 200 `CardResponse`     | 404, 500    |
+//! | `POST /api/cards/{id}/set-ok`    | 200 `CardResponse`     | 404, 409, 500 |
+//! | `POST /api/cards/{id}/set-failed`| 200 `CardResponse`     | 404, 409, 500 |
 //! | `PUT /api/autosave`              | 200 `AutoSaveResponse` | 500         |
 //! | `GET /api/autosave`              | 200 `AutoSaveResponse` or 200 `null` | 500 |
 //! | `DELETE /api/autosave`           | 204                    | 500         |
@@ -85,7 +85,11 @@
 //! handlers apply the scheduling rules of `CardsHandler.SetState` via
 //! `flasher-core` — with one deliberate difference: the C# `SetState`
 //! returned the *next* due card, while these handlers return the *rated*
-//! card and the frontend refetches the next card itself.
+//! card and the frontend refetches the next card itself. Both take a
+//! `SetCardStateRequest` body with the `change_time` the client saw; the
+//! rating is applied only while that value still matches the stored card
+//! (compare-and-set), so a duplicated/concurrent rating gets a 409
+//! instead of corrupting the schedule (issue #124).
 
 use std::convert::Infallible;
 use std::path::PathBuf;
@@ -105,11 +109,12 @@ use axum::{
 };
 use flasher_auth::{Auth, Passkey, PublicKeyCredential, RegisterPublicKeyCredential};
 use flasher_core::SrsConfig;
-use flasher_store::{AutoSave, Card, CardState, NewCard, Store, User};
+use flasher_store::{AutoSave, Card, CardState, NewCard, SetCardState, Store, User};
 use flasher_types::{
     AutoSaveResponse, BootstrapResponse, CardResponse, CardUpdateRequest, CreateCardRequest,
     FindCardsResponse, GetAutoSaveResponse, HealthResponse, NextCardResponse, PasskeyResponse,
     PutAutoSaveRequest, RegisterStartRequest, RenamePasskeyRequest, SessionResponse,
+    SetCardStateRequest,
 };
 use serde::Deserialize;
 use tokio::net::TcpListener;
@@ -390,6 +395,11 @@ pub enum ApiError {
     /// Deleting the user's last passkey would lock them out.
     #[error("cannot delete your last passkey")]
     LastPasskey,
+    /// A card rating was based on a `change_time` the card no longer
+    /// has — a concurrent/duplicated rating already moved it (issue
+    /// #124). The stored schedule is untouched; the client refetches.
+    #[error("card changed since it was shown; rating rejected")]
+    StaleCard,
     /// The credential is already registered (to any user).
     #[error("credential already registered")]
     CredentialRegistered,
@@ -430,7 +440,7 @@ impl IntoResponse for ApiError {
                 (StatusCode::FORBIDDEN, self.to_string()).into_response()
             }
             Self::PasskeyNotFound => (StatusCode::NOT_FOUND, self.to_string()).into_response(),
-            Self::LastPasskey | Self::CredentialRegistered => {
+            Self::LastPasskey | Self::CredentialRegistered | Self::StaleCard => {
                 (StatusCode::CONFLICT, self.to_string()).into_response()
             }
             // 503 (not 429): the challenge-store cap is a server resource
@@ -1271,8 +1281,9 @@ async fn set_ok(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
     Path(id): Path<String>,
+    Json(request): Json<SetCardStateRequest>,
 ) -> Result<Json<CardResponse>, ApiError> {
-    set_state(&state, user_id, &id, CardState::Ok).await
+    set_state(&state, user_id, &id, CardState::Ok, &request).await
 }
 
 /// `POST /api/cards/{id}/set-failed`.
@@ -1280,8 +1291,9 @@ async fn set_failed(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
     Path(id): Path<String>,
+    Json(request): Json<SetCardStateRequest>,
 ) -> Result<Json<CardResponse>, ApiError> {
-    set_state(&state, user_id, &id, CardState::Failed).await
+    set_state(&state, user_id, &id, CardState::Failed, &request).await
 }
 
 /// Shared body of set-ok/set-failed, applying the scheduling rules of
@@ -1290,11 +1302,19 @@ async fn set_failed(
 /// `flasher-core`. Deliberate difference to the C# handler, which
 /// returned the *next* due card: this returns the *rated* card and the
 /// frontend refetches the next card itself.
+///
+/// The update is conditional on the `change_time` the client saw when it
+/// rendered the card (issue #124): a duplicated or raced second rating
+/// would otherwise recompute the interval off the first rating's
+/// just-written `change_time` and collapse `next_time` to ~now. On
+/// mismatch the rating is rejected with 409 and the stored schedule is
+/// left untouched.
 async fn set_state(
     state: &AppState,
     user_id: i64,
     id: &str,
     card_state: CardState,
+    request: &SetCardStateRequest,
 ) -> Result<Json<CardResponse>, ApiError> {
     let card = state
         .store
@@ -1308,12 +1328,15 @@ async fn set_state(
             flasher_core::next_time_after_failed(card.change_time, now, &state.srs)
         }
     };
-    let updated = state
+    match state
         .store
-        .set_card_state(user_id, id, card_state, now, next_time)
+        .set_card_state_if_unchanged(user_id, id, card_state, now, next_time, request.change_time)
         .await?
-        .ok_or(ApiError::CardNotFound)?;
-    Ok(Json(card_response(updated)))
+    {
+        SetCardState::Applied(updated) => Ok(Json(card_response(updated))),
+        SetCardState::Stale(_) => Err(ApiError::StaleCard),
+        SetCardState::NotFound => Err(ApiError::CardNotFound),
+    }
 }
 
 /// `PUT /api/autosave` — port of `AutoSaveHandler.Write`: upserts the

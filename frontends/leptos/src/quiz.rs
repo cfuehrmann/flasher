@@ -53,14 +53,28 @@ pub fn Quiz() -> impl IntoView {
         });
     });
 
-    // Rates the current card, then loads the next one.
-    let rate = Callback::new(move |(id, ok): (String, bool)| {
+    // Set while a rating POST is in flight. Guards the rating buttons
+    // against double-taps (issue #124): every extra click within the
+    // response window would otherwise fire another set-ok/set-failed,
+    // and the second request would re-schedule the card off the first
+    // rating's just-written change_time, collapsing the SRS interval.
+    let rating_in_flight = RwSignal::new(false);
+
+    // Rates the current card, then loads the next one. The card's
+    // `change_time` goes along so the server can reject the rating when
+    // the card moved since it was rendered (compare-and-set, 409).
+    let rate = Callback::new(move |(card, ok): (CardResponse, bool)| {
+        if rating_in_flight.get_untracked() {
+            return;
+        }
+        rating_in_flight.set(true);
         leptos::task::spawn_local(async move {
             let result = if ok {
-                api::set_ok(&id).await
+                api::set_ok(&card.id, card.change_time).await
             } else {
-                api::set_failed(&id).await
+                api::set_failed(&card.id, card.change_time).await
             };
+            rating_in_flight.set(false);
             match result {
                 Ok(()) => fetch_next.run(()),
                 Err(err) => state.set(QuizState::Error(err)),
@@ -104,7 +118,11 @@ pub fn Quiz() -> impl IntoView {
                     </div>
                 }
                     .into_any(),
-                QuizState::Solution(card) => view! {
+                QuizState::Solution(card) => {
+                    // The buttons need the whole card (id + change_time)
+                    // after prompt/solution moved into the views.
+                    let rated = card.clone();
+                    view! {
                     <div class="quiz-card">
                         <MarkdownView id="quiz-prompt" markdown=card.prompt/>
                         <MarkdownView id="quiz-solution" class="solution" markdown=card.solution/>
@@ -113,9 +131,10 @@ pub fn Quiz() -> impl IntoView {
                                 type="button"
                                 id="rate-failed"
                                 class="failed"
+                                disabled=move || rating_in_flight.get()
                                 on:click={
-                                    let id = card.id.clone();
-                                    move |_| rate.run((id.clone(), false))
+                                    let card = rated.clone();
+                                    move |_| rate.run((card.clone(), false))
                                 }
                             >
                                 "Failed"
@@ -124,14 +143,16 @@ pub fn Quiz() -> impl IntoView {
                                 type="button"
                                 id="rate-ok"
                                 class="ok"
-                                on:click=move |_| rate.run((card.id.clone(), true))
+                                disabled=move || rating_in_flight.get()
+                                on:click=move |_| rate.run((rated.clone(), true))
                             >
                                 "OK"
                             </button>
                         </div>
                     </div>
                 }
-                    .into_any(),
+                    .into_any()
+                }
                 QuizState::Done => view! {
                     <div class="quiz-card" id="quiz-done">
                         <p class="quiz-status">"All done for now — no cards are due."</p>

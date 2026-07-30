@@ -48,6 +48,18 @@ impl Error {
     }
 }
 
+/// Outcome of [`Store::set_card_state_if_unchanged`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum SetCardState {
+    /// The conditional update matched and was applied.
+    Applied(Card),
+    /// The card exists, but its stored `change_time` no longer equals
+    /// the expected one — a concurrent rating already moved it.
+    Stale(Card),
+    /// No card with this id exists for the user.
+    NotFound,
+}
+
 /// A connection pool to the Flasher `SQLite` database.
 #[derive(Debug, Clone)]
 pub struct Store {
@@ -360,6 +372,49 @@ impl Store {
         .fetch_optional(&self.pool)
         .await?;
         Ok(card)
+    }
+
+    /// Conditional variant of [`Store::set_card_state`]: the update is
+    /// applied in a single statement only while the stored `change_time`
+    /// still equals `expected_change_time` (compare-and-set on the value
+    /// the client based its rating on). This closes the double-rating
+    /// race (issue #124): a second, concurrent rating observes the first
+    /// one's just-written `change_time`, would compute a ~0 interval off
+    /// it, and is rejected instead of collapsing the schedule.
+    ///
+    /// # Errors
+    /// Returns an error on database failure.
+    pub async fn set_card_state_if_unchanged(
+        &self,
+        user_id: i64,
+        id: &str,
+        state: CardState,
+        change_time: i64,
+        next_time: i64,
+        expected_change_time: i64,
+    ) -> Result<SetCardState, Error> {
+        let updated = sqlx::query_as::<_, Card>(&format!(
+            "UPDATE cards SET state = ?, change_time = ?, next_time = ? \
+             WHERE user_id = ? AND id = ? AND change_time = ? \
+             RETURNING {CARD_COLUMNS}"
+        ))
+        .bind(state)
+        .bind(change_time)
+        .bind(next_time)
+        .bind(user_id)
+        .bind(id)
+        .bind(expected_change_time)
+        .fetch_optional(&self.pool)
+        .await?;
+        if let Some(card) = updated {
+            return Ok(SetCardState::Applied(card));
+        }
+        // The conditional update missed: either the card does not exist
+        // for this user at all, or its `change_time` moved under us.
+        Ok(match self.get_card(user_id, id).await? {
+            Some(current) => SetCardState::Stale(current),
+            None => SetCardState::NotFound,
+        })
     }
 
     /// Deletes the card with this id owned by this user. Returns whether

@@ -1,7 +1,7 @@
 //! Observable-behavior tests for `Store`, run against real `SQLite`
 //! (in-memory, plus one tempfile-backed test for `connect`).
 
-use super::{Card, CardState, Error, NewCard, Store};
+use super::{Card, CardState, Error, NewCard, SetCardState, Store};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -225,6 +225,72 @@ async fn set_card_state_updates_state_and_times() -> TestResult {
             .set_card_state(other.id, "c1", CardState::Ok, 0, 0)
             .await?,
         None
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn set_card_state_if_unchanged_is_a_compare_and_set() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let user = store.create_user("alice").await?;
+    store.insert_card(&new_card(user.id, "c1")).await?;
+
+    // Matching change_time: the update is applied.
+    let applied = store
+        .set_card_state_if_unchanged(user.id, "c1", CardState::Ok, 5_000, 9_000, 1_000)
+        .await?;
+    assert_eq!(
+        applied,
+        SetCardState::Applied(card(
+            "c1",
+            "prompt c1",
+            "solution c1",
+            CardState::Ok,
+            5_000,
+            9_000
+        ))
+    );
+
+    // Stale expected value: nothing changes and the current row comes back.
+    let stale = store
+        .set_card_state_if_unchanged(user.id, "c1", CardState::Failed, 6_000, 6_000, 1_000)
+        .await?;
+    assert_eq!(
+        stale,
+        SetCardState::Stale(card(
+            "c1",
+            "prompt c1",
+            "solution c1",
+            CardState::Ok,
+            5_000,
+            9_000
+        ))
+    );
+    assert_eq!(
+        store.get_card(user.id, "c1").await?,
+        Some(card(
+            "c1",
+            "prompt c1",
+            "solution c1",
+            CardState::Ok,
+            5_000,
+            9_000
+        ))
+    );
+
+    // Unknown card and wrong user both yield NotFound and change nothing.
+    assert_eq!(
+        store
+            .set_card_state_if_unchanged(user.id, "nope", CardState::Ok, 0, 0, 1_000)
+            .await?,
+        SetCardState::NotFound
+    );
+    let other = store.create_user("bob").await?;
+    assert_eq!(
+        store
+            .set_card_state_if_unchanged(other.id, "c1", CardState::Ok, 0, 0, 5_000)
+            .await?,
+        SetCardState::NotFound
     );
     Ok(())
 }
