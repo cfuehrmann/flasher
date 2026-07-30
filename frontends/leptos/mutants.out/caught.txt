@@ -1,8 +1,0 @@
-src/route.rs:100:41: replace - with + in path_to_route
-src/route.rs:100:41: replace - with / in path_to_route
-src/route.rs:101:12: delete ! in path_to_route
-src/route.rs:124:9: delete match arm "/add" in path_to_tab
-src/route.rs:125:9: delete match arm "/groom" in path_to_tab
-src/route.rs:126:9: delete match arm "/account" in path_to_tab
-src/route.rs:136:5: replace tab_to_path -> &'static str with ""
-src/route.rs:136:5: replace tab_to_path -> &'static str with "xyzzy"

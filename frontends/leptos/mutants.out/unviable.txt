@@ -1,6 +1,0 @@
-src/route.rs:78:9: replace Route::tab -> Tab with Default::default()
-src/route.rs:94:5: replace path_to_route -> Route with Default::default()
-src/route.rs:119:5: replace path_to_tab -> Tab with Default::default()
-src/route.rs:147:5: replace initial_route -> Route with Default::default()
-src/route.rs:160:5: replace initial_tab -> Tab with Default::default()
-src/route.rs:237:5: replace on_popstate -> WindowListenerHandle with Default::default()

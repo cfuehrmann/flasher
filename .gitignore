@@ -7,8 +7,8 @@ zelix.log.*
 /frontends/leptos/target
 /test-output
 # cargo-mutants scratch/output artifacts
-/mutants.out
-/mutants.out.old/
+mutants.out
+mutants.out.old/
 .cargo-mutants*
 
 # Local database (incl. the WAL sidecar files) and its backups
