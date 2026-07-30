@@ -28,11 +28,10 @@
 //! re-arms the recovery banner immediately — the orphaned draft never
 //! stays invisible until the next app start.
 //!
-//! Phase 6.6 made the full UI session state survive a browser refresh:
-//! the quiz mirrors its solution-revealed state into the URL
-//! (`/quiz/solution`, `replaceState` both ways), and a fresh load of
-//! `/groom/edit/{id}` fetches the card and re-opens the editor on it
-//! (404 falls back to the Groom tab with the URL rewritten). When the
+//! Phase 6.6 made the UI session state survive a browser refresh:
+//! a fresh load of `/groom/edit/{id}` fetches the card and re-opens the
+//! editor on it (404 falls back to the Groom tab with the URL
+//! rewritten). When the
 //! restored editor and the server-side draft match (same card for the
 //! groom editor, a new-card draft for the Add card tab), the editor is
 //! prefilled with the draft content — F5 becomes a mini crash recovery
@@ -170,10 +169,8 @@ pub fn App() -> impl IntoView {
                         }
                     });
                 }
-                // QuizSolution renders on the quiz tab (the quiz reads
-                // its reveal state from the URL at mount); a plain tab
-                // route just selects the tab.
-                route::Route::QuizSolution | route::Route::Tab(_) => {
+                // A plain tab route just selects the tab.
+                route::Route::Tab(_) => {
                     // Back/Forward with the editor overlay open pops its
                     // /edit entry and closes just the overlay; leaving
                     // the Add card tab abandons its editor the same way.

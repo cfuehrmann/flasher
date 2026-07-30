@@ -5,19 +5,16 @@
 //! no card is due (`Done`). Fetch and rating failures land in `Error`
 //! with a retry button.
 //!
-//! The reveal state is mirrored into the URL (Phase 6.6): revealing the
-//! solution swaps `/quiz` for `/quiz/solution` via `replaceState` (no
-//! history entry — Back after revealing leaves the quiz instead of
-//! un-revealing), rating swaps it back to `/quiz`. A fresh load of
-//! `/quiz/solution` fetches the next due card and shows it ALREADY
-//! revealed; a fresh load of `/quiz` starts at the prompt as before.
+//! The reveal state is deliberately NOT mirrored into the URL or anywhere
+//! else: it is transient in-memory state, so a browser refresh (or a tab
+//! switch, which remounts this component) always starts collapsed at the
+//! prompt.
 
 use flasher_types::CardResponse;
 use leptos::prelude::*;
 
 use crate::api;
 use crate::markdown::MarkdownView;
-use crate::route;
 
 /// The quiz state machine.
 #[derive(Clone)]
@@ -41,51 +38,23 @@ enum QuizState {
 #[component]
 pub fn Quiz() -> impl IntoView {
     let state = RwSignal::new(QuizState::Loading);
-    // Fresh load of `/quiz/solution` (Phase 6.6): the FIRST card fetched
-    // shows already revealed. Consumed by the first fetch, so rating and
-    // retrying start at the prompt again. Read once at mount — the quiz
-    // remounts on every navigation to the tab, so this is always the
-    // URL the user actually asked for.
-    let pending_reveal = RwSignal::new(route::starts_revealed());
 
-    // Fetches the next due card and transitions into Prompt/Done/Error
-    // (into Solution directly when restoring a `/quiz/solution` load).
+    // Fetches the next due card and transitions into Prompt/Done/Error.
     // `Callback` is `Copy`, so the same action can be shared between the
     // mount effect, the retry button and the rating handler.
     let fetch_next = Callback::new(move |(): ()| {
         state.set(QuizState::Loading);
-        let reveal = pending_reveal.get_untracked();
-        pending_reveal.set(false);
         leptos::task::spawn_local(async move {
             state.set(match api::next_card().await {
-                Ok(Some(card)) if reveal => QuizState::Solution(card),
                 Ok(Some(card)) => QuizState::Prompt(card),
-                Ok(None) => {
-                    // A restored `/quiz/solution` load with no due card
-                    // must not leave the URL lying (F4): replace it back
-                    // to /quiz over the Done view.
-                    if reveal {
-                        route::replace_tab(route::Tab::Quiz);
-                    }
-                    QuizState::Done
-                }
-                Err(err) => {
-                    // Same drift on a failed first fetch (F4): Retry
-                    // must not show a prompt under a solution URL.
-                    if reveal {
-                        route::replace_tab(route::Tab::Quiz);
-                    }
-                    QuizState::Error(err)
-                }
+                Ok(None) => QuizState::Done,
+                Err(err) => QuizState::Error(err),
             });
         });
     });
 
-    // Rates the current card, then loads the next one. Rating leaves the
-    // revealed state, so the URL goes back to `/quiz` (replace: the
-    // `/quiz/solution` entry must not linger on the stack).
+    // Rates the current card, then loads the next one.
     let rate = Callback::new(move |(id, ok): (String, bool)| {
-        route::replace_tab(route::Tab::Quiz);
         leptos::task::spawn_local(async move {
             let result = if ok {
                 api::set_ok(&id).await
@@ -99,15 +68,11 @@ pub fn Quiz() -> impl IntoView {
         });
     });
 
-    // Reveals the solution of the card currently in Prompt state, and
-    // mirrors that into the URL: `/quiz` becomes `/quiz/solution` via
-    // replaceState — no history entry, so Back leaves the quiz rather
-    // than just un-revealing (Phase 6.6).
+    // Reveals the solution of the card currently in Prompt state.
     let show_solution = Callback::new(move |(): ()| {
         state.update(|current| {
             if let QuizState::Prompt(card) = current {
                 *current = QuizState::Solution(card.clone());
-                route::replace_quiz_solution();
             }
         });
     });

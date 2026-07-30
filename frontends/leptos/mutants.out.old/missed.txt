@@ -1,6 +1,0 @@
-src/route.rs:199:5: replace push_tab with ()
-src/route.rs:213:5: replace replace_tab with ()
-src/route.rs:227:5: replace push_edit with ()
-src/route.rs:241:5: replace push_groom_edit with ()
-src/route.rs:255:5: replace replace_quiz_solution with ()
-src/route.rs:303:5: replace with_history with ()

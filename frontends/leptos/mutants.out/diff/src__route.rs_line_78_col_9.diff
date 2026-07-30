@@ -1,0 +1,24 @@
+--- src/route.rs
++++ replace Route::tab -> Tab with Default::default()
+@@ -70,20 +70,17 @@
+     Tab(Tab),
+     /// The groom editor open on a specific card (`/groom/edit/{id}`).
+     GroomEdit(String),
+ }
+ 
+ impl Route {
+     /// The tab the route renders on top of.
+     pub fn tab(&self) -> Tab {
+-        match self {
+-            Self::Tab(tab) => *tab,
+-            Self::GroomEdit(_) => Tab::Groom,
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Maps a URL path to a full route. Static segments match
+ /// case-insensitively and ignore trailing slashes; the card id of a
+ /// groom edit path keeps its original case. Anything unknown — including
+ /// typos the server answers with the SPA fallback, `/` itself, a bare
+ /// `/groom/edit` (no card id to restore) and malformed edit paths —

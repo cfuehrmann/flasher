@@ -1,0 +1,26 @@
+--- src/route.rs
++++ replace tab_to_path -> &'static str with "xyzzy"
+@@ -128,22 +128,17 @@
+     }
+ }
+ 
+ /// The canonical path of a tab (inverse of [`path_to_tab`]).
+ // Same gating as [`path_to_tab`]: only the csr history glue and the
+ // tests need it.
+ #[cfg(any(feature = "csr", test))]
+ pub fn tab_to_path(tab: Tab) -> &'static str {
+-    match tab {
+-        Tab::Quiz => "/quiz",
+-        Tab::AddCard => "/add",
+-        Tab::Groom => "/groom",
+-        Tab::Account => "/account",
+-    }
++    "xyzzy" /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The route the current URL asks for at startup: the location's path
+ /// under csr, the quiz tab under ssr (no location exists server-side).
+ pub fn initial_route() -> Route {
+     #[cfg(feature = "csr")]
+     {
+         path_to_route(&current_path())

@@ -1,0 +1,32 @@
+--- src/route.rs
++++ replace path_to_route -> Route with Default::default()
+@@ -86,28 +86,17 @@
+ /// case-insensitively and ignore trailing slashes; the card id of a
+ /// groom edit path keeps its original case. Anything unknown — including
+ /// typos the server answers with the SPA fallback, `/` itself, a bare
+ /// `/groom/edit` (no card id to restore) and malformed edit paths —
+ /// falls back to the tab mapping of [`path_to_tab`].
+ // Same gating as [`path_to_tab`]: the csr location glue and the tests.
+ #[cfg(any(feature = "csr", test))]
+ pub fn path_to_route(path: &str) -> Route {
+-    let trimmed = path.trim_end_matches('/');
+-    let lower = trimmed.to_ascii_lowercase();
+-    if let Some(rest) = lower.strip_prefix("/groom/edit/") {
+-        // The id is sliced out of the ORIGINAL path (ids are
+-        // case-sensitive; the static prefix is not). More than one
+-        // segment is not an edit route and falls back like any typo.
+-        let id = &trimmed[trimmed.len() - rest.len()..];
+-        if !id.contains('/') {
+-            return Route::GroomEdit(id.to_owned());
+-        }
+-    }
+-    Route::Tab(path_to_tab(path))
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Maps a URL path to a tab. Anything unknown — including typos the
+ /// server answers with the SPA fallback, and `/` itself — falls back to
+ /// Quiz. Trailing slashes and case differences are normalized away. A
+ /// trailing `/edit` segment (the editor overlay's history entry, see
+ /// [`push_edit`]) is stripped first, so edit paths fall back to the tab
+ /// underneath them.

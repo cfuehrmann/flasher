@@ -1,0 +1,30 @@
+--- src/route.rs
++++ replace path_to_tab -> Tab with Default::default()
+@@ -111,26 +111,17 @@
+ /// trailing `/edit` segment (the editor overlay's history entry, see
+ /// [`push_edit`]) is stripped first, so edit paths fall back to the tab
+ /// underneath them.
+ // Compiled for csr (where the location glue uses it) and for tests (the
+ // host-target ssr test build exercises the pure mapping); an ssr render
+ // defaults to Quiz without it.
+ #[cfg(any(feature = "csr", test))]
+ pub fn path_to_tab(path: &str) -> Tab {
+-    let normalized = path.trim_end_matches('/').to_ascii_lowercase();
+-    let base = normalized
+-        .strip_suffix("/edit")
+-        .map_or(normalized.as_str(), |stem| stem.trim_end_matches('/'));
+-    match base {
+-        "/add" => Tab::AddCard,
+-        "/groom" => Tab::Groom,
+-        "/account" => Tab::Account,
+-        _ => Tab::Quiz,
+-    }
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The canonical path of a tab (inverse of [`path_to_tab`]).
+ // Same gating as [`path_to_tab`]: only the csr history glue and the
+ // tests need it.
+ #[cfg(any(feature = "csr", test))]
+ pub fn tab_to_path(tab: Tab) -> &'static str {
+     match tab {

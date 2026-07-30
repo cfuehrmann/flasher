@@ -69,8 +69,8 @@ exclude_re = [
     'markdown\.rs:171:66: replace -= with /=',
 
     # --- Browser-only History/Location glue in route.rs --------------------------
-    # starts_revealed, current_path, push_tab, replace_tab, push_edit,
-    # push_groom_edit, replace_quiz_solution and the with_history helper are
+    # current_path, push_tab, replace_tab, push_edit, push_groom_edit and
+    # the with_history helper are
     # #[cfg(feature = "csr")] wrappers around window.location / History
     # (pushState/replaceState), which do not exist on the host target — host
     # unit tests structurally cannot observe them. The pure route-parsing
@@ -78,7 +78,7 @@ exclude_re = [
     # glue itself is covered by the browser e2e suite
     # (crates/flasher-e2e/tests/08_routing.rs, 09_state_restore.rs), which
     # drives real reloads, deep links and Back/Forward in Chromium.
-    'route\.rs:.* in (starts_revealed|current_path|push_tab|replace_tab|push_edit|push_groom_edit|replace_quiz_solution|with_history)',
-    'replace (starts_revealed|current_path|push_tab|replace_tab|push_edit|push_groom_edit|replace_quiz_solution|with_history) -> ',
-    'replace (push_tab|replace_tab|push_edit|push_groom_edit|replace_quiz_solution|with_history) with \(\)',
+    'route\.rs:.* in (current_path|push_tab|replace_tab|push_edit|push_groom_edit|with_history)',
+    'replace (current_path|push_tab|replace_tab|push_edit|push_groom_edit|with_history) -> ',
+    'replace (push_tab|replace_tab|push_edit|push_groom_edit|with_history) with \(\)',
 ]

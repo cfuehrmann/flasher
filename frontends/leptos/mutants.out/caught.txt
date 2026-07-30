@@ -1,9 +1,8 @@
-src/route.rs:100:14: replace == with != in path_to_route
-src/route.rs:107:41: replace - with + in path_to_route
-src/route.rs:107:41: replace - with / in path_to_route
-src/route.rs:108:12: delete ! in path_to_route
-src/route.rs:131:9: delete match arm "/add" in path_to_tab
-src/route.rs:132:9: delete match arm "/groom" in path_to_tab
-src/route.rs:133:9: delete match arm "/account" in path_to_tab
-src/route.rs:143:5: replace tab_to_path -> &'static str with ""
-src/route.rs:143:5: replace tab_to_path -> &'static str with "xyzzy"
+src/route.rs:100:41: replace - with + in path_to_route
+src/route.rs:100:41: replace - with / in path_to_route
+src/route.rs:101:12: delete ! in path_to_route
+src/route.rs:124:9: delete match arm "/add" in path_to_tab
+src/route.rs:125:9: delete match arm "/groom" in path_to_tab
+src/route.rs:126:9: delete match arm "/account" in path_to_tab
+src/route.rs:136:5: replace tab_to_path -> &'static str with ""
+src/route.rs:136:5: replace tab_to_path -> &'static str with "xyzzy"

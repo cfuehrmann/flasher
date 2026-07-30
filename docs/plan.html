@@ -474,7 +474,7 @@ browser e2e (clicking) together — never a backend without its user-facing test
 <div class="card">
   <div class="phase-head"><h3>Phase 6.6 — Session state survives refresh</h3><span class="badge b-done">done 2026-07-28</span><span class="goal">F5 restores the full UI state</span></div>
   <ul class="checks">
-    <li class="done">Route model <code>Route{Tab, QuizSolution, GroomEdit(id)}</code> (pure, unit-tested); reveal → replaceState <code>/quiz/solution</code> (no history spam, Back leaves quiz); editor at <code>/groom/edit/{id}</code> with new <code>GET /api/cards/{id}</code></li>
+    <li class="done">Route model <code>Route{Tab, GroomEdit(id)}</code> (pure, unit-tested); editor at <code>/groom/edit/{id}</code> with new <code>GET /api/cards/{id}</code>. (Originally also <code>QuizSolution</code> — retired 2026-07-30: reveal state is transient in-memory, refresh always starts collapsed)</li>
     <li class="done">Fresh-load restore: matching server draft prefills the editor (F5 = mini crash recovery, banner suppressed inline); non-matching draft still banners; deleted card → tab fallback + banner; auth deep links land in the editor</li>
     <li class="done">7 new e2e (45/45 total): reveal/replaceState semantics, draft restore, deleted-card fallback, add-tab prefill, auth editor deep link; Lighthouse unchanged (88/100/100/100/100 per page)</li>
     <li class="done">Review round 6: 3 majors (popstate flattened <code>/groom/edit/{id}</code> to Quiz; re-login on /add lost draft prefill + banner; active-tab click remounted and wiped state) + minors — all fixed, shared restore helper so fresh-load and popstate rules can't drift; 51 e2e; route.rs mutants clean (9 caught/6 unviable/0 missed)</li>
@@ -509,6 +509,11 @@ browser e2e (clicking) together — never a backend without its user-facing test
     old code lives in git history as behavioral reference. Real README written.</li>
     <li class="done">Full mutation sweep as baseline for the new codebase (owner, 2026-07-29: 5 remaining
     mutants killed — completely clean across all crates)</li>
+    <li><b>Known issue (review round 7, 2026-07-30):</b> rapid double-rating in the quiz corrupts
+    the SRS schedule — rating buttons are not disabled while the POST is in flight and the server's
+    <code>set_state</code> is a non-atomic read-modify-write, so a second request collapses the interval
+    to ~0 and the card comes straight back. Fix direction: guard <code>rate</code>/disable buttons
+    in flight, and/or make the endpoint conditional on the shown <code>change_time</code>.</li>
   </ul>
 </div>
 

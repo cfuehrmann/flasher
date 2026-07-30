@@ -1,6 +1,7 @@
 //! UI session-state restore e2e tests (Phase 6.6): a browser refresh
-//! keeps not just the tab but the quiz's solution-revealed state
-//! (`/quiz/solution`) and the groom editor (`/groom/edit/{id}`). A
+//! keeps the tab and the groom editor (`/groom/edit/{id}`), but NOT the
+//! quiz's solution-revealed state — that is transient and a refresh
+//! always starts collapsed at the prompt. A
 //! server-side autosave draft matching the restored editor prefills it
 //! inline (F5 as a mini crash recovery) instead of prompting the
 //! recovery banner; a non-matching draft still banners. All click-driven
@@ -114,13 +115,13 @@ async fn assert_absent(h: &TestHarness, sel: &str) -> Result<()> {
     Ok(())
 }
 
-/// (a) Revealing the solution swaps the URL to `/quiz/solution` via
-/// replaceState; a reload there shows the next card ALREADY revealed
-/// (solution + rating buttons, no extra click); rating returns to the
-/// prompt state and the URL to `/quiz`.
+/// (a) The reveal state is transient: revealing the solution does not
+/// touch the URL, and a reload comes back COLLAPSED at the prompt
+/// (solution hidden behind "Show solution"). Rating then advances to
+/// the next card's prompt as before.
 #[tokio::test]
 #[ignore = "browser"]
-async fn solution_reveal_survives_reload() -> Result<()> {
+async fn solution_reveal_collapses_on_reload() -> Result<()> {
     let h = TestHarness::start().await?;
     let (store, user_id) = seed_store(&h).await?;
     let now = now_ms();
@@ -148,30 +149,30 @@ async fn solution_reveal_survives_reload() -> Result<()> {
     h.click("#show-solution").await?;
     h.wait_for_text("#quiz-solution", "Solution A", TIMEOUT)
         .await?;
-    wait_for_path(&h, "/quiz/solution").await?;
+    // Revealing is pure in-memory state: the URL stays /quiz.
+    wait_for_path(&h, "/quiz").await?;
 
-    // Reload: the card comes back already revealed — the solution and
-    // the rating buttons are there without another "Show solution".
-    h.goto("/quiz/solution").await?;
-    h.wait_for_text("#quiz-solution", "Solution A", TIMEOUT)
-        .await?;
-    h.wait_for_selector("#rate-ok", TIMEOUT).await?;
-    h.wait_for_selector("#rate-failed", TIMEOUT).await?;
-    wait_for_path(&h, "/quiz/solution").await?;
-    if h.eval::<bool>("!!document.querySelector('#show-solution')")
+    // Reload: the card comes back COLLAPSED — prompt plus "Show
+    // solution", no solution, no rating buttons.
+    h.goto("/quiz").await?;
+    h.wait_for_text("#quiz-prompt", "Prompt A", TIMEOUT).await?;
+    h.wait_for_selector("#show-solution", TIMEOUT).await?;
+    if h.eval::<bool>("!!document.querySelector('#quiz-solution, #rate-ok, #rate-failed')")
         .await?
     {
         return Err(Error::message(
-            "restored solution state must not offer Show solution again",
+            "a reload must collapse the quiz back to the prompt",
         ));
     }
-    h.screenshot("09_state_restore/quiz-solution-restored")
+    h.screenshot("09_state_restore/quiz-prompt-after-reload")
         .await?;
 
-    // Rating returns to the prompt state and the URL to /quiz.
+    // Revealing and rating still work after the reload.
+    h.click("#show-solution").await?;
+    h.wait_for_text("#quiz-solution", "Solution A", TIMEOUT)
+        .await?;
     h.click("#rate-ok").await?;
     h.wait_for_text("#quiz-prompt", "Prompt B", TIMEOUT).await?;
-    wait_for_path(&h, "/quiz").await?;
     if h.eval::<bool>("!!document.querySelector('#quiz-solution')")
         .await?
     {
@@ -182,11 +183,12 @@ async fn solution_reveal_survives_reload() -> Result<()> {
     Ok(())
 }
 
-/// (b) Revealing uses replaceState: quiz → reveal → browser Back must
-/// leave the quiz (the previous tab), not merely un-reveal the card.
+/// (b) Revealing adds no history entry: quiz → reveal → browser Back
+/// must leave the quiz (the previous tab), not merely un-reveal the
+/// card.
 #[tokio::test]
 #[ignore = "browser"]
-async fn reveal_uses_replace_state() -> Result<()> {
+async fn reveal_adds_no_history_entry() -> Result<()> {
     let h = TestHarness::start().await?;
     let (store, user_id) = seed_store(&h).await?;
     seed_card(
@@ -210,10 +212,10 @@ async fn reveal_uses_replace_state() -> Result<()> {
 
     h.click("#show-solution").await?;
     h.wait_for_selector("#rate-ok", TIMEOUT).await?;
-    wait_for_path(&h, "/quiz/solution").await?;
+    wait_for_path(&h, "/quiz").await?;
 
-    // Back: the stack is [/quiz, /groom, /quiz/solution-replaced], so
-    // this lands on Groom — the reveal added no entry of its own.
+    // Back: the stack is [/quiz, /groom, /quiz], so this lands on
+    // Groom — the reveal added no entry of its own.
     let _: bool = h.eval("(() => { history.back(); return true; })()").await?;
     wait_for_path(&h, "/groom").await?;
     h.wait_for_selector("#groom-search", TIMEOUT).await?;
@@ -568,18 +570,86 @@ async fn back_from_other_tab_reopens_editor() -> Result<()> {
     Ok(())
 }
 
-/// (j) A fresh load of `/quiz/solution` with NO due card shows the Done
-/// view AND replaces the URL back to `/quiz` (F4) — the solution URL
-/// must not linger over the Done view (or over a later Retry prompt).
+/// (j) A stale `/quiz/solution` link (the retired reveal route) must
+/// NOT restore a revealed quiz: it falls back to the quiz tab like any
+/// unknown path and shows the prompt collapsed.
 #[tokio::test]
 #[ignore = "browser"]
-async fn solution_deep_link_without_due_card_fixes_url() -> Result<()> {
+async fn legacy_solution_url_starts_collapsed() -> Result<()> {
     let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    seed_card(
+        &store,
+        user_id,
+        "card-a",
+        "Prompt A",
+        "Solution A",
+        now_ms() - 60_000,
+    )
+    .await?;
 
-    // Empty database: nothing is due.
     h.goto("/quiz/solution").await?;
-    h.wait_for_selector("#quiz-done", TIMEOUT).await?;
-    wait_for_path(&h, "/quiz").await?;
+    h.wait_for_text("#quiz-prompt", "Prompt A", TIMEOUT).await?;
+    h.wait_for_selector("#show-solution", TIMEOUT).await?;
+    if h.eval::<bool>("!!document.querySelector('#quiz-solution, #rate-ok, #rate-failed')")
+        .await?
+    {
+        return Err(Error::message(
+            "a stale /quiz/solution link must not show the solution",
+        ));
+    }
+    Ok(())
+}
+
+/// (l) Tab-switching away and back while revealed also collapses the
+/// quiz (the tab remounts, the reveal is in-memory only) and the card
+/// stays unrated — it is still the next due card.
+#[tokio::test]
+#[ignore = "browser"]
+async fn tab_switch_collapses_reveal() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    seed_card(
+        &store,
+        user_id,
+        "card-a",
+        "Prompt A",
+        "Solution A",
+        now_ms() - 60_000,
+    )
+    .await?;
+
+    h.goto("/quiz").await?;
+    h.wait_for_text("#quiz-prompt", "Prompt A", TIMEOUT).await?;
+    h.click("#show-solution").await?;
+    h.wait_for_text("#quiz-solution", "Solution A", TIMEOUT)
+        .await?;
+
+    h.click("#tab-groom").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
+    h.click("#tab-quiz").await?;
+    h.wait_for_text("#quiz-prompt", "Prompt A", TIMEOUT).await?;
+    h.wait_for_selector("#show-solution", TIMEOUT).await?;
+    if h.eval::<bool>("!!document.querySelector('#quiz-solution, #rate-ok, #rate-failed')")
+        .await?
+    {
+        return Err(Error::message(
+            "a tab switch must collapse the quiz back to the prompt",
+        ));
+    }
+
+    // White-box: the card was never rated.
+    let card = store
+        .get_card(user_id, "card-a")
+        .await
+        .map_err(store_err)?
+        .ok_or_else(|| Error::message("card-a vanished"))?;
+    if card.state != CardState::New {
+        return Err(Error::message(format!(
+            "the card must stay unrated, state is {:?}",
+            card.state
+        )));
+    }
     Ok(())
 }
 

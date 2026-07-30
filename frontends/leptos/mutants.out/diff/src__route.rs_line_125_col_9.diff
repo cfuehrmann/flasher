@@ -1,0 +1,21 @@
+--- src/route.rs
++++ delete match arm "/groom" in path_to_tab
+@@ -117,17 +117,17 @@
+ #[cfg(any(feature = "csr", test))]
+ pub fn path_to_tab(path: &str) -> Tab {
+     let normalized = path.trim_end_matches('/').to_ascii_lowercase();
+     let base = normalized
+         .strip_suffix("/edit")
+         .map_or(normalized.as_str(), |stem| stem.trim_end_matches('/'));
+     match base {
+         "/add" => Tab::AddCard,
+-        "/groom" => Tab::Groom,
++         /* ~ changed by cargo-mutants ~ */
+         "/account" => Tab::Account,
+         _ => Tab::Quiz,
+     }
+ }
+ 
+ /// The canonical path of a tab (inverse of [`path_to_tab`]).
+ // Same gating as [`path_to_tab`]: only the csr history glue and the
+ // tests need it.

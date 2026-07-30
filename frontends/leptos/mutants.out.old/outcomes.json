@@ -8,7 +8,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 18.446142693,
+          "duration": 18.424948588,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -20,7 +20,7 @@
         },
         {
           "phase": "Test",
-          "duration": 9.621870978,
+          "duration": 9.57117979,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -74,7 +74,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.250964366,
+          "duration": 0.251186354,
           "process_status": {
             "Failure": 101
           },
@@ -128,7 +128,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.251050704,
+          "duration": 0.251371002,
           "process_status": {
             "Failure": 101
           },
@@ -182,7 +182,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.702029267,
+          "duration": 0.701960031,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -194,7 +194,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.702136702,
+          "duration": 0.702177093,
           "process_status": {
             "Failure": 101
           },
@@ -250,7 +250,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.702820734,
+          "duration": 0.652918303,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -262,7 +262,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.702595646,
+          "duration": 0.701995779,
           "process_status": {
             "Failure": 101
           },
@@ -318,7 +318,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.702197462,
+          "duration": 0.651918817,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -330,7 +330,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.702111791,
+          "duration": 0.702401318,
           "process_status": {
             "Failure": 101
           },
@@ -386,7 +386,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.701666335,
+          "duration": 0.701939643,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -398,7 +398,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.752309919,
+          "duration": 0.702199644,
           "process_status": {
             "Failure": 101
           },
@@ -454,7 +454,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.251212389,
+          "duration": 0.251268078,
           "process_status": {
             "Failure": 101
           },
@@ -508,7 +508,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.651807333,
+          "duration": 0.702344467,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -520,7 +520,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.752239697,
+          "duration": 0.702174748,
           "process_status": {
             "Failure": 101
           },
@@ -576,7 +576,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.6518038,
+          "duration": 0.70163298,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -588,7 +588,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.70270151,
+          "duration": 0.701775171,
           "process_status": {
             "Failure": 101
           },
@@ -644,7 +644,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.652359366,
+          "duration": 0.701873993,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -656,7 +656,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.702740486,
+          "duration": 0.752278104,
           "process_status": {
             "Failure": 101
           },
@@ -712,7 +712,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.701807566,
+          "duration": 0.701884126,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -724,7 +724,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.752238127,
+          "duration": 0.75215375,
           "process_status": {
             "Failure": 101
           },
@@ -780,7 +780,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.701978119,
+          "duration": 0.701662422,
           "process_status": "Success",
           "argv": [
             "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
@@ -792,7 +792,7 @@
         },
         {
           "phase": "Test",
-          "duration": 0.701966375,
+          "duration": 0.752506451,
           "process_status": {
             "Failure": 101
           },
@@ -848,7 +848,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.250997229,
+          "duration": 0.251183151,
           "process_status": {
             "Failure": 101
           },
@@ -902,7 +902,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.251016237,
+          "duration": 0.251267798,
           "process_status": {
             "Failure": 101
           },
@@ -912,336 +912,6 @@
             "--no-run",
             "--verbose",
             "--package=flasher-leptos@0.1.0"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "src/route.rs:199:5: replace push_tab with ()",
-          "package": "flasher-leptos",
-          "file": "src/route.rs",
-          "function": {
-            "function_name": "push_tab",
-            "return_type": "",
-            "span": {
-              "start": {
-                "line": 193,
-                "column": 1
-              },
-              "end": {
-                "line": 205,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 199,
-              "column": 5
-            },
-            "end": {
-              "line": 204,
-              "column": 6
-            }
-          },
-          "replacement": "()",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "MissedMutant",
-      "log_path": "log/src__route.rs_line_199_col_5.log",
-      "diff_path": "diff/src__route.rs_line_199_col_5.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.701750047,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.802549987,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0",
-            "--no-default-features",
-            "--features",
-            "ssr"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "src/route.rs:213:5: replace replace_tab with ()",
-          "package": "flasher-leptos",
-          "file": "src/route.rs",
-          "function": {
-            "function_name": "replace_tab",
-            "return_type": "",
-            "span": {
-              "start": {
-                "line": 207,
-                "column": 1
-              },
-              "end": {
-                "line": 219,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 213,
-              "column": 5
-            },
-            "end": {
-              "line": 218,
-              "column": 6
-            }
-          },
-          "replacement": "()",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "MissedMutant",
-      "log_path": "log/src__route.rs_line_213_col_5.log",
-      "diff_path": "diff/src__route.rs_line_213_col_5.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.701956335,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.802085239,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0",
-            "--no-default-features",
-            "--features",
-            "ssr"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "src/route.rs:227:5: replace push_edit with ()",
-          "package": "flasher-leptos",
-          "file": "src/route.rs",
-          "function": {
-            "function_name": "push_edit",
-            "return_type": "",
-            "span": {
-              "start": {
-                "line": 221,
-                "column": 1
-              },
-              "end": {
-                "line": 233,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 227,
-              "column": 5
-            },
-            "end": {
-              "line": 232,
-              "column": 6
-            }
-          },
-          "replacement": "()",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "MissedMutant",
-      "log_path": "log/src__route.rs_line_227_col_5.log",
-      "diff_path": "diff/src__route.rs_line_227_col_5.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.701842298,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.80236803,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0",
-            "--no-default-features",
-            "--features",
-            "ssr"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "src/route.rs:241:5: replace push_groom_edit with ()",
-          "package": "flasher-leptos",
-          "file": "src/route.rs",
-          "function": {
-            "function_name": "push_groom_edit",
-            "return_type": "",
-            "span": {
-              "start": {
-                "line": 235,
-                "column": 1
-              },
-              "end": {
-                "line": 247,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 241,
-              "column": 5
-            },
-            "end": {
-              "line": 246,
-              "column": 6
-            }
-          },
-          "replacement": "()",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "MissedMutant",
-      "log_path": "log/src__route.rs_line_241_col_5.log",
-      "diff_path": "diff/src__route.rs_line_241_col_5.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.652980582,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.802777633,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0",
-            "--no-default-features",
-            "--features",
-            "ssr"
-          ]
-        }
-      ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "src/route.rs:255:5: replace replace_quiz_solution with ()",
-          "package": "flasher-leptos",
-          "file": "src/route.rs",
-          "function": {
-            "function_name": "replace_quiz_solution",
-            "return_type": "",
-            "span": {
-              "start": {
-                "line": 249,
-                "column": 1
-              },
-              "end": {
-                "line": 264,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 255,
-              "column": 5
-            },
-            "end": {
-              "line": 263,
-              "column": 6
-            }
-          },
-          "replacement": "()",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "MissedMutant",
-      "log_path": "log/src__route.rs_line_255_col_5.log",
-      "diff_path": "diff/src__route.rs_line_255_col_5.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.701844763,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.852490697,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0",
-            "--no-default-features",
-            "--features",
-            "ssr"
           ]
         }
       ]
@@ -1286,7 +956,7 @@
       "phase_results": [
         {
           "phase": "Build",
-          "duration": 0.251396736,
+          "duration": 0.251119934,
           "process_status": {
             "Failure": 101
           },
@@ -1299,81 +969,15 @@
           ]
         }
       ]
-    },
-    {
-      "scenario": {
-        "Mutant": {
-          "name": "src/route.rs:303:5: replace with_history with ()",
-          "package": "flasher-leptos",
-          "file": "src/route.rs",
-          "function": {
-            "function_name": "with_history",
-            "return_type": "",
-            "span": {
-              "start": {
-                "line": 298,
-                "column": 1
-              },
-              "end": {
-                "line": 306,
-                "column": 2
-              }
-            }
-          },
-          "span": {
-            "start": {
-              "line": 303,
-              "column": 5
-            },
-            "end": {
-              "line": 305,
-              "column": 6
-            }
-          },
-          "replacement": "()",
-          "genre": "FnValue"
-        }
-      },
-      "summary": "MissedMutant",
-      "log_path": "log/src__route.rs_line_303_col_5.log",
-      "diff_path": "diff/src__route.rs_line_303_col_5.diff",
-      "phase_results": [
-        {
-          "phase": "Build",
-          "duration": 0.95233807,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--no-run",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0"
-          ]
-        },
-        {
-          "phase": "Test",
-          "duration": 0.802304815,
-          "process_status": "Success",
-          "argv": [
-            "/home/carsten/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
-            "test",
-            "--verbose",
-            "--package=flasher-leptos@0.1.0",
-            "--no-default-features",
-            "--features",
-            "ssr"
-          ]
-        }
-      ]
     }
   ],
-  "total_mutants": 21,
-  "missed": 6,
+  "total_mutants": 15,
+  "missed": 0,
   "caught": 9,
   "timeout": 0,
   "unviable": 6,
   "success": 0,
-  "start_time": "2026-07-28T06:40:11.894921582Z",
-  "end_time": "2026-07-28T06:41:03.478492724Z",
+  "start_time": "2026-07-28T06:42:01.1357079Z",
+  "end_time": "2026-07-28T06:42:43.425735552Z",
   "cargo_mutants_version": "27.1.0"
 }

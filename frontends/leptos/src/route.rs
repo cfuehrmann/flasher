@@ -1,14 +1,15 @@
 //! Hand-rolled URL routing for the tab bar (Phase 6.5), extended in
-//! Phase 6.6 to carry the full UI session state: the quiz's
-//! solution-revealed state (`/quiz/solution`) and the groom editor
-//! (`/groom/edit/{card_id}`) are real, reload-surviving routes.
+//! Phase 6.6 to carry the groom editor (`/groom/edit/{card_id}`) as a
+//! real, reload-surviving route. The quiz's solution-revealed state is
+//! deliberately NOT routed: it is transient in-memory state and a
+//! browser refresh always starts collapsed.
 //!
 //! Deliberately not `leptos_router`: the app has a handful of flat
 //! routes, so the whole router is two pure mapping layers
 //! ([`path_to_route`]/[`path_to_tab`] and [`tab_to_path`], host-testable
 //! under ssr) plus a thin csr-only layer over the History API
-//! (`pushState` on tab switch and editor open, `replaceState` for the
-//! quiz reveal and canonicalization, a `popstate` listener for browser
+//! `pushState` on tab switch and editor open, `replaceState` for
+//! canonicalization, a `popstate` listener for browser
 //! back/forward). The popstate dispatch is on the full [`Route`], so
 //! Back/Forward ONTO a `/groom/edit/{id}` entry re-opens the editor
 //! (re-fetching the card, 404 → Groom tab with the URL rewritten)
@@ -27,18 +28,12 @@
 //! `/groom/edit` still maps to Groom with no editor (there is no card id
 //! to restore).
 //!
-//! The quiz mirrors its reveal state into the URL with `replaceState`:
-//! revealing swaps `/quiz` for `/quiz/solution` (no history entry — Back
-//! after revealing leaves the quiz rather than just un-revealing),
-//! rating swaps it back. A fresh load of `/quiz/solution` shows the next
-//! due card already revealed.
-//!
 //! The draft-recovery banner stays client-only state. Deep links
 //! requested while logged out survive the auth flow: [`initial_route`]
 //! is read once at startup into the tab signal, the auth screen ignores
 //! `popstate` (a Back/Forward there must not clobber the stash), and a
-//! successful login re-reads the location to restore tab, quiz reveal
-//! and editor.
+//! successful login re-reads the location to restore the tab and the
+//! editor.
 //!
 //! Every `location`/`history` access lives behind `#[cfg(feature =
 //! "csr")]` with an ssr no-op twin, so the ssr build (and its host-target
@@ -63,8 +58,9 @@ pub enum Tab {
 }
 
 /// A URL the app can restore its full UI state from (Phase 6.6): beyond
-/// the bare tabs, the quiz's revealed state and the groom editor are
-/// real routes that survive a browser refresh.
+/// the bare tabs, the groom editor is a real route that survives a
+/// browser refresh. The quiz's reveal state is deliberately not part of
+/// this: it is transient and always starts collapsed.
 // The non-Tab variants are constructed only by `path_to_route` (csr and
 // test builds); a pure ssr lib build only ever matches on them.
 #[cfg_attr(not(any(feature = "csr", test)), allow(dead_code))]
@@ -72,8 +68,6 @@ pub enum Tab {
 pub enum Route {
     /// One of the four tabs.
     Tab(Tab),
-    /// The quiz with the solution already revealed (`/quiz/solution`).
-    QuizSolution,
     /// The groom editor open on a specific card (`/groom/edit/{id}`).
     GroomEdit(String),
 }
@@ -83,7 +77,6 @@ impl Route {
     pub fn tab(&self) -> Tab {
         match self {
             Self::Tab(tab) => *tab,
-            Self::QuizSolution => Tab::Quiz,
             Self::GroomEdit(_) => Tab::Groom,
         }
     }
@@ -100,9 +93,6 @@ impl Route {
 pub fn path_to_route(path: &str) -> Route {
     let trimmed = path.trim_end_matches('/');
     let lower = trimmed.to_ascii_lowercase();
-    if lower == "/quiz/solution" {
-        return Route::QuizSolution;
-    }
     if let Some(rest) = lower.strip_prefix("/groom/edit/") {
         // The id is sliced out of the ORIGINAL path (ids are
         // case-sensitive; the static prefix is not). More than one
@@ -170,20 +160,6 @@ pub fn initial_tab() -> Tab {
     initial_route().tab()
 }
 
-/// Whether the quiz on this page load starts already revealed — true
-/// exactly when the current URL is `/quiz/solution` (csr); always false
-/// under ssr.
-pub fn starts_revealed() -> bool {
-    #[cfg(feature = "csr")]
-    {
-        matches!(path_to_route(&current_path()), Route::QuizSolution)
-    }
-    #[cfg(not(feature = "csr"))]
-    {
-        false
-    }
-}
-
 /// The browser's current `location.pathname`.
 #[cfg(feature = "csr")]
 pub fn current_path() -> String {
@@ -249,23 +225,6 @@ pub fn push_groom_edit(id: &str) {
     }
 }
 
-/// Rewrites the current history entry to `/quiz/solution` when the quiz
-/// solution is revealed — a REPLACE, not a push: revealing must not pile
-/// up history entries, and browser Back afterwards leaves the quiz
-/// instead of merely un-revealing.
-#[cfg(feature = "csr")]
-pub fn replace_quiz_solution() {
-    if current_path() != "/quiz/solution" {
-        with_history(|history| {
-            _ = history.replace_state_with_url(
-                &wasm_bindgen::JsValue::NULL,
-                "",
-                Some("/quiz/solution"),
-            );
-        });
-    }
-}
-
 /// Registers the `popstate` handler (browser back/forward): the URL has
 /// already changed, so the UI just follows — no `pushState` here or the
 /// stack would grow on every back. The dispatch is on the full [`Route`]
@@ -296,10 +255,6 @@ pub fn push_edit(_tab: Tab) {}
 /// ssr twin of [`push_groom_edit`]: no history exists server-side.
 #[cfg(not(feature = "csr"))]
 pub fn push_groom_edit(_id: &str) {}
-
-/// ssr twin of [`replace_quiz_solution`]: no history exists server-side.
-#[cfg(not(feature = "csr"))]
-pub fn replace_quiz_solution() {}
 
 /// Runs `f` with the browser's `history` object when available (it always
 /// is in a real browser; the graceful no-op keeps the wasm module from
@@ -365,15 +320,13 @@ mod tests {
     }
 
     #[test]
-    fn quiz_solution_is_its_own_route() {
-        assert_eq!(path_to_route("/quiz/solution"), Route::QuizSolution);
-        // Trailing slashes and case are normalized like for the tabs.
-        assert_eq!(path_to_route("/quiz/solution/"), Route::QuizSolution);
-        assert_eq!(path_to_route("/QUIZ/SOLUTION"), Route::QuizSolution);
-        // It renders on the quiz tab.
-        assert_eq!(path_to_route("/quiz/solution").tab(), Tab::Quiz);
-        // Anything below it is unknown and falls back like any typo.
-        assert_eq!(path_to_route("/quiz/solution/x"), Route::Tab(Tab::Quiz));
+    fn legacy_quiz_solution_falls_back_to_the_quiz_tab() {
+        // The retired `/quiz/solution` route (reveal state used to be
+        // mirrored into the URL) is no longer special: a stale bookmark
+        // or refresh on it just loads the quiz, collapsed.
+        assert_eq!(path_to_route("/quiz/solution"), Route::Tab(Tab::Quiz));
+        assert_eq!(path_to_route("/quiz/solution/"), Route::Tab(Tab::Quiz));
+        assert_eq!(path_to_route("/QUIZ/SOLUTION"), Route::Tab(Tab::Quiz));
     }
 
     #[test]
@@ -406,7 +359,6 @@ mod tests {
             path_to_route("/groom/edit/card-9"),
             Route::GroomEdit("card-9".to_owned())
         );
-        assert_eq!(path_to_route("/quiz/solution"), Route::QuizSolution);
         assert_eq!(path_to_route("/add"), Route::Tab(Tab::AddCard));
     }
 
