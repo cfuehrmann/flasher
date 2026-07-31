@@ -425,7 +425,7 @@ browser e2e (clicking) together — never a backend without its user-facing test
 <div class="card">
   <div class="phase-head"><h3>Phase 3 — Groom slice</h3><span class="badge b-done">done 2026-07-27</span><span class="goal">Manage cards</span></div>
   <ul class="checks">
-    <li class="done">Endpoints: find (Unicode-fold search, reference ordering, page size 10 via <code>FLASHER_PAGE_SIZE</code>), PATCH (prompt/solution/disabled), DELETE card, DELETE history (state=new, +30 min)</li>
+    <li class="done">Endpoints: find (Unicode-fold search, ordering <code>next_time</code> asc + <code>id</code> tie-break — deviates from the reference's disabled-last so toggles don't re-sort, owner 2026-07-31; page size 10 via <code>FLASHER_PAGE_SIZE</code>), PATCH (prompt/solution/disabled), DELETE card, DELETE history (state=new, +30 min)</li>
     <li class="done">Groom tab: 300 ms-debounced search, paged list (badges, due dates), enable/disable, delete + reset-progress behind confirm modal</li>
     <li class="done">7 browser e2e journeys incl. cross-feature "disabled → enable → quizzable"; Lighthouse still 100/100/100/100; debug wasm stripped (name-section bloat), budget check holds</li>
   </ul>

@@ -433,10 +433,16 @@ impl Store {
 
     /// Port of the old `CardStore.Find`: full-Unicode case-insensitive
     /// substring match over prompt and solution
-    /// (`Contains(searchText, OrdinalIgnoreCase)`), ordered by `disabled`
-    /// (enabled first) then `next_time` ascending, then skip/take paging.
-    /// `None` or an empty search matches all cards of the user. Returns
-    /// the page and the total number of matching cards.
+    /// (`Contains(searchText, OrdinalIgnoreCase)`), ordered by
+    /// `next_time` ascending (most due first), ties broken by `id`,
+    /// then skip/take paging. `None` or an empty search matches all
+    /// cards of the user. Returns the page and the total number of
+    /// matching cards.
+    ///
+    /// Deliberate deviation from the old Find (owner decision
+    /// 2026-07-31): `disabled` is NOT a sort key — the old "enabled
+    /// first, disabled last" order made the groom list re-sort on every
+    /// enable/disable toggle.
     ///
     /// Filtering and sorting happen in Rust, not SQL: `SQLite`'s `LIKE`
     /// folds ASCII only, so it would miss e.g. `Äpfel` ~ `äpfel`. The old
@@ -467,15 +473,9 @@ impl Store {
                     || card.solution.to_lowercase().contains(&needle)
             })
             .collect();
-        // `disabled` then `next_time`, as in the old Find; the id only
-        // breaks ties deterministically (the old dictionary order was
-        // arbitrary).
-        hits.sort_by(|a, b| {
-            a.disabled
-                .cmp(&b.disabled)
-                .then_with(|| a.next_time.cmp(&b.next_time))
-                .then_with(|| a.id.cmp(&b.id))
-        });
+        // `next_time` (most due first), then `id` to break ties
+        // deterministically (the old dictionary order was arbitrary).
+        hits.sort_by(|a, b| a.next_time.cmp(&b.next_time).then_with(|| a.id.cmp(&b.id)));
         let count = i64::try_from(hits.len()).unwrap_or(i64::MAX);
         let page = hits
             .into_iter()

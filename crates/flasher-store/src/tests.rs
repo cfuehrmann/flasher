@@ -314,8 +314,9 @@ async fn search_cards_filters_orders_and_pages() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let user = store.create_user("alice").await?;
 
-    // Ordering reference (old `CardStore.Find`): enabled before
-    // disabled, `next_time` ascending within each group.
+    // Ordering: `next_time` ascending (most due first), `id` breaks
+    // ties; `disabled` is deliberately not a sort key (owner decision
+    // 2026-07-31: the groom list must not re-sort on toggle).
     let mut c1 = new_card(user.id, "c1");
     c1.prompt = "Rust borrow checker".to_owned();
     c1.solution = "lifetimes".to_owned();
@@ -341,31 +342,31 @@ async fn search_cards_filters_orders_and_pages() -> TestResult {
     c4.next_time = 10;
     store.insert_card(&c4).await?;
 
-    // Case-insensitive substring on prompt or solution; c1 (enabled)
-    // sorts before c3 (disabled) regardless of next_time.
+    // Case-insensitive substring on prompt or solution; c3 (next_time
+    // 50) sorts before c1 (next_time 200) even though c3 is disabled.
     let (hits, count) = store.search_cards(user.id, Some("rust"), 0, 10).await?;
     assert_eq!(count, 2);
     assert_eq!(
         hits.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
-        ["c1", "c3"]
+        ["c3", "c1"]
     );
 
     // Paging: page 1 (skip 0, limit 1) and page 2 (skip 1, limit 1).
     let (page1, count) = store.search_cards(user.id, Some("rust"), 0, 1).await?;
     assert_eq!(count, 2);
     assert_eq!(page1.len(), 1);
-    assert_eq!(page1[0].id, "c1");
+    assert_eq!(page1[0].id, "c3");
     let (page2, _) = store.search_cards(user.id, Some("rust"), 1, 1).await?;
     assert_eq!(page2.len(), 1);
-    assert_eq!(page2[0].id, "c3");
+    assert_eq!(page2[0].id, "c1");
 
-    // No search matches everything: enabled by next_time asc
-    // (c4, c2, c1), then disabled (c3).
+    // No search matches everything: next_time asc, disabled or not
+    // (c4, c3, c2, c1).
     let (all, count) = store.search_cards(user.id, None, 0, 10).await?;
     assert_eq!(count, 4);
     assert_eq!(
         all.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
-        ["c4", "c2", "c1", "c3"]
+        ["c4", "c3", "c2", "c1"]
     );
 
     // Empty search behaves like None.
@@ -382,6 +383,28 @@ async fn search_cards_filters_orders_and_pages() -> TestResult {
     let other = store.create_user("bob").await?;
     let (_, count) = store.search_cards(other.id, None, 0, 10).await?;
     assert_eq!(count, 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn search_cards_breaks_next_time_ties_by_id() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let user = store.create_user("alice").await?;
+
+    // Same next_time for all three: the id alone must make the order
+    // fully deterministic (insertion order deliberately scrambled).
+    for id in ["c-b", "c-c", "c-a"] {
+        let mut card = new_card(user.id, id);
+        card.next_time = 42;
+        store.insert_card(&card).await?;
+    }
+
+    let (all, count) = store.search_cards(user.id, None, 0, 10).await?;
+    assert_eq!(count, 3);
+    assert_eq!(
+        all.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+        ["c-a", "c-b", "c-c"]
+    );
     Ok(())
 }
 

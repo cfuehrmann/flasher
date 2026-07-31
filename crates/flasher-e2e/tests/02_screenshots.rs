@@ -126,7 +126,8 @@ struct GroomSeed {
 }
 
 /// Sixteen realistic cards: mixed states, ascending due dates, two
-/// disabled new cards at the end (the store sorts disabled last). With
+/// disabled new cards (overdue, so they sort near the front like any
+/// card — `disabled` is not a sort key). With
 /// the hero card this fills two pages (server page size 10).
 // The function is one literal seed table; the line count is data, not
 // logic (same reasoning as the long view functions in the app).

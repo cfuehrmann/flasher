@@ -14,9 +14,11 @@
 //! (immediate) stay inline; the rare destructive ones (delete,
 //! reset-progress) sit in a per-row "⋯" menu behind a confirm modal.
 //! Toggle and reset
-//! refetch the current page because the mutations can change the
-//! server-side ordering (enabled first, `next_time` asc, disabled last);
-//! deleting the last row of a page beyond the first steps back one page,
+//! refetch the current page; the toggle's refetch is purely to show the
+//! fresh badge (the sort — `next_time` asc, `id` tie-break — does not
+//! involve `disabled`, so the row stays in place), while a progress
+//! reset moves `next_time` and can genuinely re-order the page.
+//! Deleting the last row of a page beyond the first steps back one page,
 //! any other delete refetches in place so the count stays exact.
 //!
 //! Loading, error (with retry) and empty states mirror the quiz tab.
@@ -188,9 +190,9 @@ pub fn Groom(
         );
     };
 
-    // Enable/disable toggle — immediate, no confirmation. The mutation can
-    // change the server-side ordering (disabled cards sort last), so the
-    // current page is refetched instead of patching the row in place.
+    // Enable/disable toggle — immediate, no confirmation. `disabled` is
+    // not part of the server-side ordering, so the row cannot jump; the
+    // refetch only refreshes the badge/label in place.
     let toggle_disabled = Callback::new(move |card: CardResponse| {
         leptos::task::spawn_local(async move {
             match api::set_disabled(&card.id, !card.disabled).await {
@@ -222,8 +224,8 @@ pub fn Groom(
         });
     });
 
-    // Confirmed progress reset: like the toggle, the reset can change the
-    // ordering (next_time moves), so the current page is refetched.
+    // Confirmed progress reset: the reset can change the ordering
+    // (next_time moves), so the current page is refetched.
     let do_reset = Callback::new(move |card: CardResponse| {
         leptos::task::spawn_local(async move {
             match api::delete_history(&card.id).await {
