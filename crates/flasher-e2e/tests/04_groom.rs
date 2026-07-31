@@ -1,6 +1,6 @@
 //! Groom tab e2e tests: search-as-you-type (with full unicode case
-//! folding), the enabled/disabled/all status filter, paging, the
-//! enable/disable toggle, the row "⋯" overflow
+//! folding), the clear button, the enabled/disabled/all status filter,
+//! paging, the enable/disable toggle, the row "⋯" overflow
 //! menu (incl. its aria-expanded state and the one-line meta row at
 //! mobile width), delete with a confirm modal (including the
 //! last-item-on-page fallback), progress reset, and
@@ -249,6 +249,50 @@ async fn search_filters_with_unicode_folding() -> Result<()> {
         }
     }
     h.screenshot("04_groom/search-cleared").await?;
+    Ok(())
+}
+
+/// Clear button: disabled while the box is empty; one click empties the
+/// box and restores the full list immediately (no debounce — a click is
+/// a deliberate act, unlike a keystroke).
+#[tokio::test]
+#[ignore = "browser"]
+async fn clear_button_resets_search() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    seed_page_cards(&store, user_id, 3, "card-clear-").await?;
+
+    goto_groom(&h).await?;
+    h.wait_for_text("#groom-page-info", "of 3", TIMEOUT).await?;
+    let disabled = h
+        .eval::<bool>("document.querySelector('#groom-clear').disabled")
+        .await?;
+    if !disabled {
+        return Err(Error::message(
+            "clear button must be disabled while the search box is empty",
+        ));
+    }
+
+    h.type_into("#groom-search", "P01").await?;
+    h.wait_for_text("#groom-page-info", "of 1", TIMEOUT).await?;
+    h.click("#groom-clear").await?;
+    h.wait_for_text("#groom-page-info", "of 3", TIMEOUT).await?;
+    let value = h
+        .eval::<String>("document.querySelector('#groom-search').value")
+        .await?;
+    if !value.is_empty() {
+        return Err(Error::message(format!(
+            "clear button should empty the search box, shows {value:?}"
+        )));
+    }
+    let disabled = h
+        .eval::<bool>("document.querySelector('#groom-clear').disabled")
+        .await?;
+    if !disabled {
+        return Err(Error::message(
+            "clear button must be disabled again once the box is empty",
+        ));
+    }
     Ok(())
 }
 

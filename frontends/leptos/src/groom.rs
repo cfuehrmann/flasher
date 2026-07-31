@@ -3,7 +3,9 @@
 //!
 //! Search-as-you-type with a ~300 ms debounce (a generation counter makes
 //! stale timers no-ops, so no cancel handle is needed); changing the query
-//! resets to page 0 and refetches. Next to the search box, a filter
+//! resets to page 0 and refetches. The clear button next to the box
+//! empties the query immediately (no debounce — one click, one fetch)
+//! and is disabled while the box is empty. Next to it, a filter
 //! selects all (the first-usage default, owner decision 2026-07-31),
 //! enabled or disabled cards (issue #127); changing it also resets to
 //! page 0 and refetches immediately (no debounce — one click, one fetch).
@@ -263,6 +265,21 @@ pub fn Groom(
         );
     };
 
+    // Clear button: empties the box immediately — one click, one fetch,
+    // like the filter, no debounce. Bumping the generation first makes
+    // any pending debounce timer a no-op, so a keystroke armed just
+    // before the click cannot resurrect the old query afterwards.
+    let on_clear_search = move |_| {
+        generation.update(|count| *count += 1);
+        input.set(String::new());
+        #[cfg(feature = "csr")]
+        storage_set(STORAGE_SEARCH_KEY, "");
+        batch(|| {
+            page.set(0);
+            query.set(String::new());
+        });
+    };
+
     // Filter change: like a search change — reset to page 0 and refetch
     // (the `batch` makes both one effect trigger), but immediate: a
     // select needs no debounce. Unknown values are impossible from the
@@ -360,15 +377,33 @@ pub fn Groom(
 
     view! {
         <section class="groom">
-            <label for="groom-search">"Search"</label>
+            // No visible "Search" label (owner decision 2026-07-31): the
+            // placeholder makes the box self-explanatory and the label
+            // only cost a line; the aria-label keeps the accessible name.
             <div class="groom-controls">
-                <input
-                    id="groom-search"
-                    type="text"
-                    placeholder="Search cards…"
-                    prop:value=input
-                    on:input=on_search_input
-                />
+                // The × sits INSIDE the search box (owner wish
+                // 2026-07-31): it clears the box, so it should look like
+                // part of it, not like a third control next to it.
+                <div class="groom-search">
+                    <input
+                        id="groom-search"
+                        type="text"
+                        placeholder="Search cards…"
+                        aria-label="Search cards"
+                        prop:value=input
+                        on:input=on_search_input
+                    />
+                    <button
+                        type="button"
+                        id="groom-clear"
+                        aria-label="Clear search"
+                        title="Clear search"
+                        disabled=move || input.get().is_empty()
+                        on:click=on_clear_search
+                    >
+                        "×"
+                    </button>
+                </div>
                 <select
                     id="groom-filter"
                     aria-label="Filter cards by status"
@@ -423,9 +458,15 @@ pub fn Groom(
                         view! {
                             // Paging bar ABOVE the list (Phase 6.5, owner
                             // complaint): on a full page the user no longer
-                            // has to scroll to reach Previous/Next. Ids and
-                            // disabled-when-single-page behavior unchanged.
+                            // has to scroll to reach Previous/Next. The hit
+                            // count sits left; the buttons sit as a close
+                            // pair at the right edge, flush with the card
+                            // rows (owner wish 2026-07-31: less mouse
+                            // travel between Previous and Next).
                             <div class="groom-paging">
+                                <span id="groom-page-info">
+                                    {format!("showing {first}–{last} of {count}")}
+                                </span>
                                 <button
                                     type="button"
                                     id="groom-prev"
@@ -434,9 +475,6 @@ pub fn Groom(
                                 >
                                     "Previous"
                                 </button>
-                                <span id="groom-page-info">
-                                    {format!("showing {first}–{last} of {count}")}
-                                </span>
                                 <button
                                     type="button"
                                     id="groom-next"
