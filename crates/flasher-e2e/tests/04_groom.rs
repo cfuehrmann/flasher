@@ -1,6 +1,8 @@
 //! Groom tab e2e tests: search-as-you-type (with full unicode case
-//! folding), paging, the enable/disable toggle, delete with a confirm
-//! modal (including the last-item-on-page fallback), progress reset, and
+//! folding), paging, the enable/disable toggle, the row "⋯" overflow
+//! menu (incl. its aria-expanded state and the one-line meta row at
+//! mobile width), delete with a confirm modal (including the
+//! last-item-on-page fallback), progress reset, and
 //! the cross-feature round "disabled card becomes quizzable once enabled"
 //! — all click-driven through the browser, with the database only used
 //! for seeding and white-box verification.
@@ -14,6 +16,22 @@ use flasher_store::{CardState, NewCard, Store};
 /// Timeout for every DOM wait; generous because the wasm bundle has to
 /// download and boot first (same reasoning as the harness default).
 const TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Layout probe for the groom meta row: reports whether the state badge
+/// and the ⋯ trigger share one line (a wrapped line would put the
+/// button below the badge) plus the row's client/scroll width and the
+/// per-child widths, so a failure says by how much it misses.
+const META_PROBE: &str = "(() => {
+    const meta = document.querySelector('#groom-row-card-menu .groom-meta');
+    const a = document.querySelector('#state-card-menu').getBoundingClientRect();
+    const b = document.querySelector('#menu-card-menu').getBoundingClientRect();
+    return JSON.stringify({
+        same_line: a.top < b.bottom && b.top < a.bottom,
+        client: meta.clientWidth, scroll: meta.scrollWidth, vw: window.innerWidth,
+        kids: [...meta.children].map(c =>
+            c.className + ':' + Math.round(c.getBoundingClientRect().width)),
+    });
+})()";
 
 fn now_ms() -> i64 {
     SystemTime::now()
@@ -120,6 +138,14 @@ async fn wait_until_gone(h: &TestHarness, sel: &str, timeout: Duration) -> Resul
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
+}
+
+/// Opens the row's "⋯" overflow menu and clicks the given item
+/// (`#reset-<card>` / `#delete-<card>`), waiting for the menu to render.
+async fn click_row_menu_item(h: &TestHarness, card_id: &str, item_sel: &str) -> Result<()> {
+    h.click(&format!("#menu-{card_id}")).await?;
+    h.wait_for_selector(item_sel, TIMEOUT).await?;
+    h.click(item_sel).await
 }
 
 /// Search-as-you-type: typing `äpfel` (lowercase) matches `Äpfel und
@@ -343,7 +369,7 @@ async fn delete_with_confirm_modal() -> Result<()> {
     h.wait_for_selector("#groom-row-card-delete", TIMEOUT)
         .await?;
 
-    h.click("#delete-card-delete").await?;
+    click_row_menu_item(&h, "card-delete", "#delete-card-delete").await?;
     h.wait_for_selector("#groom-modal", TIMEOUT).await?;
     let modal = h.text_content("#groom-modal").await?;
     if !modal.contains("Really delete this card?") || !modal.contains("Doomed prompt") {
@@ -358,7 +384,7 @@ async fn delete_with_confirm_modal() -> Result<()> {
     h.wait_for_selector("#groom-row-card-delete", TIMEOUT)
         .await?;
 
-    h.click("#delete-card-delete").await?;
+    click_row_menu_item(&h, "card-delete", "#delete-card-delete").await?;
     h.wait_for_selector("#groom-modal", TIMEOUT).await?;
     h.click("#modal-confirm").await?;
     h.wait_for_text("#groom-empty", "No cards match", TIMEOUT)
@@ -394,7 +420,7 @@ async fn delete_last_item_on_page_goes_back() -> Result<()> {
         return Err(Error::message("page 2 should show exactly 1 row"));
     }
 
-    h.click("#delete-card-q11").await?;
+    click_row_menu_item(&h, "card-q11", "#delete-card-q11").await?;
     h.wait_for_selector("#groom-modal", TIMEOUT).await?;
     h.click("#modal-confirm").await?;
     h.wait_for_text("#groom-page-info", "showing 1–10 of 10", TIMEOUT)
@@ -439,7 +465,7 @@ async fn reset_progress_with_confirm_modal() -> Result<()> {
     goto_groom(&h).await?;
     h.wait_for_text("#state-card-reset", "ok", TIMEOUT).await?;
 
-    h.click("#reset-card-reset").await?;
+    click_row_menu_item(&h, "card-reset", "#reset-card-reset").await?;
     h.wait_for_selector("#groom-modal", TIMEOUT).await?;
     let modal = h.text_content("#groom-modal").await?;
     if !modal.contains("Reset learning progress for this card?") || !modal.contains("Reset prompt")
@@ -556,7 +582,7 @@ async fn delete_modal_warns_about_existing_progress() -> Result<()> {
         .await?;
 
     // Learned card: warning names the state and the permanence.
-    h.click("#delete-card-learned").await?;
+    click_row_menu_item(&h, "card-learned", "#delete-card-learned").await?;
     h.wait_for_selector("#modal-progress-warning", TIMEOUT)
         .await?;
     let warning = h.text_content("#modal-progress-warning").await?;
@@ -571,7 +597,7 @@ async fn delete_modal_warns_about_existing_progress() -> Result<()> {
     wait_until_gone(&h, "#groom-modal", TIMEOUT).await?;
 
     // Fresh card: same modal, no warning.
-    h.click("#delete-card-fresh").await?;
+    click_row_menu_item(&h, "card-fresh", "#delete-card-fresh").await?;
     h.wait_for_selector("#groom-modal", TIMEOUT).await?;
     let modal = h.text_content("#groom-modal").await?;
     if modal.contains("learning progress") {
@@ -579,6 +605,98 @@ async fn delete_modal_warns_about_existing_progress() -> Result<()> {
             "new card's modal must not warn about progress, shows: {modal:?}"
         )));
     }
+    h.click("#modal-cancel").await?;
+    Ok(())
+}
+
+/// Row "⋯" overflow menu: closed initially, opens on the trigger with
+/// both destructive actions (and tracks aria-expanded), dismisses on a
+/// backdrop click without arming the modal, and closes again when an
+/// item is chosen (which arms the confirm modal). Also pins the owner
+/// requirement behind the redesign: the meta line — badges + due +
+/// actions — stays on ONE line even at mobile width for the common
+/// worst case (new + disabled; fresh cards start disabled).
+#[tokio::test]
+#[ignore = "browser"]
+async fn row_menu_opens_and_dismisses() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    seed_card(
+        &store,
+        user_id,
+        "card-menu",
+        "Menu prompt",
+        "Menu solution",
+        CardState::New,
+        now,
+        now + 60_000,
+        true,
+    )
+    .await?;
+
+    goto_groom(&h).await?;
+    h.wait_for_selector("#menu-card-menu", TIMEOUT).await?;
+    if h.eval::<bool>("!!document.querySelector('.groom-menu')")
+        .await?
+    {
+        return Err(Error::message("menu should start closed"));
+    }
+    if h.eval::<String>(
+        "document.querySelector('#menu-card-menu').getAttribute('aria-expanded') ?? '<missing>'",
+    )
+    .await?
+        != "false"
+    {
+        return Err(Error::message("aria-expanded should be false while closed"));
+    }
+
+    // One-line meta row, checked at desktop width and at 390px mobile
+    // (new + disabled is the common widest combination; fresh cards
+    // start disabled).
+    let probe = h.eval::<String>(META_PROBE).await?;
+    if !probe.contains("\"same_line\":true") {
+        return Err(Error::message(format!(
+            "meta line wrapped at desktop width: {probe}"
+        )));
+    }
+    h.set_viewport(390, 844).await?;
+    let probe = h.eval::<String>(META_PROBE).await?;
+    if !probe.contains("\"same_line\":true") {
+        return Err(Error::message(format!(
+            "meta line wrapped at 390px for a new + disabled card: {probe}"
+        )));
+    }
+
+    // Open: both destructive actions show, aria-expanded follows.
+    h.click("#menu-card-menu").await?;
+    h.wait_for_selector("#reset-card-menu", TIMEOUT).await?;
+    h.wait_for_selector("#delete-card-menu", TIMEOUT).await?;
+    if h.eval::<String>(
+        "document.querySelector('#menu-card-menu').getAttribute('aria-expanded') ?? '<missing>'",
+    )
+    .await?
+        != "true"
+    {
+        return Err(Error::message("aria-expanded should be true while open"));
+    }
+    h.screenshot("04_groom/row-menu-open").await?;
+
+    // A backdrop click dismisses the menu without arming any modal.
+    h.click(".groom-menu-backdrop").await?;
+    wait_until_gone(&h, ".groom-menu", TIMEOUT).await?;
+    if h.eval::<bool>("!!document.querySelector('#groom-modal')")
+        .await?
+    {
+        return Err(Error::message("backdrop dismiss must not arm the modal"));
+    }
+
+    // Choosing an item closes the menu and arms the confirm modal.
+    h.click("#menu-card-menu").await?;
+    h.wait_for_selector("#delete-card-menu", TIMEOUT).await?;
+    h.click("#delete-card-menu").await?;
+    wait_until_gone(&h, ".groom-menu", TIMEOUT).await?;
+    h.wait_for_selector("#groom-modal", TIMEOUT).await?;
     h.click("#modal-cancel").await?;
     Ok(())
 }

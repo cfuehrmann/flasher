@@ -81,4 +81,28 @@ exclude_re = [
     'route\.rs:.* in (current_path|push_tab|replace_tab|push_edit|push_groom_edit|with_history)',
     'replace (current_path|push_tab|replace_tab|push_edit|push_groom_edit|with_history) -> ',
     'replace (push_tab|replace_tab|push_edit|push_groom_edit|with_history) with \(\)',
+
+    # --- Browser-only component glue in groom.rs ------------------------------
+    # The whole file is Leptos view/component code: signals, callbacks and
+    # view! markup that only a DOM can observe, so host-target tests
+    # structurally cannot kill these mutants (the ssr test renders only the
+    # initial Loading state, and cargo-mutants generates no mutants inside
+    # view! bodies). Every behavior they sit in IS pinned by the browser e2e
+    # suite (crates/flasher-e2e/tests/04_groom.rs), which drives the real csr
+    # build in Chromium: the search debounce + unicode folding, paging
+    # arithmetic and the page-info line, the enable/disable toggle, delete
+    # (incl. last-item-on-page and the learned-card progress warning), the
+    # progress reset, and the row "⋯" menu open/dismiss. The two generation
+    # counters (debounce/stale-fetch guards) are race guards no state-based
+    # browser test can drive deterministically; they are defensive by design.
+    'groom\.rs:\d+:\d+: .* in (Groom|ConfirmAction::progress_warning|due_label)$',
+    'replace (as_i64|due_label) -> ',
+    # ConfirmAction's modal-text helpers: pure, but only the browser e2e
+    # modal assertions observe their output (04_groom.rs checks the
+    # question, the confirm label and the progress warning verbatim).
+    'replace ConfirmAction::(question|confirm_label|card|progress_warning) -> ',
+    # now_ms is #[cfg(feature = "csr")] js-sys (wasm-only by construction);
+    # the non-csr stub exists only to keep the ssr view linkable (replacing
+    # it with 0 is UNVIABLE — that is its body).
+    'replace now_ms -> ',
 ]

@@ -557,15 +557,7 @@ textarea:focus-visible {
 }
 
 .groom-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
   padding: 0.75rem 1rem;
-}
-
-.groom-row-main {
-  min-width: 0;
 }
 
 .groom-prompt {
@@ -579,10 +571,14 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
+/* The meta line carries the row actions too (right-aligned), so a card
+   is prompt + one meta line — no third line of buttons. flex-wrap is
+   only an emergency overflow valve for very narrow screens. */
 .groom-meta {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.5rem;
   font-size: 0.85rem;
 }
 
@@ -620,8 +616,12 @@ textarea:focus-visible {
 
 .groom-actions {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+  /* Right end of the meta line; anchors the absolute-positioned menu. */
+  margin-left: auto;
+  position: relative;
 }
 
 .groom-actions button {
@@ -629,17 +629,77 @@ textarea:focus-visible {
   font-size: 0.85rem;
 }
 
-/* Narrow screens: the row stacks — prompt + meta full width, actions
-   wrap onto their own row below instead of crushing the prompt. */
+.groom-menu-button {
+  /* Narrower chrome for the overflow trigger. */
+  padding-inline: 0.45rem;
+}
+
+/* Transparent full-viewport layer that swallows the next click to
+   close the menu (same dismissal pattern as .modal-backdrop). */
+.groom-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+.groom-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.25rem;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 10rem;
+  padding: 0.375rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.groom-menu button {
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Narrow screens: the meta line (badges + due + actions) must stay on
+   ONE line for the realistic combinations — including new + disabled
+   (every freshly created card starts disabled). Tighter badges, gaps
+   and action buttons buy the needed width. The one combination left to
+   flex-wrap is failed + disabled (rare, and still no worse than the
+   old three-line layout); it is the documented emergency valve, not
+   the norm. */
 @media (max-width: 40rem) {
   .groom-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.625rem;
+    /* Buys ~8 px of meta-line width (measured: new + disabled needs
+       332 px of the 324 px a 390 px viewport offers with 1rem sides). */
+    padding-inline: 0.75rem;
+  }
+
+  .groom-meta {
+    gap: 0.25rem;
+    font-size: 0.8rem;
+  }
+
+  .groom-meta .badge {
+    padding: 0.1rem 0.4rem;
+    font-size: 0.7rem;
   }
 
   .groom-actions {
-    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .groom-actions button {
+    padding: 0.25rem 0.3rem;
+    font-size: 0.8rem;
+  }
+
+  .groom-menu-button {
+    padding-inline: 0.3rem;
   }
 }
 

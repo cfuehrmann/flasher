@@ -7,9 +7,13 @@
 //! the skip arithmetic, the paging buttons and the "showing X–Y of Z"
 //! line. A second generation counter guards the fetch itself, so a stale
 //! in-flight response (rapid paging, search-while-paging) can never
-//! overwrite newer rows. Row actions: edit (opens the card editor via
-//! the `on_edit` callback), enable/disable toggle (immediate), delete
-//! and reset-progress behind a confirm modal. Toggle and reset
+//! overwrite newer rows. Row layout is two lines: the clamped prompt,
+//! then a meta line with badges + due date on the left and the actions
+//! right-aligned on the same line. Row actions: edit (opens the card
+//! editor via the `on_edit` callback) and the enable/disable toggle
+//! (immediate) stay inline; the rare destructive ones (delete,
+//! reset-progress) sit in a per-row "⋯" menu behind a confirm modal.
+//! Toggle and reset
 //! refetch the current page because the mutations can change the
 //! server-side ordering (enabled first, `next_time` asc, disabled last);
 //! deleting the last row of a page beyond the first steps back one page,
@@ -383,8 +387,16 @@ pub fn Groom(
     }
 }
 
-/// One card row of the groom list: truncated prompt, state badge (plus a
-/// `disabled` badge), due date and the row actions.
+/// One card row of the groom list: truncated prompt on the first line,
+/// and a single meta line below it — state badge (plus a `disabled`
+/// badge) and due date on the left, the row actions right-aligned on
+/// the SAME line (owner decision: one visual row less per card than the
+/// old three-line layout). The everyday, reversible actions (edit,
+/// enable/disable) stay one click away; the rare destructive ones
+/// (reset progress, delete) live in a "⋯" overflow menu and still arm
+/// the same confirm modal. The menu closes via a transparent
+/// full-viewport backdrop — the same pattern the modal uses, so no
+/// window listeners are needed.
 #[component]
 fn GroomRow(
     card: CardResponse,
@@ -400,12 +412,14 @@ fn GroomRow(
     let due_id = format!("due-{id}");
     let edit_id = format!("edit-{id}");
     let toggle_id = format!("toggle-disabled-{id}");
+    let menu_id = format!("menu-{id}");
     let reset_id = format!("reset-{id}");
     let delete_id = format!("delete-{id}");
     let state = card.state.as_str();
     let disabled = card.disabled;
     let due = due_label(card.next_time);
     let toggle_label = if disabled { "Enable" } else { "Disable" };
+    let menu_open = RwSignal::new(false);
     // One owned clone per click handler (each handler moves its capture).
     let card_edit = card.clone();
     let card_toggle = card.clone();
@@ -414,52 +428,88 @@ fn GroomRow(
 
     view! {
         <div class="groom-row" id=row_id>
-            <div class="groom-row-main">
-                <p class="groom-prompt">{card.prompt.clone()}</p>
-                <div class="groom-meta">
-                    <span class=format!("badge state-{state}") id=state_badge_id>
-                        {state}
-                    </span>
-                    {disabled.then(|| {
-                        view! {
-                            <span class="badge disabled" id=disabled_badge_id>
-                                "disabled"
-                            </span>
-                        }
-                    })}
-                    <span class="groom-due" id=due_id>{due}</span>
+            <p class="groom-prompt">{card.prompt.clone()}</p>
+            <div class="groom-meta">
+                <span class=format!("badge state-{state}") id=state_badge_id>
+                    {state}
+                </span>
+                {disabled.then(|| {
+                    view! {
+                        <span class="badge disabled" id=disabled_badge_id>
+                            "disabled"
+                        </span>
+                    }
+                })}
+                <span class="groom-due" id=due_id>{due}</span>
+                <div class="groom-actions">
+                    <button
+                        type="button"
+                        id=edit_id
+                        on:click=move |_| on_edit.run(card_edit.clone())
+                    >
+                        "Edit"
+                    </button>
+                    <button
+                        type="button"
+                        id=toggle_id
+                        on:click=move |_| toggle_disabled.run(card_toggle.clone())
+                    >
+                        {toggle_label}
+                    </button>
+                    <button
+                        type="button"
+                        class="groom-menu-button"
+                        id=menu_id
+                        aria-label="More actions"
+                        aria-expanded=move || menu_open.get().to_string()
+                        on:click=move |_| menu_open.update(|open| *open = !*open)
+                    >
+                        "⋯"
+                    </button>
+                    {move || {
+                        menu_open.get().then(|| {
+                            let reset_id = reset_id.clone();
+                            let delete_id = delete_id.clone();
+                            let card_reset = card_reset.clone();
+                            let card_delete = card_delete.clone();
+                            view! {
+                                <div
+                                    class="groom-menu-backdrop"
+                                    on:click=move |_| menu_open.set(false)
+                                ></div>
+                                // Deliberately a plain group of buttons,
+                                // not role="menu": the app has no
+                                // keyboard menu semantics anywhere (no
+                                // Escape/arrow handling — the modal is
+                                // the same), and the role would promise
+                                // them (adversarial review 2026-07-31).
+                                <div class="groom-menu">
+                                    <button
+                                        type="button"
+                                        id=reset_id
+                                        on:click=move |_| {
+                                            menu_open.set(false);
+                                            ask_reset.run(card_reset.clone());
+                                        }
+                                    >
+                                        "Reset progress"
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="failed"
+                                        id=delete_id
+                                        on:click=move |_| {
+                                            menu_open.set(false);
+                                            ask_delete.run(card_delete.clone());
+                                        }
+                                    >
+                                        "Delete"
+                                    </button>
+                                </div>
+                            }
+                        })
+                    }}
                 </div>
-            </div>
-            <div class="groom-actions">
-                <button
-                    type="button"
-                    id=edit_id
-                    on:click=move |_| on_edit.run(card_edit.clone())
-                >
-                    "Edit"
-                </button>
-                <button
-                    type="button"
-                    id=toggle_id
-                    on:click=move |_| toggle_disabled.run(card_toggle.clone())
-                >
-                    {toggle_label}
-                </button>
-                <button
-                    type="button"
-                    id=reset_id
-                    on:click=move |_| ask_reset.run(card_reset.clone())
-                >
-                    "Reset progress"
-                </button>
-                <button
-                    type="button"
-                    class="failed"
-                    id=delete_id
-                    on:click=move |_| ask_delete.run(card_delete.clone())
-                >
-                    "Delete"
-                </button>
             </div>
         </div>
     }

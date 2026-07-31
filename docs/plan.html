@@ -516,6 +516,18 @@ browser e2e (clicking) together — never a backend without its user-facing test
     the quiz guards <code>rate</code>/disables the buttons in flight, and set-ok/set-failed are now
     compare-and-set on the shown <code>change_time</code> (409 on mismatch; the store applies the
     update in one conditional statement). Regression e2e: a 10-click burst applies exactly one rating.</li>
+    <li class="done"><b>Groom rows compacted (owner, 2026-07-31):</b> a card is now two lines —
+    prompt, then one meta line with badges + due on the left and the actions right-aligned on the
+    same line. Everyday actions (Edit, Enable/Disable) stay one-click; the rare destructive ones
+    (Reset progress, Delete) moved into a per-row "⋯" menu (backdrop-dismissed, same confirm
+    modal). Narrow screens keep the meta line on one row (tightened badges/buttons/gaps) for all
+    realistic combinations incl. new + disabled; only failed + disabled wraps — no worse than the
+    old layout. New e2e pins menu open/dismiss, aria-expanded and the one-line meta row at 390px;
+    groom.rs mutants triaged (browser-only glue documented in the leptos mutants.toml, e2e-pinned);
+    Lighthouse unchanged (87/100/100/100/100 — A/B-verified jitter, not a regression).
+    Review round 8 fixed a dead <code>attr:aria-expanded</code> (rendered literally) and dropped
+    <code>role="menu"</code> the code didn't back with keyboard semantics. Deferred: last-row menu
+    opens downward into the fold (scrollable, actionable — upward opening would be nicer).</li>
   </ul>
 </div>
 

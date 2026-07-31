@@ -392,6 +392,8 @@ async fn capture_app_screenshots() -> Result<()> {
     shoot_both(&h, "groom").await?;
 
     // --- Groom: delete confirm modal on a learned card (progress warning) ---
+    h.click("#menu-card-tcp").await?;
+    h.wait_for_selector("#delete-card-tcp", TIMEOUT).await?;
     h.click("#delete-card-tcp").await?;
     h.wait_for_selector("#modal-progress-warning", TIMEOUT)
         .await?;
