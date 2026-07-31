@@ -101,6 +101,22 @@ exclude_re = [
     # modal assertions observe their output (04_groom.rs checks the
     # question, the confirm label and the progress warning verbatim).
     'replace ConfirmAction::(question|confirm_label|card|progress_warning) -> ',
+    # --- Browser-only localStorage glue in groom.rs --------------------------
+    # storage_get/storage_set wrap window.localStorage, which does not
+    # exist on the host target; initial_filter/initial_search only READ
+    # that storage under csr — under the ssr test build the cfg'd branch
+    # vanishes, so host tests can only ever observe the default path.
+    # The behavior (persist filter + search, restore on remount/reload)
+    # is pinned by the browser e2e suite (crates/flasher-e2e/tests/
+    # 04_groom.rs::filter_and_search_survive_tab_switch_and_reload),
+    # which drives a tab switch and a real reload in Chromium.
+    'groom\.rs:\d+:\d+: .* in (storage_get|storage_set|initial_filter|initial_search)$',
+    'replace (storage_get|initial_search) -> ',
+    'replace initial_filter -> ',
+    # Function-body replacement of the storage write: no host-target test
+    # can observe a missing localStorage write; the persistence e2e would
+    # fail in the browser (the filter/search would not survive reload).
+    'replace storage_set with \(\)',
     # now_ms is #[cfg(feature = "csr")] js-sys (wasm-only by construction);
     # the non-csr stub exists only to keep the ssr view linkable (replacing
     # it with 0 is UNVIABLE — that is its body).

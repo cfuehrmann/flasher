@@ -7,8 +7,8 @@
 //! the components themselves cfg-free.
 
 use flasher_types::{
-    AutoSaveResponse, CardResponse, FindCardsResponse, GetAutoSaveResponse, HealthResponse,
-    NextCardResponse,
+    AutoSaveResponse, CardResponse, DisabledFilter, FindCardsResponse, GetAutoSaveResponse,
+    HealthResponse, NextCardResponse,
 };
 #[cfg(feature = "csr")]
 use flasher_types::{
@@ -139,11 +139,19 @@ async fn set_state(id: &str, action: &str, change_time: i64) -> Result<(), Strin
 
 /// `GET /api/cards` — one page of the groom list plus the total match
 /// count (before paging) and the server's configured page size. An empty
-/// `search_text` lists all cards.
+/// `search_text` lists all cards; `filter` restricts the list by the
+/// `disabled` flag (groom filter, issue #127).
 #[cfg(feature = "csr")]
-pub async fn find_cards(search_text: &str, skip: u32) -> Result<FindCardsResponse, String> {
+pub async fn find_cards(
+    search_text: &str,
+    filter: DisabledFilter,
+    skip: u32,
+) -> Result<FindCardsResponse, String> {
     let skip = skip.to_string();
-    let mut query = vec![("skip", skip.as_str())];
+    let mut query = vec![
+        ("skip", skip.as_str()),
+        ("disabled_filter", filter.as_str()),
+    ];
     if !search_text.is_empty() {
         query.push(("search_text", search_text));
     }
@@ -164,7 +172,11 @@ pub async fn find_cards(search_text: &str, skip: u32) -> Result<FindCardsRespons
 /// `GET /api/cards` (ssr stub, never called).
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async)]
-pub async fn find_cards(_search_text: &str, _skip: u32) -> Result<FindCardsResponse, String> {
+pub async fn find_cards(
+    _search_text: &str,
+    _filter: DisabledFilter,
+    _skip: u32,
+) -> Result<FindCardsResponse, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 

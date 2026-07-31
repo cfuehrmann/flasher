@@ -546,6 +546,33 @@ textarea:focus-visible {
   border-color: var(--accent-border);
 }
 
+/* Search box + status filter (issue #127) share one row: the box takes
+   the remaining width, the filter keeps its natural size. */
+.groom-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.groom-controls input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Same chrome as the search input. */
+.groom select {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.625rem;
+  transition: border-color 120ms ease;
+}
+
+.groom select:focus-visible {
+  border-color: var(--accent-border);
+}
+
 .groom-status {
   margin: 0;
 }

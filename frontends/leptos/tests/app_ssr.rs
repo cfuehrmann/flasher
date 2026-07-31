@@ -165,9 +165,11 @@ fn quiz_tab_renders_its_initial_state() {
 #[test]
 fn groom_tab_renders_its_initial_state() {
     // Rendering the component directly exercises the Groom initial state
-    // without a browser: search input plus the loading placeholder (the
-    // fetch effect only runs under csr).
+    // without a browser: search input, the status filter (first-usage
+    // default `all`, owner decision 2026-07-31) plus the loading
+    // placeholder (the fetch effect only runs under csr).
     let html = view! { <GroomTab on_edit=Callback::new(|_| {}) /> }.to_html();
     assert!(html.contains("groom-search"), "rendered html: {html}");
+    assert!(html.contains("groom-filter"), "rendered html: {html}");
     assert!(html.contains("Loading cards"), "rendered html: {html}");
 }

@@ -16,7 +16,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use flasher_e2e::{E2E_USER, Error, Result, TestHarness};
-use flasher_store::{CardState, NewCard, Store};
+use flasher_store::{CardState, DisabledFilter, NewCard, Store};
 
 /// Timeout for every DOM wait; generous because the wasm bundle has to
 /// download and boot first (same reasoning as the harness default).
@@ -375,7 +375,7 @@ async fn add_card_creates_disabled_new_card() -> Result<()> {
 
     let (store, user_id) = seed_store(&h).await?;
     let (cards, count) = store
-        .search_cards(user_id, Some("e2e prompt"), 0, 10)
+        .search_cards(user_id, Some("e2e prompt"), DisabledFilter::All, 0, 10)
         .await
         .map_err(store_err)?;
     if count != 1 || cards.len() != 1 {
@@ -413,7 +413,7 @@ async fn add_card_creates_disabled_new_card() -> Result<()> {
         .await?;
     h.screenshot("03_quiz/add-card-validation").await?;
     let (_all, total) = store
-        .search_cards(user_id, None, 0, 100)
+        .search_cards(user_id, None, DisabledFilter::All, 0, 100)
         .await
         .map_err(store_err)?;
     if total != 1 {

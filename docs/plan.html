@@ -528,6 +528,19 @@ browser e2e (clicking) together — never a backend without its user-facing test
     Review round 8 fixed a dead <code>attr:aria-expanded</code> (rendered literally) and dropped
     <code>role="menu"</code> the code didn't back with keyboard semantics. Deferred: last-row menu
     opens downward into the fold (scrollable, actionable — upward opening would be nicer).</li>
+    <li class="done"><b>Groom status filter (#127, owner decision 2026-07-31):</b>
+    a select next to the search box filters the list by the <code>disabled</code> flag —
+    all / enabled / disabled; changing it resets to page 0 and refetches (same pattern
+    as the search). Shared <code>DisabledFilter</code> in flasher-types (snake_case wire values),
+    filtered in the Rust filter step of <code>Store::search_cards</code> (sort already lives
+    there), passed through <code>GET /api/cards</code> as <code>disabled_filter</code>.
+    Default revision (owner, same day): the first-usage default is <code>all</code>, and the
+    filter choice AND the search text persist in <code>localStorage</code> — they survive tab
+    switches (a tab switch remounts the tab) and browser refresh. E2e drives the three states,
+    the page-0 reset and the persistence across tab switch + real reload; store tests pin
+    filtering + composition with search. Review round 9 (unprimed, browser-verified): toggling
+    the last row of a later page out of the active filter stranded the user on a false
+    "No cards match." — fixed with the delete-style step-back fallback (new e2e).</li>
   </ul>
 </div>
 

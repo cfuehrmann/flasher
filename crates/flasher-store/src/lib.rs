@@ -13,6 +13,7 @@ use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use time::OffsetDateTime;
 
+pub use flasher_types::DisabledFilter;
 pub use types::{AutoSave, Card, CardState, NewCard, PasskeyRow, User};
 
 /// Columns selected for every `Card` read, in `FromRow` order.
@@ -436,8 +437,9 @@ impl Store {
     /// (`Contains(searchText, OrdinalIgnoreCase)`), ordered by
     /// `next_time` ascending (most due first), ties broken by `id`,
     /// then skip/take paging. `None` or an empty search matches all
-    /// cards of the user. Returns the page and the total number of
-    /// matching cards.
+    /// cards of the user. `filter` restricts the hits by the `disabled`
+    /// flag (groom filter, issue #127). Returns the page and the total
+    /// number of matching cards.
     ///
     /// Deliberate deviation from the old Find (owner decision
     /// 2026-07-31): `disabled` is NOT a sort key — the old "enabled
@@ -455,6 +457,7 @@ impl Store {
         &self,
         user_id: i64,
         search: Option<&str>,
+        filter: DisabledFilter,
         skip: u32,
         limit: u32,
     ) -> Result<(Vec<Card>, i64), Error> {
@@ -468,9 +471,15 @@ impl Store {
         let mut hits: Vec<Card> = cards
             .into_iter()
             .filter(|card| {
-                needle.is_empty()
-                    || card.prompt.to_lowercase().contains(&needle)
-                    || card.solution.to_lowercase().contains(&needle)
+                let status_matches = match filter {
+                    DisabledFilter::Enabled => !card.disabled,
+                    DisabledFilter::Disabled => card.disabled,
+                    DisabledFilter::All => true,
+                };
+                status_matches
+                    && (needle.is_empty()
+                        || card.prompt.to_lowercase().contains(&needle)
+                        || card.solution.to_lowercase().contains(&needle))
             })
             .collect();
         // `next_time` (most due first), then `id` to break ties

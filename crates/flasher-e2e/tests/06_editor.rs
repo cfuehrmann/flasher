@@ -7,7 +7,7 @@
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use flasher_e2e::{E2E_USER, Error, Result, TestHarness};
-use flasher_store::{CardState, NewCard, Store};
+use flasher_store::{CardState, DisabledFilter, NewCard, Store};
 
 /// Timeout for every DOM wait; generous because the wasm bundle has to
 /// download and boot first (same reasoning as the harness default).
@@ -267,7 +267,7 @@ async fn autosave_and_recovery_roundtrip() -> Result<()> {
 
     let (store, user_id) = seed_store(&h).await?;
     let (cards, count) = store
-        .search_cards(user_id, Some("Draft prompt"), 0, 10)
+        .search_cards(user_id, Some("Draft prompt"), DisabledFilter::All, 0, 10)
         .await
         .map_err(store_err)?;
     if count != 1 || cards.first().map(|c| c.solution.as_str()) != Some("Draft solution") {
@@ -414,7 +414,7 @@ async fn recover_deleted_card_falls_back_to_new() -> Result<()> {
         return Err(Error::message("card-doom must stay deleted"));
     }
     let (cards, count) = store
-        .search_cards(user_id, Some("Doom prompt"), 0, 10)
+        .search_cards(user_id, Some("Doom prompt"), DisabledFilter::All, 0, 10)
         .await
         .map_err(store_err)?;
     if count != 1 || cards.first().map(|c| c.prompt.as_str()) != Some("Doom prompt v2") {

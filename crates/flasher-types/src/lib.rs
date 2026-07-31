@@ -110,6 +110,47 @@ pub struct CardUpdateRequest {
     pub disabled: Option<bool>,
 }
 
+/// Groom list filter on the `disabled` flag: the `disabled_filter` query
+/// parameter of `GET /api/cards` (`snake_case` values). Both sides share
+/// this enum, so the wire values cannot drift. The default is `All`
+/// (owner decision 2026-07-31, revised the same day): the groom list
+/// shows everything on first use; the UI persists the user's choice
+/// (localStorage), so the default only ever applies to a fresh browser.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DisabledFilter {
+    /// Only enabled cards.
+    Enabled,
+    /// Only disabled cards.
+    Disabled,
+    /// No filtering — enabled and disabled cards.
+    #[default]
+    All,
+}
+
+impl DisabledFilter {
+    /// The `snake_case` wire representation (query parameter value).
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Enabled => "enabled",
+            Self::Disabled => "disabled",
+            Self::All => "all",
+        }
+    }
+
+    /// Parses the `snake_case` wire representation.
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "enabled" => Some(Self::Enabled),
+            "disabled" => Some(Self::Disabled),
+            "all" => Some(Self::All),
+            _ => None,
+        }
+    }
+}
+
 /// Response of `GET /api/cards`, matching the shape of the old
 /// `FindResponse`: one page of cards plus the total number of cards
 /// matching the search (before paging), so the UI can render pagination.
@@ -284,6 +325,40 @@ mod tests {
         }
         assert_eq!(CardState::parse("unknown"), None);
         assert_eq!(CardState::parse("New"), None);
+    }
+
+    #[test]
+    fn disabled_filter_serializes_snake_case() -> TestResult {
+        assert_eq!(
+            serde_json::to_string(&DisabledFilter::Enabled)?,
+            "\"enabled\""
+        );
+        assert_eq!(
+            serde_json::to_string(&DisabledFilter::Disabled)?,
+            "\"disabled\""
+        );
+        assert_eq!(serde_json::to_string(&DisabledFilter::All)?, "\"all\"");
+        assert_eq!(
+            serde_json::from_str::<DisabledFilter>("\"disabled\"")?,
+            DisabledFilter::Disabled
+        );
+        assert!(serde_json::from_str::<DisabledFilter>("\"bogus\"").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn disabled_filter_str_round_trip_and_default() {
+        for filter in [
+            DisabledFilter::Enabled,
+            DisabledFilter::Disabled,
+            DisabledFilter::All,
+        ] {
+            assert_eq!(DisabledFilter::parse(filter.as_str()), Some(filter));
+        }
+        assert_eq!(DisabledFilter::parse("bogus"), None);
+        // Owner decision 2026-07-31 (revised same day): the groom list
+        // defaults to all on first use; the choice persists client-side.
+        assert_eq!(DisabledFilter::default(), DisabledFilter::All);
     }
 
     #[test]

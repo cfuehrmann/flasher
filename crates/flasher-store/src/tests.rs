@@ -1,7 +1,7 @@
 //! Observable-behavior tests for `Store`, run against real `SQLite`
 //! (in-memory, plus one tempfile-backed test for `connect`).
 
-use super::{Card, CardState, Error, NewCard, SetCardState, Store};
+use super::{Card, CardState, DisabledFilter, Error, NewCard, SetCardState, Store};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -344,7 +344,9 @@ async fn search_cards_filters_orders_and_pages() -> TestResult {
 
     // Case-insensitive substring on prompt or solution; c3 (next_time
     // 50) sorts before c1 (next_time 200) even though c3 is disabled.
-    let (hits, count) = store.search_cards(user.id, Some("rust"), 0, 10).await?;
+    let (hits, count) = store
+        .search_cards(user.id, Some("rust"), DisabledFilter::All, 0, 10)
+        .await?;
     assert_eq!(count, 2);
     assert_eq!(
         hits.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
@@ -352,17 +354,23 @@ async fn search_cards_filters_orders_and_pages() -> TestResult {
     );
 
     // Paging: page 1 (skip 0, limit 1) and page 2 (skip 1, limit 1).
-    let (page1, count) = store.search_cards(user.id, Some("rust"), 0, 1).await?;
+    let (page1, count) = store
+        .search_cards(user.id, Some("rust"), DisabledFilter::All, 0, 1)
+        .await?;
     assert_eq!(count, 2);
     assert_eq!(page1.len(), 1);
     assert_eq!(page1[0].id, "c3");
-    let (page2, _) = store.search_cards(user.id, Some("rust"), 1, 1).await?;
+    let (page2, _) = store
+        .search_cards(user.id, Some("rust"), DisabledFilter::All, 1, 1)
+        .await?;
     assert_eq!(page2.len(), 1);
     assert_eq!(page2[0].id, "c1");
 
     // No search matches everything: next_time asc, disabled or not
     // (c4, c3, c2, c1).
-    let (all, count) = store.search_cards(user.id, None, 0, 10).await?;
+    let (all, count) = store
+        .search_cards(user.id, None, DisabledFilter::All, 0, 10)
+        .await?;
     assert_eq!(count, 4);
     assert_eq!(
         all.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
@@ -370,19 +378,79 @@ async fn search_cards_filters_orders_and_pages() -> TestResult {
     );
 
     // Empty search behaves like None.
-    let (all, count) = store.search_cards(user.id, Some(""), 0, 10).await?;
+    let (all, count) = store
+        .search_cards(user.id, Some(""), DisabledFilter::All, 0, 10)
+        .await?;
     assert_eq!(count, 4);
     assert_eq!(all.len(), 4);
 
     // Old-SQL LIKE metacharacters have no special meaning anymore.
-    let (hits, count) = store.search_cards(user.id, Some("100%"), 0, 10).await?;
+    let (hits, count) = store
+        .search_cards(user.id, Some("100%"), DisabledFilter::All, 0, 10)
+        .await?;
     assert_eq!(count, 0);
     assert!(hits.is_empty());
 
     // Other users see nothing.
     let other = store.create_user("bob").await?;
-    let (_, count) = store.search_cards(other.id, None, 0, 10).await?;
+    let (_, count) = store
+        .search_cards(other.id, None, DisabledFilter::All, 0, 10)
+        .await?;
     assert_eq!(count, 0);
+    Ok(())
+}
+
+/// The `disabled` filter (groom filter, issue #127): `Enabled` and
+/// `Disabled` restrict hits to that flag — also the count and in
+/// combination with the search text —, `All` filters nothing.
+#[tokio::test]
+async fn search_cards_filters_by_disabled_flag() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let user = store.create_user("alice").await?;
+
+    let mut enabled_match = new_card(user.id, "c1");
+    enabled_match.prompt = "rust enabled".to_owned();
+    store.insert_card(&enabled_match).await?;
+
+    let mut disabled_match = new_card(user.id, "c2");
+    disabled_match.prompt = "rust disabled".to_owned();
+    disabled_match.disabled = true;
+    store.insert_card(&disabled_match).await?;
+
+    let mut disabled_other = new_card(user.id, "c3");
+    disabled_other.prompt = "unrelated".to_owned();
+    disabled_other.disabled = true;
+    store.insert_card(&disabled_other).await?;
+
+    let (hits, count) = store
+        .search_cards(user.id, None, DisabledFilter::Enabled, 0, 10)
+        .await?;
+    assert_eq!(count, 1);
+    assert_eq!(
+        hits.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+        ["c1"]
+    );
+
+    let (hits, count) = store
+        .search_cards(user.id, None, DisabledFilter::Disabled, 0, 10)
+        .await?;
+    assert_eq!(count, 2);
+    assert_eq!(
+        hits.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+        ["c2", "c3"]
+    );
+
+    let (_, count) = store
+        .search_cards(user.id, None, DisabledFilter::All, 0, 10)
+        .await?;
+    assert_eq!(count, 3);
+
+    // The filter composes with the search text.
+    let (hits, count) = store
+        .search_cards(user.id, Some("rust"), DisabledFilter::Disabled, 0, 10)
+        .await?;
+    assert_eq!(count, 1);
+    assert_eq!(hits[0].id, "c2");
     Ok(())
 }
 
@@ -399,7 +467,9 @@ async fn search_cards_breaks_next_time_ties_by_id() -> TestResult {
         store.insert_card(&card).await?;
     }
 
-    let (all, count) = store.search_cards(user.id, None, 0, 10).await?;
+    let (all, count) = store
+        .search_cards(user.id, None, DisabledFilter::All, 0, 10)
+        .await?;
     assert_eq!(count, 3);
     assert_eq!(
         all.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
@@ -419,10 +489,14 @@ async fn search_cards_folds_full_unicode_case() -> TestResult {
 
     // SQLite LIKE folds ASCII only and would miss this; the reference
     // semantics (OrdinalIgnoreCase) fold full Unicode.
-    let (hits, count) = store.search_cards(user.id, Some("äpfel"), 0, 10).await?;
+    let (hits, count) = store
+        .search_cards(user.id, Some("äpfel"), DisabledFilter::All, 0, 10)
+        .await?;
     assert_eq!(count, 1);
     assert_eq!(hits[0].id, "c1");
-    let (_, count) = store.search_cards(user.id, Some("ÄPFEL"), 0, 10).await?;
+    let (_, count) = store
+        .search_cards(user.id, Some("ÄPFEL"), DisabledFilter::All, 0, 10)
+        .await?;
     assert_eq!(count, 1);
     Ok(())
 }

@@ -19,7 +19,7 @@
 
 use std::path::{Path, PathBuf};
 
-use flasher_store::{AutoSave, Card, CardState, Store};
+use flasher_store::{AutoSave, Card, CardState, DisabledFilter, Store};
 use serde::Deserialize;
 use time::format_description::FormatItem;
 use time::format_description::well_known::Rfc3339;
@@ -467,7 +467,9 @@ async fn existing_cards(
     let Some(user) = store.get_user_by_name(username).await? else {
         return Ok(std::collections::HashMap::new());
     };
-    let (cards, _) = store.search_cards(user.id, None, 0, u32::MAX).await?;
+    let (cards, _) = store
+        .search_cards(user.id, None, DisabledFilter::All, 0, u32::MAX)
+        .await?;
     Ok(cards
         .into_iter()
         .map(|card| (card.id.clone(), card))
@@ -498,7 +500,9 @@ fn report_of(user: &LegacyUser) -> UserReport {
 /// or mis-converted would still report OK); that is pinned by the insta
 /// golden test instead.
 async fn verify(store: &Store, user_id: i64, user: &LegacyUser) -> Result<bool, Error> {
-    let (db_cards, _) = store.search_cards(user_id, None, 0, u32::MAX).await?;
+    let (db_cards, _) = store
+        .search_cards(user_id, None, DisabledFilter::All, 0, u32::MAX)
+        .await?;
     if db_cards.len() != user.cards.len() {
         return Ok(false);
     }

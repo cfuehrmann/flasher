@@ -1,5 +1,6 @@
 //! Groom tab e2e tests: search-as-you-type (with full unicode case
-//! folding), paging, the enable/disable toggle, the row "⋯" overflow
+//! folding), the enabled/disabled/all status filter, paging, the
+//! enable/disable toggle, the row "⋯" overflow
 //! menu (incl. its aria-expanded state and the one-line meta row at
 //! mobile width), delete with a confirm modal (including the
 //! last-item-on-page fallback), progress reset, and
@@ -11,7 +12,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use chromiumoxide::cdp::browser_protocol::input::InsertTextParams;
 use flasher_e2e::{E2E_USER, Error, Result, TestHarness};
-use flasher_store::{CardState, NewCard, Store};
+use flasher_store::{CardState, DisabledFilter, NewCard, Store};
 
 /// Timeout for every DOM wait; generous because the wasm bundle has to
 /// download and boot first (same reasoning as the harness default).
@@ -119,6 +120,28 @@ async fn goto_groom(h: &TestHarness) -> Result<()> {
 async fn row_count(h: &TestHarness) -> Result<usize> {
     h.eval::<usize>("document.querySelectorAll('.groom-row').length")
         .await
+}
+
+/// Picks a status-filter option like a user: sets the select's value and
+/// fires the bubbling `change` event its `on:change` handler listens to
+/// (CDP has no realistic "choose a native select option" input path).
+async fn set_filter(h: &TestHarness, value: &str) -> Result<()> {
+    let applied = h
+        .eval::<bool>(&format!(
+            "(() => {{
+            const s = document.querySelector('#groom-filter');
+            s.value = '{value}';
+            s.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            return s.value === '{value}';
+        }})()"
+        ))
+        .await?;
+    if !applied {
+        return Err(Error::message(format!(
+            "filter option {value:?} not selectable"
+        )));
+    }
+    Ok(())
 }
 
 /// Polls until no element matches `sel` (row/badge/modal removal).
@@ -229,6 +252,215 @@ async fn search_filters_with_unicode_folding() -> Result<()> {
     Ok(())
 }
 
+/// Status filter (issue #127): the first-usage default `all` lists every
+/// card, `enabled` hides disabled ones, `disabled` lists only those —
+/// and switching the filter resets to page 0 (checked from page 2 of the
+/// enabled list).
+#[tokio::test]
+#[ignore = "browser"]
+async fn filter_enabled_disabled_all() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    // 11 enabled cards plus 1 disabled card.
+    seed_page_cards(&store, user_id, 11, "card-f").await?;
+    let now = now_ms();
+    seed_card(
+        &store,
+        user_id,
+        "card-disabled",
+        "Disabled prompt",
+        "Disabled solution",
+        CardState::New,
+        now,
+        now + 30_000,
+        true,
+    )
+    .await?;
+
+    goto_groom(&h).await?;
+    // First usage (fresh browser profile, nothing persisted): the filter
+    // defaults to `all` (owner decision 2026-07-31) — all 12 cards.
+    h.wait_for_text("#groom-page-info", "showing 1–10 of 12", TIMEOUT)
+        .await?;
+    if h.eval::<String>("document.querySelector('#groom-filter').value")
+        .await?
+        != "all"
+    {
+        return Err(Error::message(
+            "the filter should default to all on first use",
+        ));
+    }
+    let results = h.text_content("#groom-results").await?;
+    if !results.contains("P01") || !results.contains("Disabled prompt") {
+        return Err(Error::message(format!(
+            "all filter should list enabled and disabled cards, shows: {results:?}"
+        )));
+    }
+    h.screenshot("04_groom/filter-all").await?;
+
+    // `enabled`: the disabled card hides, the 11 enabled ones paginate.
+    set_filter(&h, "enabled").await?;
+    h.wait_for_text("#groom-page-info", "showing 1–10 of 11", TIMEOUT)
+        .await?;
+    let results = h.text_content("#groom-results").await?;
+    if results.contains("Disabled prompt") {
+        return Err(Error::message(format!(
+            "enabled filter must hide the disabled card, shows: {results:?}"
+        )));
+    }
+    h.screenshot("04_groom/filter-enabled").await?;
+
+    // Go to page 2, then switch the filter: it must reset to page 0.
+    h.click("#groom-next").await?;
+    h.wait_for_text("#groom-page-info", "showing 11–11 of 11", TIMEOUT)
+        .await?;
+    set_filter(&h, "disabled").await?;
+    h.wait_for_text("#groom-page-info", "showing 1–1 of 1", TIMEOUT)
+        .await?;
+    let results = h.text_content("#groom-results").await?;
+    if !results.contains("Disabled prompt") || results.contains("P01") {
+        return Err(Error::message(format!(
+            "disabled filter should list only the disabled card, shows: {results:?}"
+        )));
+    }
+    h.screenshot("04_groom/filter-disabled").await?;
+    Ok(())
+}
+
+/// Asserts the restored groom state after a remount: the list is back
+/// to the one persisted hit, and both controls show the persisted
+/// values (`disabled` filter, `alpha` search).
+async fn expect_restored(h: &TestHarness) -> Result<()> {
+    h.wait_for_text("#groom-page-info", "of 1", TIMEOUT).await?;
+    let filter = h
+        .eval::<String>("document.querySelector('#groom-filter').value")
+        .await?;
+    if filter != "disabled" {
+        return Err(Error::message(format!(
+            "filter should be restored as disabled, is {filter:?}"
+        )));
+    }
+    let search = h
+        .eval::<String>("document.querySelector('#groom-search').value")
+        .await?;
+    if search != "alpha" {
+        return Err(Error::message(format!(
+            "search text should be restored as alpha, is {search:?}"
+        )));
+    }
+    let results = h.text_content("#groom-results").await?;
+    if !results.contains("Alpha one") {
+        return Err(Error::message(format!(
+            "restored list should show Alpha one, shows: {results:?}"
+        )));
+    }
+    Ok(())
+}
+
+/// Filter and search text persist (owner wish 2026-07-31): both survive
+/// a tab switch (which remounts the groom tab) and a full browser
+/// refresh, and the restored state drives the very first fetch after
+/// remount.
+#[tokio::test]
+#[ignore = "browser"]
+async fn filter_and_search_survive_tab_switch_and_reload() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    for (id, prompt, disabled) in [
+        ("card-persist-a", "Alpha one", true),
+        ("card-persist-b", "Beta two", true),
+        ("card-persist-c", "Gamma three", false),
+    ] {
+        seed_card(
+            &store,
+            user_id,
+            id,
+            prompt,
+            "S",
+            CardState::New,
+            now,
+            now + 60_000,
+            disabled,
+        )
+        .await?;
+    }
+
+    goto_groom(&h).await?;
+    h.wait_for_text("#groom-page-info", "of 3", TIMEOUT).await?;
+
+    // Filter `disabled`, then search `alpha`: exactly the one matching
+    // disabled card remains.
+    set_filter(&h, "disabled").await?;
+    h.wait_for_text("#groom-page-info", "of 2", TIMEOUT).await?;
+    h.type_into("#groom-search", "alpha").await?;
+    h.wait_for_text("#groom-page-info", "of 1", TIMEOUT).await?;
+    let results = h.text_content("#groom-results").await?;
+    if !results.contains("Alpha one") || results.contains("Beta two") {
+        return Err(Error::message(format!(
+            "filter + search should leave only Alpha one, shows: {results:?}"
+        )));
+    }
+
+    // A tab switch remounts the groom tab: filter + search come back.
+    h.click("#tab-quiz").await?;
+    h.wait_for_selector("#tab-quiz.active", TIMEOUT).await?;
+    h.click("#tab-groom").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
+    expect_restored(&h).await?;
+
+    // A full browser refresh (real navigation): same restore.
+    h.goto("/groom").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
+    expect_restored(&h).await?;
+    h.screenshot("04_groom/filter-search-restored").await?;
+    Ok(())
+}
+
+/// Toggling the last row of a page beyond the first out of the active
+/// filter steps back one page (same fallback as delete) instead of
+/// stranding the user on a false "No cards match." without a paging bar
+/// (adversarial review, issue #127).
+#[tokio::test]
+#[ignore = "browser"]
+async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    seed_page_cards(&store, user_id, 11, "card-t").await?;
+
+    goto_groom(&h).await?;
+    // The first-usage default is `all`; the fallback this test pins
+    // needs the `enabled` filter so the toggle drops the row out.
+    set_filter(&h, "enabled").await?;
+    h.wait_for_text("#groom-page-info", "showing 1–10 of 11", TIMEOUT)
+        .await?;
+    h.click("#groom-next").await?;
+    h.wait_for_text("#groom-page-info", "showing 11–11 of 11", TIMEOUT)
+        .await?;
+    if row_count(&h).await? != 1 {
+        return Err(Error::message("page 2 should show exactly 1 row"));
+    }
+
+    // Disabling the single row of page 2 drops it out of the `enabled`
+    // filter: the UI must land back on page 1 with the refreshed count.
+    h.click("#toggle-disabled-card-t11").await?;
+    h.wait_for_text("#groom-page-info", "showing 1–10 of 10", TIMEOUT)
+        .await?;
+    if row_count(&h).await? != 10 {
+        return Err(Error::message("should be back on page 1 with 10 rows"));
+    }
+    let card = store
+        .get_card(user_id, "card-t11")
+        .await
+        .map_err(store_err)?
+        .ok_or_else(|| Error::message("card-t11 vanished"))?;
+    if !card.disabled {
+        return Err(Error::message("store row should be disabled=true"));
+    }
+    h.screenshot("04_groom/toggle-last-item-back").await?;
+    Ok(())
+}
+
 /// Paging: 12 enabled cards spread over two server-side pages; the
 /// prev/next buttons and the "showing X–Y of Z" line stay in sync.
 #[tokio::test]
@@ -287,8 +519,11 @@ async fn paging_walks_two_pages() -> Result<()> {
     Ok(())
 }
 
-/// Enable/disable toggle: the row badge and the store row follow each
-/// click immediately.
+/// Enable/disable toggle: the store row follows each click immediately.
+/// Under the `enabled` filter disabling a card removes its row
+/// (it no longer matches the filter); the `disabled` filter then shows it
+/// with the badge and the `Enable` action, and enabling it there removes
+/// it again.
 #[tokio::test]
 #[ignore = "browser"]
 async fn disable_enable_toggle() -> Result<()> {
@@ -309,15 +544,16 @@ async fn disable_enable_toggle() -> Result<()> {
     .await?;
 
     goto_groom(&h).await?;
+    // The first-usage default is `all`; this test is about the
+    // filter interplay, so it starts from `enabled`.
+    set_filter(&h, "enabled").await?;
     h.wait_for_selector("#toggle-disabled-card-toggle", TIMEOUT)
         .await?;
 
+    // Disable: the row leaves the default `enabled` filter, and the
+    // store row follows.
     h.click("#toggle-disabled-card-toggle").await?;
-    h.wait_for_selector("#disabled-card-toggle", TIMEOUT)
-        .await?;
-    if h.text_content("#toggle-disabled-card-toggle").await? != "Enable" {
-        return Err(Error::message("toggle should read Enable once disabled"));
-    }
+    wait_until_gone(&h, "#groom-row-card-toggle", TIMEOUT).await?;
     let card = store
         .get_card(user_id, "card-toggle")
         .await
@@ -326,13 +562,20 @@ async fn disable_enable_toggle() -> Result<()> {
     if !card.disabled {
         return Err(Error::message("store row should be disabled=true"));
     }
+
+    // The `disabled` filter shows the card: badge, `Enable` label.
+    set_filter(&h, "disabled").await?;
+    h.wait_for_selector("#disabled-card-toggle", TIMEOUT)
+        .await?;
+    if h.text_content("#toggle-disabled-card-toggle").await? != "Enable" {
+        return Err(Error::message("toggle should read Enable once disabled"));
+    }
     h.screenshot("04_groom/disabled-badge").await?;
 
+    // Enable again: the row leaves the `disabled` filter, the store row
+    // follows, and the `enabled` filter shows the card badge-free.
     h.click("#toggle-disabled-card-toggle").await?;
-    wait_until_gone(&h, "#disabled-card-toggle", TIMEOUT).await?;
-    if h.text_content("#toggle-disabled-card-toggle").await? != "Disable" {
-        return Err(Error::message("toggle should read Disable once enabled"));
-    }
+    wait_until_gone(&h, "#groom-row-card-toggle", TIMEOUT).await?;
     let card = store
         .get_card(user_id, "card-toggle")
         .await
@@ -340,6 +583,19 @@ async fn disable_enable_toggle() -> Result<()> {
         .ok_or_else(|| Error::message("card-toggle vanished"))?;
     if card.disabled {
         return Err(Error::message("store row should be disabled=false"));
+    }
+    set_filter(&h, "enabled").await?;
+    h.wait_for_selector("#toggle-disabled-card-toggle", TIMEOUT)
+        .await?;
+    if h.eval::<bool>("!!document.querySelector('#disabled-card-toggle')")
+        .await?
+    {
+        return Err(Error::message(
+            "enabled card must not show a disabled badge",
+        ));
+    }
+    if h.text_content("#toggle-disabled-card-toggle").await? != "Disable" {
+        return Err(Error::message("toggle should read Disable once enabled"));
     }
     Ok(())
 }
@@ -429,7 +685,7 @@ async fn delete_last_item_on_page_goes_back() -> Result<()> {
         return Err(Error::message("should be back on page 1 with 10 rows"));
     }
     let (_cards, count) = store
-        .search_cards(user_id, None, 0, 100)
+        .search_cards(user_id, None, DisabledFilter::All, 0, 100)
         .await
         .map_err(store_err)?;
     if count != 10 {
@@ -531,6 +787,8 @@ async fn disabled_card_not_quizzable_until_enabled() -> Result<()> {
     h.screenshot("04_groom/cross-quiz-done").await?;
 
     h.click("#tab-groom").await?;
+    // The card starts disabled; the first-usage default filter `all`
+    // lists it for the toggle.
     h.wait_for_selector("#toggle-disabled-card-cross", TIMEOUT)
         .await?;
     h.click("#toggle-disabled-card-cross").await?;
@@ -636,6 +894,8 @@ async fn row_menu_opens_and_dismisses() -> Result<()> {
     .await?;
 
     goto_groom(&h).await?;
+    // The card is seeded disabled (new + disabled is the widest badge
+    // combination); the first-usage default filter `all` lists it.
     h.wait_for_selector("#menu-card-menu", TIMEOUT).await?;
     if h.eval::<bool>("!!document.querySelector('.groom-menu')")
         .await?

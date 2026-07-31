@@ -52,9 +52,27 @@ async fn create_card(base: &str, prompt: &str, solution: &str) -> TestResult<Str
 #[tokio::test]
 async fn find_returns_seeded_card_and_count() -> TestResult {
     let TestServer { base, server, .. } = start_test_server().await?;
+    // The filter assertions live at API level on purpose (doctrine
+    // allows smoke-level only): the frontend always SENDS
+    // `disabled_filter`, so the absent-param default is observable only
+    // here, and the three wire values are pinned in one request each.
+    // A freshly created card starts disabled: the default filter (`all`)
+    // finds it, `enabled` hides it.
     let id = create_card(&base, "Capital of France?", "Paris").await?;
 
-    let found: FindCardsResponse = reqwest::get(format!("{base}/api/cards"))
+    let default_filtered: FindCardsResponse = reqwest::get(format!("{base}/api/cards"))
+        .await?
+        .json()
+        .await?;
+    assert_eq!(default_filtered.count, 1);
+    let only_enabled: FindCardsResponse =
+        reqwest::get(format!("{base}/api/cards?disabled_filter=enabled"))
+            .await?
+            .json()
+            .await?;
+    assert_eq!(only_enabled.count, 0);
+
+    let found: FindCardsResponse = reqwest::get(format!("{base}/api/cards?disabled_filter=all"))
         .await?
         .json()
         .await?;
@@ -65,22 +83,26 @@ async fn find_returns_seeded_card_and_count() -> TestResult {
     assert_eq!(found.page_size, i64::from(DEFAULT_PAGE_SIZE));
 
     // `search_text` filters, `skip` pages past the only card.
-    let hit: FindCardsResponse =
-        reqwest::get(format!("{base}/api/cards?search_text=france&skip=0"))
+    let hit: FindCardsResponse = reqwest::get(format!(
+        "{base}/api/cards?disabled_filter=all&search_text=france&skip=0"
+    ))
+    .await?
+    .json()
+    .await?;
+    assert_eq!(hit.count, 1);
+    let miss: FindCardsResponse = reqwest::get(format!(
+        "{base}/api/cards?disabled_filter=all&search_text=berlin"
+    ))
+    .await?
+    .json()
+    .await?;
+    assert_eq!(miss.count, 0);
+    assert!(miss.cards.is_empty());
+    let paged_out: FindCardsResponse =
+        reqwest::get(format!("{base}/api/cards?disabled_filter=all&skip=1"))
             .await?
             .json()
             .await?;
-    assert_eq!(hit.count, 1);
-    let miss: FindCardsResponse = reqwest::get(format!("{base}/api/cards?search_text=berlin"))
-        .await?
-        .json()
-        .await?;
-    assert_eq!(miss.count, 0);
-    assert!(miss.cards.is_empty());
-    let paged_out: FindCardsResponse = reqwest::get(format!("{base}/api/cards?skip=1"))
-        .await?
-        .json()
-        .await?;
     assert_eq!(paged_out.count, 1);
     assert!(paged_out.cards.is_empty());
 

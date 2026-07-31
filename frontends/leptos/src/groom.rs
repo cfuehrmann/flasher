@@ -1,31 +1,43 @@
-//! Groom tab: search, page and maintain the whole card collection.
+//! Groom tab: search, filter, page and maintain the whole card
+//! collection.
 //!
 //! Search-as-you-type with a ~300 ms debounce (a generation counter makes
 //! stale timers no-ops, so no cancel handle is needed); changing the query
-//! resets to page 0 and refetches. The page size is not hard-coded: each
-//! find response carries the server's configured page size, which drives
-//! the skip arithmetic, the paging buttons and the "showing X–Y of Z"
-//! line. A second generation counter guards the fetch itself, so a stale
-//! in-flight response (rapid paging, search-while-paging) can never
-//! overwrite newer rows. Row layout is two lines: the clamped prompt,
-//! then a meta line with badges + due date on the left and the actions
-//! right-aligned on the same line. Row actions: edit (opens the card
-//! editor via the `on_edit` callback) and the enable/disable toggle
-//! (immediate) stay inline; the rare destructive ones (delete,
-//! reset-progress) sit in a per-row "⋯" menu behind a confirm modal.
-//! Toggle and reset
-//! refetch the current page; the toggle's refetch is purely to show the
-//! fresh badge (the sort — `next_time` asc, `id` tie-break — does not
-//! involve `disabled`, so the row stays in place), while a progress
+//! resets to page 0 and refetches. Next to the search box, a filter
+//! selects all (the first-usage default, owner decision 2026-07-31),
+//! enabled or disabled cards (issue #127); changing it also resets to
+//! page 0 and refetches immediately (no debounce — one click, one fetch).
+//! Both the filter and the search text persist in `localStorage`, so they
+//! survive tab switches (a tab switch remounts this component) and
+//! browser refresh alike; storage failures (private mode, disabled
+//! storage) are ignored — persistence is a convenience, never fatal.
+//! The page size is not
+//! hard-coded: each find response carries the server's configured page
+//! size, which drives the skip arithmetic, the paging buttons and the
+//! "showing X–Y of Z" line. A second generation counter guards the fetch
+//! itself, so a stale in-flight response (rapid paging,
+//! search-while-paging) can never overwrite newer rows. Row layout is two
+//! lines: the clamped prompt, then a meta line with badges + due date on
+//! the left and the actions right-aligned on the same line. Row actions:
+//! edit (opens the card editor via the `on_edit` callback) and the
+//! enable/disable toggle (immediate) stay inline; the rare destructive
+//! ones (delete, reset-progress) sit in a per-row "⋯" menu behind a
+//! confirm modal. Toggle and reset
+//! refetch the current page; the toggle's refetch refreshes the badge in
+//! place — or drops the row when the card no longer matches the active
+//! filter (the sort — `next_time` asc, `id` tie-break — does not involve
+//! `disabled`, so it never re-orders), while a progress
 //! reset moves `next_time` and can genuinely re-order the page.
 //! Deleting the last row of a page beyond the first steps back one page,
-//! any other delete refetches in place so the count stays exact.
+//! any other delete refetches in place so the count stays exact; a toggle
+//! that drops the last row of a later page out of the active filter steps
+//! back the same way.
 //!
 //! Loading, error (with retry) and empty states mirror the quiz tab.
 
 use std::time::Duration;
 
-use flasher_types::{CardResponse, CardState};
+use flasher_types::{CardResponse, CardState, DisabledFilter};
 use leptos::prelude::*;
 
 use crate::api;
@@ -36,6 +48,56 @@ const FALLBACK_PAGE_SIZE: usize = 10;
 
 /// Search-as-you-type debounce delay.
 const DEBOUNCE: Duration = Duration::from_millis(300);
+
+/// `localStorage` keys under which the filter and the search text
+/// persist (owner wish 2026-07-31: both survive tab switches — a tab
+/// switch remounts this component — and browser refresh).
+#[cfg(feature = "csr")]
+const STORAGE_FILTER_KEY: &str = "flasher-groom-filter";
+/// See [`STORAGE_FILTER_KEY`].
+#[cfg(feature = "csr")]
+const STORAGE_SEARCH_KEY: &str = "flasher-groom-search";
+
+/// Reads a `localStorage` value; any storage failure (private mode,
+/// disabled storage) yields `None` — persistence is a convenience, never
+/// fatal.
+#[cfg(feature = "csr")]
+fn storage_get(key: &str) -> Option<String> {
+    leptos::prelude::window()
+        .local_storage()
+        .ok()
+        .flatten()
+        .and_then(|storage| storage.get_item(key).ok())
+        .flatten()
+}
+
+/// Writes a `localStorage` value, ignoring storage failures.
+#[cfg(feature = "csr")]
+fn storage_set(key: &str, value: &str) {
+    if let Ok(Some(storage)) = leptos::prelude::window().local_storage() {
+        let _ = storage.set_item(key, value);
+    }
+}
+
+/// The persisted filter choice, or the first-usage default (`All`).
+fn initial_filter() -> DisabledFilter {
+    #[cfg(feature = "csr")]
+    if let Some(filter) =
+        storage_get(STORAGE_FILTER_KEY).and_then(|value| DisabledFilter::parse(&value))
+    {
+        return filter;
+    }
+    DisabledFilter::default()
+}
+
+/// The persisted search text (empty when none was stored).
+fn initial_search() -> String {
+    #[cfg(feature = "csr")]
+    if let Some(search) = storage_get(STORAGE_SEARCH_KEY) {
+        return search;
+    }
+    String::new()
+}
 
 /// What the list area currently shows.
 #[derive(Clone)]
@@ -122,9 +184,15 @@ pub fn Groom(
     /// can overlay the tabs).
     on_edit: Callback<CardResponse>,
 ) -> impl IntoView {
-    // The raw input value and the debounced query actually searched for.
-    let input = RwSignal::new(String::new());
-    let query = RwSignal::new(String::new());
+    // The raw input value and the debounced query actually searched for;
+    // both start from the persisted search text, so a tab switch (which
+    // remounts this component) or a refresh resumes where the user left
+    // off, and the first fetch already applies it.
+    let input = RwSignal::new(initial_search());
+    let query = RwSignal::new(input.get_untracked());
+    // The all/enabled/disabled filter (issue #127): the persisted
+    // choice, or `All` on first use (owner decision 2026-07-31).
+    let filter = RwSignal::new(initial_filter());
     let page = RwSignal::new(0_usize);
     let state = RwSignal::new(LoadState::Loading);
     let confirm = RwSignal::new(None::<ConfirmAction>);
@@ -137,13 +205,13 @@ pub fn Groom(
 
     // Fetches one page for a query; the single entry point for loading,
     // paging, retry and post-mutation refresh.
-    let fetch = Callback::new(move |(q, p): (String, usize)| {
+    let fetch = Callback::new(move |(q, f, p): (String, DisabledFilter, usize)| {
         state.set(LoadState::Loading);
         fetch_generation.update(|count| *count += 1);
         let armed = fetch_generation.get_untracked();
         leptos::task::spawn_local(async move {
             let skip = u32::try_from(p * page_size.get_untracked()).unwrap_or(u32::MAX);
-            let result = api::find_cards(&q, skip).await;
+            let result = api::find_cards(&q, f, skip).await;
             if fetch_generation.get_untracked() != armed {
                 // A newer fetch is already in flight; ignore this one.
                 return;
@@ -163,9 +231,10 @@ pub fn Groom(
         });
     });
 
-    // (Re)fetch whenever the debounced query or the page changes.
+    // (Re)fetch whenever the debounced query, the filter or the page
+    // changes.
     #[cfg(feature = "csr")]
-    Effect::new(move |_| fetch.run((query.get(), page.get())));
+    Effect::new(move |_| fetch.run((query.get(), filter.get(), page.get())));
 
     // Search-as-you-type: every keystroke bumps the generation and arms a
     // timer; when it fires and is still the latest, the query goes live.
@@ -180,6 +249,10 @@ pub fn Groom(
         set_timeout(
             move || {
                 if generation.get_untracked() == armed {
+                    // Persist the LIVE query (not every keystroke), so a
+                    // refresh resumes with exactly what the list showed.
+                    #[cfg(feature = "csr")]
+                    storage_set(STORAGE_SEARCH_KEY, &value);
                     batch(|| {
                         page.set(0);
                         query.set(value);
@@ -190,13 +263,55 @@ pub fn Groom(
         );
     };
 
+    // Filter change: like a search change — reset to page 0 and refetch
+    // (the `batch` makes both one effect trigger), but immediate: a
+    // select needs no debounce. Unknown values are impossible from the
+    // rendered options and are ignored. The choice persists across tab
+    // switches and refresh (localStorage).
+    let on_filter_change = move |ev: leptos::ev::Event| {
+        if let Some(value) = DisabledFilter::parse(&event_target_value(&ev)) {
+            #[cfg(feature = "csr")]
+            storage_set(STORAGE_FILTER_KEY, value.as_str());
+            batch(|| {
+                page.set(0);
+                filter.set(value);
+            });
+        }
+    };
+
     // Enable/disable toggle — immediate, no confirmation. `disabled` is
     // not part of the server-side ordering, so the row cannot jump; the
-    // refetch only refreshes the badge/label in place.
+    // refetch refreshes the badge/label in place — or drops the row when
+    // it no longer matches the active filter (e.g. disabling a card
+    // under the `enabled` filter), which is exactly what the
+    // filter promises. A row that drops out as the last one of a later
+    // page steps back one page (same fallback as delete), so the user
+    // never lands on a false "No cards match." without a way back.
     let toggle_disabled = Callback::new(move |card: CardResponse| {
         leptos::task::spawn_local(async move {
             match api::set_disabled(&card.id, !card.disabled).await {
-                Ok(_updated) => fetch.run((query.get_untracked(), page.get_untracked())),
+                Ok(_updated) => {
+                    // `card` is the pre-toggle render: the row leaves the
+                    // list when the NEW state misses the filter.
+                    let drops_out = match filter.get_untracked() {
+                        DisabledFilter::Enabled => !card.disabled,
+                        DisabledFilter::Disabled => card.disabled,
+                        DisabledFilter::All => false,
+                    };
+                    let was_single = matches!(
+                        state.get_untracked(),
+                        LoadState::Loaded { ref cards, .. } if cards.len() == 1
+                    );
+                    if drops_out && was_single && page.get_untracked() > 0 {
+                        page.update(|p| *p -= 1);
+                    } else {
+                        fetch.run((
+                            query.get_untracked(),
+                            filter.get_untracked(),
+                            page.get_untracked(),
+                        ));
+                    }
+                }
                 Err(err) => state.set(LoadState::Error(err)),
             }
         });
@@ -216,7 +331,11 @@ pub fn Groom(
                     if was_single && page.get_untracked() > 0 {
                         page.update(|p| *p -= 1);
                     } else {
-                        fetch.run((query.get_untracked(), page.get_untracked()));
+                        fetch.run((
+                            query.get_untracked(),
+                            filter.get_untracked(),
+                            page.get_untracked(),
+                        ));
                     }
                 }
                 Err(err) => state.set(LoadState::Error(err)),
@@ -229,7 +348,11 @@ pub fn Groom(
     let do_reset = Callback::new(move |card: CardResponse| {
         leptos::task::spawn_local(async move {
             match api::delete_history(&card.id).await {
-                Ok(_updated) => fetch.run((query.get_untracked(), page.get_untracked())),
+                Ok(_updated) => fetch.run((
+                    query.get_untracked(),
+                    filter.get_untracked(),
+                    page.get_untracked(),
+                )),
                 Err(err) => state.set(LoadState::Error(err)),
             }
         });
@@ -238,13 +361,25 @@ pub fn Groom(
     view! {
         <section class="groom">
             <label for="groom-search">"Search"</label>
-            <input
-                id="groom-search"
-                type="text"
-                placeholder="Search cards…"
-                prop:value=input
-                on:input=on_search_input
-            />
+            <div class="groom-controls">
+                <input
+                    id="groom-search"
+                    type="text"
+                    placeholder="Search cards…"
+                    prop:value=input
+                    on:input=on_search_input
+                />
+                <select
+                    id="groom-filter"
+                    aria-label="Filter cards by status"
+                    prop:value=move || filter.get().as_str()
+                    on:change=on_filter_change
+                >
+                    <option value="enabled">"Enabled"</option>
+                    <option value="disabled">"Disabled"</option>
+                    <option value="all">"All"</option>
+                </select>
+            </div>
             {move || match state.get() {
                 LoadState::Loading => view! {
                     <p class="groom-status" id="groom-loading">"Loading cards…"</p>
@@ -257,7 +392,11 @@ pub fn Groom(
                             type="button"
                             id="groom-retry"
                             on:click=move |_| {
-                                fetch.run((query.get_untracked(), page.get_untracked()));
+                                fetch.run((
+                                    query.get_untracked(),
+                                    filter.get_untracked(),
+                                    page.get_untracked(),
+                                ));
                             }
                         >
                             "Retry"

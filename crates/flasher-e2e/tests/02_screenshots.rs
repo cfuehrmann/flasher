@@ -386,7 +386,9 @@ async fn capture_app_screenshots() -> Result<()> {
     h.wait_for_text("#quiz-done", "All done", TIMEOUT).await?;
     shoot_both(&h, "quiz-done").await?;
 
-    // --- Groom: full list (two pages of realistic cards) ---
+    // --- Groom: full list (two pages of realistic cards). The
+    // first-usage default filter is `all` (issue #127), so all 17 cards
+    // — enabled and disabled — show.
     h.click("#tab-groom").await?;
     h.wait_for_text("#groom-page-info", "of 17", TIMEOUT)
         .await?;

@@ -52,6 +52,8 @@ js-sys = { version = "=0.3.103" }
 # web_sys_unstable_apis APIs like toJSON/parseCreationOptionsFromJSON).
 # Phase 6.5 added Location/History for the hand-rolled tab routing
 # (pushState/replaceState/popstate — deliberately no leptos_router).
+# Storage (localStorage) persists the groom tab's filter + search text
+# across tab switches and browser refresh (owner wish 2026-07-31).
 web-sys = { version = "=0.3.103", features = [
     "AuthenticatorAssertionResponse",
     "AuthenticatorAttestationResponse",
@@ -64,6 +66,7 @@ web-sys = { version = "=0.3.103", features = [
     "Navigator",
     "PublicKeyCredential",
     "RequestCredentials",
+    "Storage",
     "Window",
 ] }
 # Awaits the Promise returned by navigator.credentials.create/get. Part of
