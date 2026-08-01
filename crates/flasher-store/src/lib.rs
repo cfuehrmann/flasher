@@ -14,7 +14,6 @@ use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use time::OffsetDateTime;
 
-pub use flasher_types::{DISABLED_LABEL, ENABLED_LABEL};
 pub use types::{AutoSave, Card, CardState, Label, NewCard, PasskeyRow, User};
 
 /// Columns selected for every `Card` read, in `FromRow` order (labels are
@@ -163,7 +162,6 @@ impl Store {
         .bind(created_at)
         .fetch_one(&self.pool)
         .await?;
-        self.ensure_seed_labels(user.id).await?;
         Ok(user)
     }
 
@@ -231,7 +229,6 @@ impl Store {
                 .await?
                 .ok_or(Error::Sqlx(sqlx::Error::RowNotFound))?,
         };
-        self.ensure_seed_labels(user.id).await?;
         Ok(user)
     }
 
@@ -302,16 +299,6 @@ impl Store {
                 .fetch_one(&self.pool)
                 .await?;
         Ok(id)
-    }
-
-    /// Makes sure the user carries the two seed labels (the dissolved
-    /// `disabled` flag). Called from the user create/upsert paths: users
-    /// created after the labels migration get their seeds here, not from
-    /// the migration.
-    async fn ensure_seed_labels(&self, user_id: i64) -> Result<(), Error> {
-        self.ensure_label(user_id, ENABLED_LABEL).await?;
-        self.ensure_label(user_id, DISABLED_LABEL).await?;
-        Ok(())
     }
 
     /// The label names attached to one card, ordered by name.
@@ -483,11 +470,33 @@ impl Store {
         }
     }
 
+    /// Validates a label set for [`Store::set_card_labels`] and card
+    /// creation: the set must not be empty (a label-less card would be
+    /// invisible to every union filter) and every name must be an
+    /// existing label of the user (no backdoor creation).
+    ///
+    /// # Errors
+    /// [`Error::UnknownLabel`] for a label the user does not have,
+    /// [`Error::EmptyLabelSet`] for an empty set, or a database error.
+    pub async fn validate_labels(&self, user_id: i64, labels: &[String]) -> Result<(), Error> {
+        if labels.is_empty() {
+            return Err(Error::EmptyLabelSet);
+        }
+        let known = self.labels(user_id).await?;
+        for name in labels {
+            if !known.iter().any(|label| &label.name == name) {
+                return Err(Error::UnknownLabel(name.clone()));
+            }
+        }
+        Ok(())
+    }
+
     /// Replaces the card's whole label set. Every name must be an
     /// existing label of the user (no backdoor creation) and the set
     /// must not be empty (a label-less card would be invisible to every
-    /// union filter). Returns the updated card, `None` if no card with
-    /// this id exists for the user.
+    /// union filter). Returns `None` if no card with this id exists for
+    /// the user — checked FIRST, so an unknown card is a clean `None`
+    /// regardless of label validity (404 beats 422 at the API).
     ///
     /// # Errors
     /// [`Error::UnknownLabel`] for a label the user does not have,
@@ -498,9 +507,11 @@ impl Store {
         id: &str,
         labels: &[String],
     ) -> Result<Option<Card>, Error> {
-        if labels.is_empty() {
-            return Err(Error::EmptyLabelSet);
-        }
+        // The card must exist and belong to the user.
+        let Some(_card) = self.get_card(user_id, id).await? else {
+            return Ok(None);
+        };
+        self.validate_labels(user_id, labels).await?;
         let mut label_ids = Vec::with_capacity(labels.len());
         let known = self.labels(user_id).await?;
         for name in labels {
@@ -510,10 +521,6 @@ impl Store {
                 .ok_or_else(|| Error::UnknownLabel(name.clone()))?;
             label_ids.push(label.id);
         }
-        // The card must exist and belong to the user.
-        let Some(_card) = self.get_card(user_id, id).await? else {
-            return Ok(None);
-        };
         sqlx::query("DELETE FROM card_labels WHERE card_id = ?")
             .bind(id)
             .execute(&self.pool)
@@ -690,11 +697,11 @@ impl Store {
     }
 
     /// The next card to review: `next_time <= now`, earliest `next_time`
-    /// first, carrying ANY of `labels` (union semantics — the quiz's
-    /// label filter; an empty slice yields no card). Matches the rest of
-    /// the semantics of the old `CardStore.FindNext`; there is
-    /// deliberately no special handling of `state = 'new'` at the store
-    /// level.
+    /// first. `labels` is the quiz's label filter: `None` disables
+    /// filtering, `Some(set)` keeps cards carrying ANY of the set (union
+    /// semantics — `Some([])` yields no card). Matches the rest of the
+    /// semantics of the old `CardStore.FindNext`; there is deliberately
+    /// no special handling of `state = 'new'` at the store level.
     ///
     /// # Errors
     /// Returns an error on database failure.
@@ -702,28 +709,33 @@ impl Store {
         &self,
         user_id: i64,
         now: i64,
-        labels: &[String],
+        labels: Option<&[String]>,
     ) -> Result<Option<Card>, Error> {
-        if labels.is_empty() {
-            return Ok(None);
-        }
-        // One bound parameter per label name (union via IN).
-        let placeholders = labels.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let label_clause = match labels {
+            None => String::new(),
+            Some(&[]) => return Ok(None),
+            // One bound parameter per label name (union via IN).
+            Some(set) => format!(
+                "AND EXISTS ( \
+                     SELECT 1 FROM card_labels cl JOIN labels l ON l.id = cl.label_id \
+                     WHERE cl.card_id = cards.id AND l.name IN ({}) \
+                 )",
+                set.iter().map(|_| "?").collect::<Vec<_>>().join(", ")
+            ),
+        };
         let statement = format!(
             "SELECT {CARD_COLUMNS} FROM cards \
-             WHERE user_id = ? AND next_time <= ? \
-             AND EXISTS ( \
-                 SELECT 1 FROM card_labels cl JOIN labels l ON l.id = cl.label_id \
-                 WHERE cl.card_id = cards.id AND l.name IN ({placeholders}) \
-             ) \
+             WHERE user_id = ? AND next_time <= ? {label_clause} \
              ORDER BY next_time ASC, id \
              LIMIT 1"
         );
         let mut query = sqlx::query_as::<_, Card>(&statement)
             .bind(user_id)
             .bind(now);
-        for name in labels {
-            query = query.bind(name);
+        if let Some(set) = labels {
+            for name in set {
+                query = query.bind(name);
+            }
         }
         let card = query.fetch_optional(&self.pool).await?;
         match card {

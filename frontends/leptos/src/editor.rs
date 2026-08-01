@@ -21,10 +21,11 @@
 //! Cancel, tab switch) stops it. A subtle indicator shows "unsaved
 //! changes" while dirty and "draft saved HH:MM:SS" after a write.
 
-use flasher_types::{AutoSaveResponse, CardResponse};
+use flasher_types::{AutoSaveResponse, CardResponse, LabelResponse};
 use leptos::prelude::*;
 
 use crate::api;
+use crate::labels::toggle_label_name;
 use crate::markdown::MarkdownView;
 
 /// Autosave cadence, ported from the old `useAutoSave` (5 s).
@@ -116,6 +117,52 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
     // on Create would create duplicate cards.
     let busy = RwSignal::new(false);
 
+    // New-card mode only: the label picker (owner decision 2026-08-01 —
+    // cards get their labels at creation time). The working selection
+    // starts EMPTY (label names carry no semantics, so there is no
+    // name-based default); Create stays disabled until at least one
+    // label is checked or freshly added. Labels are NOT part of the
+    // autosave draft: a recovered draft starts the picker empty again.
+    // After a successful create the selection is KEPT (batch entry of
+    // similar cards).
+    let all_labels = RwSignal::new(Vec::<LabelResponse>::new());
+    let working_labels = RwSignal::new(Vec::<String>::new());
+    let new_label_input = RwSignal::new(String::new());
+    #[cfg(feature = "csr")]
+    if is_new {
+        leptos::task::spawn_local(async move {
+            match api::labels().await {
+                Ok(labels) => all_labels.set(labels),
+                Err(err) => error.set(Some(err)),
+            }
+        });
+    }
+
+    // Adds the typed name as a new checked label (created server-side on
+    // the next create — nothing is written to the label table here).
+    let add_new_label = Callback::new(move |(): ()| {
+        let name = new_label_input.get_untracked().trim().to_owned();
+        if name.is_empty() {
+            return;
+        }
+        // The find filter's `labels` query parameter is comma-joined, so
+        // a comma in a name would silently break filtering later.
+        if name.contains(',') {
+            validation.set(Some("Label names must not contain commas.".to_owned()));
+            return;
+        }
+        validation.set(None);
+        if !working_labels.get_untracked().contains(&name) {
+            working_labels.update(|working| working.push(name.clone()));
+        }
+        all_labels.update(|labels| {
+            if !labels.iter().any(|label| label.name == name) {
+                labels.push(LabelResponse { id: 0, name });
+            }
+        });
+        new_label_input.set(String::new());
+    });
+
     // The 5 s autosave loop (browser only). The handle lives until the
     // component unmounts — Save, Cancel and tab switches all unmount it.
     #[cfg(feature = "csr")]
@@ -169,8 +216,13 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
             validation.set(Some("Prompt must not be empty.".to_owned()));
             return;
         }
+        if is_new && working_labels.get_untracked().is_empty() {
+            validation.set(Some("Choose at least one label.".to_owned()));
+            return;
+        }
         let solution_text = solution.get_untracked();
         let card_id = save_card_id.clone();
+        let create_labels = working_labels.get_untracked();
         busy.set(true);
         leptos::task::spawn_local(async move {
             let result = match &card_id {
@@ -179,10 +231,12 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
                     .await
                     .map(|_| ()),
                 // POST does not, so the draft is dropped explicitly.
-                None => match api::create_card(&prompt_text, &solution_text).await {
-                    Ok(_card) => api::delete_autosave().await,
-                    Err(err) => Err(err),
-                },
+                None => {
+                    match api::create_card(&prompt_text, &solution_text, &create_labels).await {
+                        Ok(_card) => api::delete_autosave().await,
+                        Err(err) => Err(err),
+                    }
+                }
             };
             match result {
                 Ok(()) if card_id.is_some() => {
@@ -284,13 +338,78 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
                         placeholder="Back of the card (Markdown)"
                         bind:value=solution
                     ></textarea>
+                    {is_new.then(|| view! {
+                        <div class="editor-labels" id="new-labels">
+                            <label>"Labels (at least one)"</label>
+                            {move || {
+                                all_labels
+                                    .get()
+                                    .into_iter()
+                                    .map(|label| {
+                                        let name = label.name.clone();
+                                        let box_id = format!("new-label-{name}");
+                                        let on_toggle = {
+                                            let name = name.clone();
+                                            move |ev: leptos::ev::Event| {
+                                                let next = toggle_label_name(
+                                                    &working_labels.get_untracked(),
+                                                    &name,
+                                                    event_target_checked(&ev),
+                                                );
+                                                working_labels.set(next);
+                                            }
+                                        };
+                                        let for_id = box_id.clone();
+                                        view! {
+                                            <label class="label-filter-item" for=for_id>
+                                                {label.name.clone()}
+                                                <input
+                                                    type="checkbox"
+                                                    id=box_id
+                                                    prop:checked=move || {
+                                                        working_labels.get().contains(&name)
+                                                    }
+                                                    on:change=on_toggle
+                                                />
+                                            </label>
+                                        }
+                                    })
+                                    .collect_view()
+                            }}
+                            <div class="editor-new-label">
+                                <input
+                                    type="text"
+                                    id="new-label-input"
+                                    placeholder="New label…"
+                                    aria-label="New label name"
+                                    bind:value=new_label_input
+                                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                        if ev.key() == "Enter" {
+                                            ev.prevent_default();
+                                            add_new_label.run(());
+                                        }
+                                    }
+                                />
+                                <button
+                                    type="button"
+                                    id="new-label-add"
+                                    disabled=move || new_label_input.get().trim().is_empty()
+                                    on:click=move |_| add_new_label.run(())
+                                >
+                                    "Add"
+                                </button>
+                            </div>
+                        </div>
+                    })}
                     <div class="editor-bar">
                         <span class="draft-indicator" id="draft-indicator">{indicator}</span>
                         <button
                             type="button"
                             id=save_id
                             class="primary"
-                            disabled=move || busy.get()
+                            disabled=move || {
+                                busy.get() || (is_new && working_labels.get().is_empty())
+                            }
                             on:click=save
                         >
                             {save_label}
@@ -322,7 +441,7 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
             })}
             {move || confirmation.get().then(|| view! {
                 <p class="form-ok" id="add-card-confirmation">
-                    "Card created — it starts with the Disabled label; enable it in the Groom tab."
+                    "Card created."
                 </p>
             })}
             {move || error.get().map(|err| view! {

@@ -60,7 +60,7 @@ async fn seed_card(
             state: CardState::New,
             change_time: now,
             next_time: now + 60_000,
-            labels: vec![flasher_store::ENABLED_LABEL.to_owned()],
+            labels: vec!["Enabled".to_owned()],
         })
         .await
         .map_err(store_err)
@@ -144,6 +144,16 @@ async fn make_new_card_draft(h: &TestHarness, prompt: &str, solution: &str) -> R
     h.type_into("#new-prompt", prompt).await?;
     h.type_into("#new-solution", solution).await?;
     h.wait_for_text("#draft-indicator", "draft saved", AUTOSAVE_TIMEOUT)
+        .await
+}
+
+/// Mints a label in the new-card editor's picker (mandatory since
+/// 2026-08-01: cards get their labels at creation time) so Create
+/// enables.
+async fn mint_editor_label(h: &TestHarness, name: &str) -> Result<()> {
+    h.type_into("#new-label-input", name).await?;
+    h.click("#new-label-add").await?;
+    h.wait_for_selector(&format!("#new-label-{name}"), TIMEOUT)
         .await
 }
 
@@ -261,6 +271,7 @@ async fn autosave_and_recovery_roundtrip() -> Result<()> {
     }
     h.screenshot("06_editor/recovered-editor").await?;
 
+    mint_editor_label(&h, "recovered").await?;
     h.click("#create-card").await?;
     h.wait_for_text("#add-card-confirmation", "Card created", TIMEOUT)
         .await?;
@@ -401,6 +412,7 @@ async fn recover_deleted_card_falls_back_to_new() -> Result<()> {
     }
     h.screenshot("06_editor/recovered-as-new-card").await?;
 
+    mint_editor_label(&h, "doomed").await?;
     h.click("#create-card").await?;
     h.wait_for_text("#add-card-confirmation", "Card created", TIMEOUT)
         .await?;

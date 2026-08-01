@@ -93,24 +93,9 @@ expression: dump(&store).await?
       "user_id": 1
     },
     {
-      "id": 4,
-      "name": "Disabled",
-      "user_id": 2
-    },
-    {
       "id": 3,
       "name": "Enabled",
       "user_id": 2
-    },
-    {
-      "id": 6,
-      "name": "Disabled",
-      "user_id": 3
-    },
-    {
-      "id": 5,
-      "name": "Enabled",
-      "user_id": 3
     }
   ],
   "passkeys": [],

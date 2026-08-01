@@ -600,6 +600,17 @@ browser e2e (clicking) together — never a backend without its user-facing test
     Enable/Disable row toggle went away — label editing became a first-class
     <b>Labels</b> row button next to Edit (not a ⋯-menu item), covering the flip and
     arbitrary sets; the ⋯ menu is back to the destructive pair (reset progress, delete).</li>
+    <li class="done"><b>Labels carry no semantics; labels at creation time (owner,
+    2026-08-01):</b> the Enabled/Disabled seed is gone — nothing is seeded anywhere, a
+    fresh database has ZERO labels, and label names are opaque strings throughout (no
+    constants, no name-based defaults, the legacy groom-filter key is dropped untranslated,
+    <code>GET /api/cards/next</code> without <code>labels</code> disables filtering). Card
+    creation now carries a mandatory label picker in the Add card tab: existing labels as
+    checkboxes plus an inline new-label input (names minted on demand server-side), at
+    least one required (Create disabled otherwise; labels are deliberately NOT part of the
+    autosave draft). The quiz filter's first-usage default is everything selected (same as
+    groom). Labels are created only on use: at card creation (ensure-on-insert) — the groom
+    label editor stays strict (existing labels only, 422 otherwise).</li>
   </ul>
 </div>
 

@@ -37,11 +37,17 @@ async fn start_test_server() -> Result<TestServer, Box<dyn std::error::Error>> {
     })
 }
 
-/// Creates a card via the API and returns its id.
-async fn create_card(base: &str, prompt: &str, solution: &str) -> TestResult<String> {
+/// Creates a card via the API (with the given label set) and returns
+/// its id.
+async fn create_card_with_labels(
+    base: &str,
+    prompt: &str,
+    solution: &str,
+    labels: &[&str],
+) -> TestResult<String> {
     let card: CardResponse = reqwest::Client::new()
         .post(format!("{base}/api/cards"))
-        .json(&serde_json::json!({ "prompt": prompt, "solution": solution }))
+        .json(&serde_json::json!({ "prompt": prompt, "solution": solution, "labels": labels }))
         .send()
         .await?
         .json()
@@ -49,14 +55,19 @@ async fn create_card(base: &str, prompt: &str, solution: &str) -> TestResult<Str
     Ok(card.id)
 }
 
+/// Creates a card via the API with one `A` label and returns its id.
+async fn create_card(base: &str, prompt: &str, solution: &str) -> TestResult<String> {
+    create_card_with_labels(base, prompt, solution, &["A"]).await
+}
+
 #[tokio::test]
 async fn find_returns_seeded_card_and_count() -> TestResult {
     let TestServer { base, server, .. } = start_test_server().await?;
     // The filter assertions live at API level on purpose (doctrine
     // allows smoke-level only): the frontend always SENDS `labels`, so
-    // the absent-param default is observable only here. A freshly created
-    // card starts out with the `Disabled` label: the absent filter finds
-    // it, `labels=Enabled` hides it, `labels=Disabled` finds it, an
+    // the absent-param default is observable only here. A freshly
+    // created card carries the `A` label (the helper's): the absent
+    // filter finds it, `labels=B` hides it, `labels=A` finds it, an
     // explicitly empty filter matches nothing.
     let id = create_card(&base, "Capital of France?", "Paris").await?;
 
@@ -65,25 +76,25 @@ async fn find_returns_seeded_card_and_count() -> TestResult {
         .json()
         .await?;
     assert_eq!(default_filtered.count, 1);
-    let only_enabled: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=Enabled"))
+    let only_b: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=B"))
         .await?
         .json()
         .await?;
-    assert_eq!(only_enabled.count, 0);
+    assert_eq!(only_b.count, 0);
     let empty: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels="))
         .await?
         .json()
         .await?;
     assert_eq!(empty.count, 0);
 
-    let found: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=Disabled"))
+    let found: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=A"))
         .await?
         .json()
         .await?;
     assert_eq!(found.count, 1);
     assert_eq!(found.cards.len(), 1);
     assert_eq!(found.cards[0].id, id);
-    assert_eq!(found.cards[0].labels, ["Disabled".to_owned()]);
+    assert_eq!(found.cards[0].labels, ["A".to_owned()]);
     // The response echoes the server's configured page size.
     assert_eq!(found.page_size, i64::from(DEFAULT_PAGE_SIZE));
 
@@ -111,17 +122,25 @@ async fn find_returns_seeded_card_and_count() -> TestResult {
     Ok(())
 }
 
-/// `GET /api/labels` lists the user's labels (the two seed labels every
-/// user gets).
+/// `GET /api/labels` is empty on a fresh database (nothing is seeded —
+/// labels exist only once cards are created with them) and lists the
+/// labels minted by card creation on demand.
 #[tokio::test]
-async fn labels_lists_seed_labels() -> TestResult {
+async fn labels_are_minted_by_card_creation() -> TestResult {
     let TestServer { base, server, .. } = start_test_server().await?;
+    let empty: Vec<flasher_types::LabelResponse> = reqwest::get(format!("{base}/api/labels"))
+        .await?
+        .json()
+        .await?;
+    assert!(empty.is_empty(), "a fresh user has no labels");
+
+    create_card_with_labels(&base, "Q?", "A.", &["grammar"]).await?;
     let labels: Vec<flasher_types::LabelResponse> = reqwest::get(format!("{base}/api/labels"))
         .await?
         .json()
         .await?;
     let names: Vec<&str> = labels.iter().map(|label| label.name.as_str()).collect();
-    assert_eq!(names, ["Disabled", "Enabled"]);
+    assert_eq!(names, ["grammar"]);
     server.abort();
     Ok(())
 }
@@ -166,7 +185,7 @@ async fn patch_replaces_labels_and_rejects_empty_or_unknown() -> TestResult {
         .json(&CardUpdateRequest {
             prompt: None,
             solution: None,
-            labels: Some(vec!["Enabled".to_owned()]),
+            labels: Some(vec!["A".to_owned()]),
         })
         .send()
         .await?;
@@ -226,13 +245,13 @@ async fn patch_replaces_labels_and_rejects_empty_or_unknown() -> TestResult {
         .json(&CardUpdateRequest {
             prompt: None,
             solution: None,
-            labels: Some(vec!["Enabled".to_owned()]),
+            labels: Some(vec!["A".to_owned()]),
         })
         .send()
         .await?
         .json()
         .await?;
-    assert_eq!(updated.labels, ["Enabled".to_owned()]);
+    assert_eq!(updated.labels, ["A".to_owned()]);
     assert_eq!(updated.prompt, "Q?");
 
     server.abort();
@@ -289,8 +308,8 @@ async fn get_card_by_id_smoke() -> TestResult {
     assert_eq!(card.solution, "Paris");
     assert_eq!(
         card.labels,
-        ["Disabled".to_owned()],
-        "a freshly created card starts with the Disabled label"
+        ["A".to_owned()],
+        "a created card carries the labels it was created with"
     );
 
     // Unknown id → 404. `/api/cards/next` must still resolve to the
@@ -327,7 +346,7 @@ async fn patch_with_content_invalidates_autosave() -> TestResult {
         .json(&CardUpdateRequest {
             prompt: None,
             solution: None,
-            labels: Some(vec!["Enabled".to_owned()]),
+            labels: Some(vec!["A".to_owned()]),
         })
         .send()
         .await?;

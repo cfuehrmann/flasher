@@ -81,9 +81,9 @@ async fn seed_card(
             change_time,
             next_time,
             labels: vec![if disabled {
-                flasher_store::DISABLED_LABEL.to_owned()
+                "Disabled".to_owned()
             } else {
-                flasher_store::ENABLED_LABEL.to_owned()
+                "Enabled".to_owned()
             }],
         })
         .await
@@ -208,9 +208,24 @@ async fn set_label_filter(h: &TestHarness, id_prefix: &str, only: &[&str]) -> Re
         .await?;
     h.wait_for_selector(&format!("#{id_prefix}-label-filter-panel"), TIMEOUT)
         .await?;
-    // The seed labels (creation is future work — a GitHub issue).
+    // The labels list fetches after mount; wait for the checkboxes to
+    // exist before probing their state.
+    h.wait_for_selector(
+        &format!("#{id_prefix}-label-filter-panel .label-filter-item input"),
+        TIMEOUT,
+    )
+    .await?;
+    // The fixture labels (arbitrary names; a label's checkbox exists
+    // only once the name is used in the database, so absent ones are
+    // simply skipped).
     for name in ["Enabled", "Disabled"] {
         let box_sel = format!("#{id_prefix}-label-{name}");
+        let exists = h
+            .eval::<bool>(&format!("!!document.querySelector('{box_sel}')"))
+            .await?;
+        if !exists {
+            continue;
+        }
         let want = only.contains(&name);
         let is = h
             .eval::<bool>(&format!("document.querySelector('{box_sel}').checked"))
@@ -567,6 +582,12 @@ async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
 
     goto_groom(&h).await?;
     let fit = wait_for_calibration(&h).await?;
+    // Labels exist only once used: mint "Disabled" so the editor modal
+    // can offer it.
+    store
+        .ensure_label(user_id, "Disabled")
+        .await
+        .map_err(store_err)?;
     // Trim to exactly fit+1 cards, so the second page holds one row.
     for i in (fit + 2)..=30 {
         store
@@ -712,6 +733,12 @@ async fn disable_enable_toggle() -> Result<()> {
         false,
     )
     .await?;
+    // Labels exist only once used: mint "Disabled" so the editor modal
+    // can offer it.
+    store
+        .ensure_label(user_id, "Disabled")
+        .await
+        .map_err(store_err)?;
 
     goto_groom(&h).await?;
     // The first-usage default selects everything; this test is about
@@ -950,47 +977,57 @@ async fn reset_progress_with_confirm_modal() -> Result<()> {
     Ok(())
 }
 
-/// The money test of the slice: a Disabled-labeled due card is not
-/// quizzable (the quiz's default selection is Enabled-only); enabling it
-/// in Groom makes it appear in the Quiz tab.
+/// Cross-feature: a label minted at card creation flows into the quiz
+/// filter, and the card is quizzable (quiz default = everything
+/// selected) until that label is deselected.
 #[tokio::test]
 #[ignore = "browser"]
-async fn disabled_card_not_quizzable_until_enabled() -> Result<()> {
+async fn created_card_is_quizzable_until_filtered_out() -> Result<()> {
     let h = TestHarness::start().await?;
+    // Create via the Add tab with a freshly minted label.
+    h.goto("/").await?;
+    h.click("#tab-add-card").await?;
+    h.wait_for_selector("#new-prompt", TIMEOUT).await?;
+    h.type_into("#new-prompt", "Cross feature prompt").await?;
+    h.type_into("#new-solution", "Cross feature solution")
+        .await?;
+    h.type_into("#new-label-input", "grammar").await?;
+    h.click("#new-label-add").await?;
+    h.wait_for_selector("#new-label-grammar", TIMEOUT).await?;
+    h.click("#create-card").await?;
+    h.wait_for_text("#add-card-confirmation", "Card created", TIMEOUT)
+        .await?;
+
+    // Make it due (new cards start with a 30-minute wait).
     let (store, user_id) = seed_store(&h).await?;
     let now = now_ms();
-    seed_card(
-        &store,
-        user_id,
-        "card-cross",
-        "Cross feature prompt",
-        "Cross feature solution",
-        CardState::New,
-        now - 60_000,
-        now - 1_000,
-        true,
-    )
-    .await?;
+    let (cards, _) = store
+        .search_cards(user_id, None, None, 0, 10)
+        .await
+        .map_err(store_err)?;
+    let card = cards
+        .into_iter()
+        .next()
+        .ok_or_else(|| Error::message("no card was created"))?;
+    store
+        .set_card_state(user_id, &card.id, CardState::New, now - 60_000, now - 1_000)
+        .await
+        .map_err(store_err)?;
 
-    h.goto("/").await?;
-    h.wait_for_text("#quiz-done", "All done", TIMEOUT).await?;
-    h.screenshot("04_groom/cross-quiz-done").await?;
-
-    h.click("#tab-groom").await?;
-    // The card starts with the Disabled label; the first-usage default
-    // (everything selected) lists it for the label editor.
-    h.wait_for_selector("#labels-card-cross", TIMEOUT).await?;
-    h.click("#labels-card-cross").await?;
-    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
-    h.click("#label-modal-label-Disabled").await?;
-    h.click("#label-modal-label-Enabled").await?;
-    h.click("#label-modal-save").await?;
-    wait_until_gone(&h, "#label-Disabled-card-cross", TIMEOUT).await?;
-
+    // The quiz's default selection is everything, so the card is due —
+    // and its minted label is a filter checkbox.
     h.click("#tab-quiz").await?;
     h.wait_for_text("#quiz-prompt", "Cross feature prompt", TIMEOUT)
         .await?;
+    h.click("#quiz-label-filter-button").await?;
+    h.wait_for_selector("#quiz-label-grammar", TIMEOUT).await?;
     h.screenshot("04_groom/cross-quizzable").await?;
+
+    // Deselecting it ends the quiz.
+    h.click("#quiz-label-grammar").await?;
+    h.click(".label-filter-backdrop").await?;
+    h.wait_for_text("#quiz-done", "no due cards match", TIMEOUT)
+        .await?;
     Ok(())
 }
 
@@ -1460,13 +1497,13 @@ async fn sticky_chrome_keeps_header_and_controls_pinned() -> Result<()> {
     Ok(())
 }
 
-/// One-time migration of the persisted filter (owner decision
-/// 2026-08-01): a pre-labels `flasher-groom-filter` value translates
-/// into the new label selection (`disabled` → Disabled-only) and the
-/// old key is removed.
+/// The pre-labels `flasher-groom-filter` key is simply dropped when
+/// seen (owner decision 2026-08-01): label names carry no semantics, so
+/// there is nothing meaningful to translate its value into — the
+/// first-usage default (everything selected) applies instead.
 #[tokio::test]
 #[ignore = "browser"]
-async fn old_groom_filter_key_translates_to_label_selection() -> Result<()> {
+async fn old_groom_filter_key_is_dropped_not_translated() -> Result<()> {
     let h = TestHarness::start().await?;
     let (store, user_id) = seed_store(&h).await?;
     let now = now_ms();
@@ -1492,28 +1529,20 @@ async fn old_groom_filter_key_translates_to_label_selection() -> Result<()> {
         .await?;
     h.goto("/groom").await?;
 
-    // The legacy value becomes the Disabled-only selection: only the
-    // disabled card shows, and the old key is gone.
-    h.wait_for_text("#groom-page-info", "showing 1–1 of 1", TIMEOUT)
+    // The legacy value is ignored: the default (everything selected)
+    // shows both cards, and the old key is gone. (Text waits, not one-
+    // shot reads: the viewport-fit calibration's corrective refetch
+    // briefly replaces the rows with the Loading state.)
+    h.wait_for_text("#groom-page-info", "showing 1–2 of 2", TIMEOUT)
         .await?;
-    let results = h.text_content("#groom-results").await?;
-    if !results.contains("Alpha") || results.contains("Beta") {
-        return Err(Error::message(format!(
-            "the translated selection should show only the disabled card, shows: {results:?}"
-        )));
-    }
+    h.wait_for_text("#groom-results", "Alpha", TIMEOUT).await?;
+    h.wait_for_text("#groom-results", "Beta", TIMEOUT).await?;
     let old_key = h
         .eval::<String>("localStorage.getItem('flasher-groom-filter') ?? '<gone>'")
         .await?;
     if old_key != "<gone>" {
         return Err(Error::message(format!(
-            "the legacy key should be removed after translation, is {old_key:?}"
-        )));
-    }
-    let new_key = persisted_labels(&h, "flasher-groom-labels").await?;
-    if new_key != "Disabled" {
-        return Err(Error::message(format!(
-            "the new key should hold the translated selection, holds {new_key:?}"
+            "the legacy key should be removed when seen, is {old_key:?}"
         )));
     }
     Ok(())
@@ -1543,6 +1572,14 @@ async fn row_labels_button_edits_the_cards_labels() -> Result<()> {
     )
     .await?;
 
+    // Labels exist only once used: mint "Enabled" BEFORE the page loads
+    // (its labels fetch happens at mount) so the editor modal can offer
+    // it (the card itself starts Disabled-only).
+    store
+        .ensure_label(user_id, "Enabled")
+        .await
+        .map_err(store_err)?;
+
     goto_groom(&h).await?;
     h.wait_for_selector("#groom-row-card-edit", TIMEOUT).await?;
 
@@ -1551,6 +1588,9 @@ async fn row_labels_button_edits_the_cards_labels() -> Result<()> {
     h.click("#labels-card-edit").await?;
     h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
     h.wait_for_text("#groom-labels-modal-text", "Edit labels prompt", TIMEOUT)
+        .await?;
+    // The labels list fetches after mount; wait for the checkboxes.
+    h.wait_for_selector("#groom-labels-modal .label-filter-item input", TIMEOUT)
         .await?;
     if !h
         .eval::<bool>("document.querySelector('#label-modal-label-Disabled').checked")
@@ -1603,6 +1643,8 @@ async fn row_labels_button_edits_the_cards_labels() -> Result<()> {
     // Back to Disabled only via the editor.
     h.click("#labels-card-edit").await?;
     h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
+    h.wait_for_selector("#groom-labels-modal .label-filter-item input", TIMEOUT)
+        .await?;
     h.click("#label-modal-label-Enabled").await?;
     h.click("#label-modal-save").await?;
     wait_until_gone(&h, "#label-Enabled-card-edit", TIMEOUT).await?;

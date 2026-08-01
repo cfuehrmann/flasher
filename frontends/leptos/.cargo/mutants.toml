@@ -191,4 +191,16 @@ exclude_re = [
     # subsumed by the editor).
     'replace == with != in GroomRow',
     'replace != with == in GroomRow',
+
+    # --- Browser-only creation-time label picker (2026-08-01) ------------------
+    # Editor's new-label guards (empty/comma checks, the Create-disabled
+    # condition) and the quiz's selection_ready gating are DOM/localStorage
+    # glue no host test can observe. add_card_creates_card_with_chosen_labels
+    # (03_quiz.rs) pins the picker end to end: Create disabled until a label
+    # is chosen, minting inline, the created card's exact label set. The
+    # quiz default (everything selected once the labels list lands) is pinned
+    # by quiz_label_filter_selects_persists_and_is_independent's first-usage
+    # assertions.
+    'editor\.rs:\d+:\d+: (delete !|replace == with !=|replace && with \|\|) in Editor',
+    'quiz\.rs:\d+:\d+: delete ! in Quiz',
 ]

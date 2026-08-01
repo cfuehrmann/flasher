@@ -76,9 +76,9 @@ async fn seed_card(
             change_time: now_ms() - 3_600_000,
             next_time,
             labels: vec![if disabled {
-                flasher_store::DISABLED_LABEL.to_owned()
+                "Disabled".to_owned()
             } else {
-                flasher_store::ENABLED_LABEL.to_owned()
+                "Enabled".to_owned()
             }],
         })
         .await
@@ -363,7 +363,16 @@ async fn capture_app_screenshots() -> Result<()> {
     seed_passkeys(&store, user_id).await?;
 
     // --- Quiz: prompt ---
+    // The two "disabled-style" fixture cards are overdue on purpose
+    // (they sort near the groom list's front), and label names carry no
+    // semantics — so they would out-due the hero card here. Deselect
+    // their label in the quiz filter: the hero is the only due card.
     h.goto("/").await?;
+    h.click("#quiz-label-filter-button").await?;
+    h.wait_for_selector("#quiz-label-filter-panel .label-filter-item input", TIMEOUT)
+        .await?;
+    h.click("#quiz-label-Disabled").await?;
+    h.click(".label-filter-backdrop").await?;
     h.wait_for_text("#quiz-prompt", "Bayes", TIMEOUT).await?;
     // The prompt carries inline math; wait until KaTeX typeset it.
     wait_for_js(

@@ -138,14 +138,14 @@ async fn patch_deletes_draft_only_after_successful_content_update() -> TestResul
     // Enable/Disable endpoints, which never touched the autosave).
     let card: flasher_types::CardResponse = client
         .post(format!("{base}/api/cards"))
-        .json(&serde_json::json!({ "prompt": "Q?", "solution": "A." }))
+        .json(&serde_json::json!({ "prompt": "Q?", "solution": "A.", "labels": ["A"] }))
         .send()
         .await?
         .json()
         .await?;
     let response = client
         .patch(format!("{base}/api/cards/{}", card.id))
-        .json(&serde_json::json!({ "labels": ["Enabled"] }))
+        .json(&serde_json::json!({ "labels": ["A"] }))
         .send()
         .await?;
     assert_eq!(response.status(), 200);

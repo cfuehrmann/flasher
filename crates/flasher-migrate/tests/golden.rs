@@ -339,7 +339,7 @@ async fn verify_catches_a_tampered_db_state_count() -> TestResult {
             state: CardState::New,
             change_time: 1,
             next_time: 2,
-            labels: vec![flasher_store::ENABLED_LABEL.to_owned()],
+            labels: vec!["Enabled".to_owned()],
         })
         .await?;
 

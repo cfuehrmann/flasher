@@ -19,7 +19,7 @@
 
 use std::path::{Path, PathBuf};
 
-use flasher_store::{AutoSave, Card, CardState, DISABLED_LABEL, ENABLED_LABEL, Store};
+use flasher_store::{AutoSave, Card, CardState, Store};
 use serde::Deserialize;
 use time::format_description::FormatItem;
 use time::format_description::well_known::Rfc3339;
@@ -283,12 +283,13 @@ fn parse_user(dir: &Path, username: &str, now: i64) -> Result<Option<LegacyUser>
                 state: CardState::from(legacy.state),
                 change_time: parse_datetime(&cards_path, &legacy.change_time)?,
                 next_time: parse_datetime(&cards_path, &legacy.next_time)?,
-                // The flag dissolves into its label (owner decision
-                // 2026-08-01).
+                // The legacy flag maps to these label names (opaque to
+                // the app — meaningful only as this import's mapping of
+                // the old `disabled` semantics; nothing is seeded).
                 labels: vec![if legacy.disabled {
-                    DISABLED_LABEL.to_owned()
+                    "Disabled".to_owned()
                 } else {
-                    ENABLED_LABEL.to_owned()
+                    "Enabled".to_owned()
                 }],
             });
         }
@@ -491,7 +492,7 @@ fn report_of(user: &LegacyUser) -> UserReport {
         disabled: user
             .cards
             .iter()
-            .filter(|c| c.labels.iter().any(|name| name == DISABLED_LABEL))
+            .filter(|c| c.labels.iter().any(|name| name == "Disabled"))
             .count(),
         cards_overwritten: 0,
         autosave: user.autosave.is_some(),

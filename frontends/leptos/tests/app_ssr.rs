@@ -6,6 +6,10 @@
 //! event handlers, which never run during server-side rendering.
 
 #![cfg(feature = "ssr")]
+// The editor's view tree (textareas + label picker) is deep enough that
+// tachys' type-level layout computation needs more than the default
+// query depth when instantiated in these tests.
+#![recursion_limit = "256"]
 
 use flasher_leptos::{
     AccountTab, App, AuthScreenTab, EditTarget, EditorCloseOutcome, EditorTab, GroomTab, QuizTab,

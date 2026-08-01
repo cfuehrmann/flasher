@@ -34,11 +34,11 @@ async fn start_test_server() -> TestResult<TestServer> {
     })
 }
 
-/// Creates a card via the API and returns it (state `new`, disabled).
+/// Creates a card via the API (label `A`) and returns it (state `new`).
 async fn create_card(base: &str, prompt: &str, solution: &str) -> TestResult<CardResponse> {
     let card = reqwest::Client::new()
         .post(format!("{base}/api/cards"))
-        .json(&serde_json::json!({ "prompt": prompt, "solution": solution }))
+        .json(&serde_json::json!({ "prompt": prompt, "solution": solution, "labels": ["A"] }))
         .send()
         .await?
         .json()

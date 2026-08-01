@@ -92,13 +92,19 @@ pub async fn next_card(_labels: &str) -> Result<NextCardResponse, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
-/// `POST /api/cards` — create a card (it starts out disabled).
+/// `POST /api/cards` — create a card with the label set the user picked
+/// (non-empty; unknown names are created on demand).
 #[cfg(feature = "csr")]
-pub async fn create_card(prompt: &str, solution: &str) -> Result<CardResponse, String> {
+pub async fn create_card(
+    prompt: &str,
+    solution: &str,
+    labels: &[String],
+) -> Result<CardResponse, String> {
     let request = gloo_net::http::Request::post("/api/cards")
         .json(&CreateCardRequest {
             prompt: prompt.to_owned(),
             solution: solution.to_owned(),
+            labels: labels.to_vec(),
         })
         .map_err(|err| err.to_string())?;
     let response = request.send().await.map_err(|err| err.to_string())?;
@@ -114,7 +120,11 @@ pub async fn create_card(prompt: &str, solution: &str) -> Result<CardResponse, S
 /// `POST /api/cards` (ssr stub, never called).
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async)]
-pub async fn create_card(_prompt: &str, _solution: &str) -> Result<CardResponse, String> {
+pub async fn create_card(
+    _prompt: &str,
+    _solution: &str,
+    _labels: &[String],
+) -> Result<CardResponse, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 

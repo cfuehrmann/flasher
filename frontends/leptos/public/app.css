@@ -477,6 +477,39 @@ textarea:focus-visible {
   border-color: var(--accent-border);
 }
 
+/* The new-card label picker (owner decision 2026-08-01: cards get their
+   labels at creation time): existing labels as checkbox rows (same
+   left/right rhythm as the filter panel) plus the new-label input row. */
+.editor-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* The generic .editor label rule (block + margin for the field titles)
+   would flatten the checkbox rows' flex layout — restore it here and
+   drop the title margin. */
+.editor-labels .label-filter-item {
+  display: flex;
+  margin: 0;
+}
+
+.editor-new-label {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.editor-new-label input {
+  flex: 1;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.625rem;
+}
+
 .editor-preview {
   background: var(--bg);
   border: 1px solid var(--border);

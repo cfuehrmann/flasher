@@ -72,9 +72,9 @@ async fn seed_card(
             change_time,
             next_time,
             labels: vec![if disabled {
-                flasher_store::DISABLED_LABEL.to_owned()
+                "Disabled".to_owned()
             } else {
-                flasher_store::ENABLED_LABEL.to_owned()
+                "Enabled".to_owned()
             }],
         })
         .await
@@ -309,15 +309,15 @@ async fn rapid_double_rating_applies_exactly_once() -> Result<()> {
     Ok(())
 }
 
-/// Nothing due: only future-due and disabled cards exist, so the done
-/// state shows immediately.
+/// Label names carry no semantics: a due card is quizzed whatever its
+/// labels are (until the user filters), while a future-due card waits.
 #[tokio::test]
 #[ignore = "browser"]
-async fn quiz_shows_done_when_nothing_is_due() -> Result<()> {
+async fn quiz_shows_due_cards_regardless_of_labels() -> Result<()> {
     let h = TestHarness::start().await?;
     let (store, user_id) = seed_store(&h).await?;
     let now = now_ms();
-    // Enabled but not yet due.
+    // Not yet due.
     seed_card(
         &store,
         user_id,
@@ -330,7 +330,8 @@ async fn quiz_shows_done_when_nothing_is_due() -> Result<()> {
         false,
     )
     .await?;
-    // Due, but disabled (new cards start out disabled).
+    // Due, carrying the fixture's "disabled-style" label — an arbitrary
+    // name with no effect on quizzability.
     seed_card(
         &store,
         user_id,
@@ -345,25 +346,27 @@ async fn quiz_shows_done_when_nothing_is_due() -> Result<()> {
     .await?;
 
     h.goto("/").await?;
-    h.wait_for_text("#quiz-done", "All done", TIMEOUT).await?;
+    h.wait_for_text("#quiz-prompt", "Disabled prompt", TIMEOUT)
+        .await?;
     let body = h.page_text().await?;
-    for hidden in ["Future prompt", "Disabled prompt"] {
-        if body.contains(hidden) {
-            return Err(Error::message(format!(
-                "{hidden:?} must not appear in the quiz, page shows: {body:?}"
-            )));
-        }
+    if body.contains("Future prompt") {
+        return Err(Error::message(format!(
+            "the future-due card must not appear in the quiz, page shows: {body:?}"
+        )));
     }
-    h.screenshot("03_quiz/done-immediate").await?;
+    h.screenshot("03_quiz/due-regardless-of-labels").await?;
     Ok(())
 }
 
-/// Add card: the form creates a state=new, disabled card with a 30-minute
-/// initial waiting time; submitting an empty prompt is rejected
-/// client-side and creates nothing.
+/// Add card: the label picker is mandatory (owner decision 2026-08-01) —
+/// Create stays disabled until at least one label is chosen, a fresh
+/// database offers to MINT a name inline, and the created card carries
+/// exactly the chosen labels (state=new, 30-minute initial wait).
+/// Submitting an empty prompt is rejected client-side and creates
+/// nothing.
 #[tokio::test]
 #[ignore = "browser"]
-async fn add_card_creates_disabled_new_card() -> Result<()> {
+async fn add_card_creates_card_with_chosen_labels() -> Result<()> {
     let h = TestHarness::start().await?;
     h.goto("/").await?;
 
@@ -371,7 +374,28 @@ async fn add_card_creates_disabled_new_card() -> Result<()> {
     h.wait_for_selector("#new-prompt", TIMEOUT).await?;
     h.type_into("#new-prompt", "e2e prompt").await?;
     h.type_into("#new-solution", "e2e solution").await?;
+
+    // Fresh database, no labels: Create stays disabled until a label is
+    // chosen; minting one inline enables it.
+    if !h
+        .eval::<bool>("document.querySelector('#create-card').disabled")
+        .await?
+    {
+        return Err(Error::message(
+            "Create should be disabled while no label is chosen",
+        ));
+    }
     h.screenshot("03_quiz/add-card").await?;
+    h.type_into("#new-label-input", "grammar").await?;
+    h.click("#new-label-add").await?;
+    h.wait_for_selector("#new-label-grammar", TIMEOUT).await?;
+    if h.eval::<bool>("document.querySelector('#create-card').disabled")
+        .await?
+    {
+        return Err(Error::message(
+            "Create should enable once a label is chosen",
+        ));
+    }
     h.click("#create-card").await?;
     h.wait_for_text("#add-card-confirmation", "Card created", TIMEOUT)
         .await?;
@@ -394,10 +418,11 @@ async fn add_card_creates_disabled_new_card() -> Result<()> {
             card.state
         )));
     }
-    if !card.labels.iter().any(|label| label == "Disabled") {
-        return Err(Error::message(
-            "new card should start out with the Disabled label",
-        ));
+    if card.labels != ["grammar".to_owned()] {
+        return Err(Error::message(format!(
+            "new card should carry exactly the chosen label, carries {:?}",
+            card.labels
+        )));
     }
     if card.solution != "e2e solution" {
         return Err(Error::message(format!(
@@ -439,9 +464,24 @@ async fn set_label_filter(h: &TestHarness, id_prefix: &str, only: &[&str]) -> Re
         .await?;
     h.wait_for_selector(&format!("#{id_prefix}-label-filter-panel"), TIMEOUT)
         .await?;
-    // The seed labels (creation is future work — a GitHub issue).
+    // The labels list fetches after mount; wait for the checkboxes to
+    // exist before probing their state.
+    h.wait_for_selector(
+        &format!("#{id_prefix}-label-filter-panel .label-filter-item input"),
+        TIMEOUT,
+    )
+    .await?;
+    // The fixture labels (arbitrary names; a label's checkbox exists
+    // only once the name is used in the database, so absent ones are
+    // simply skipped).
     for name in ["Enabled", "Disabled"] {
         let box_sel = format!("#{id_prefix}-label-{name}");
+        let exists = h
+            .eval::<bool>(&format!("!!document.querySelector('{box_sel}')"))
+            .await?;
+        if !exists {
+            continue;
+        }
         let want = only.contains(&name);
         let is = h
             .eval::<bool>(&format!("document.querySelector('{box_sel}').checked"))
@@ -490,18 +530,14 @@ async fn quiz_label_filter_selects_persists_and_is_independent() -> Result<()> {
     .await?;
 
     h.goto("/").await?;
-    // First-usage default: Enabled only (the pre-labels behavior) — the
-    // selection badge shows it next to the button.
+    // First-usage default: everything selected (label names carry no
+    // semantics, so there is no name-based default) — both selection
+    // badges show next to the button.
     h.wait_for_text("#quiz-prompt", "Enabled prompt", TIMEOUT)
         .await?;
-    h.wait_for_selector("#quiz-selected-Enabled", TIMEOUT)
-        .await?;
-    if h.eval::<bool>("!!document.querySelector('#quiz-selected-Disabled')")
-        .await?
-    {
-        return Err(Error::message(
-            "the quiz filter should default to Enabled only",
-        ));
+    for name in ["Enabled", "Disabled"] {
+        h.wait_for_selector(&format!("#quiz-selected-{name}"), TIMEOUT)
+            .await?;
     }
 
     // The open panel (new UI — the CV check reads this PNG).

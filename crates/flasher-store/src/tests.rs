@@ -1,7 +1,7 @@
 //! Observable-behavior tests for `Store`, run against real `SQLite`
 //! (in-memory, plus one tempfile-backed test for `connect`).
 
-use super::{Card, CardState, DISABLED_LABEL, ENABLED_LABEL, Error, NewCard, SetCardState, Store};
+use super::{Card, CardState, Error, NewCard, SetCardState, Store};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -26,7 +26,7 @@ fn card(id: &str, prompt: &str, solution: &str, state: CardState, change: i64, n
         state,
         change_time: change,
         next_time: next,
-        labels: names(&[ENABLED_LABEL]),
+        labels: names(&["A"]),
     }
 }
 
@@ -115,7 +115,7 @@ async fn insert_and_get_card() -> TestResult {
         let mut c = new_card(user.id, id);
         c.state = state;
         if id == "c-failed" {
-            c.labels = names(&[DISABLED_LABEL]);
+            c.labels = names(&["B"]);
         }
         store.insert_card(&c).await?;
 
@@ -148,7 +148,7 @@ async fn upsert_card_replaces_all_fields() -> TestResult {
         .upsert_card(user.id, &card("c1", "old p", "old s", CardState::New, 1, 2))
         .await?;
     let mut updated = card("c1", "new p", "new s", CardState::Ok, 3, 4);
-    updated.labels = names(&[DISABLED_LABEL]);
+    updated.labels = names(&["B"]);
     store.upsert_card(user.id, &updated).await?;
 
     assert_eq!(store.get_card(user.id, "c1").await?, Some(updated));
@@ -175,7 +175,7 @@ async fn update_card_fields_is_partial() -> TestResult {
     assert_eq!(updated.as_ref().map(|c| c.prompt.as_str()), Some("changed"));
     assert_eq!(
         updated.as_ref().map(|c| c.labels.as_slice()),
-        Some(names(&[ENABLED_LABEL]).as_slice())
+        Some(names(&["A"]).as_slice())
     );
 
     // Unknown card / wrong user.
@@ -195,22 +195,16 @@ async fn update_card_fields_is_partial() -> TestResult {
     Ok(())
 }
 
-/// Every user carries the two seed labels (the dissolved `disabled`
-/// flag): users created after the labels migration get them from the
-/// user create/upsert path, not from the migration.
+/// A fresh user has NO labels (owner decision 2026-08-01: label names
+/// carry no semantics and nothing is seeded — labels come into
+/// existence when cards are created with them).
 #[tokio::test]
-async fn users_get_seed_labels_on_create_and_upsert() -> TestResult {
+async fn fresh_user_has_no_labels() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let user = store.create_user("alice").await?;
     let other = store.upsert_user("bob").await?;
     for id in [user.id, other.id] {
-        let label_names: Vec<String> = store
-            .labels(id)
-            .await?
-            .into_iter()
-            .map(|label| label.name)
-            .collect();
-        assert_eq!(label_names, names(&[DISABLED_LABEL, ENABLED_LABEL]));
+        assert!(store.labels(id).await?.is_empty());
     }
     Ok(())
 }
@@ -223,19 +217,33 @@ async fn set_card_labels_replaces_set_and_validates() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let user = store.create_user("alice").await?;
     store.insert_card(&new_card(user.id, "c1")).await?;
+    // The card insert created "A" on demand; "B" is minted explicitly
+    // (nothing is seeded — labels exist only once used).
+    store.ensure_label(user.id, "B").await?;
 
     let updated = store
-        .set_card_labels(user.id, "c1", &names(&[DISABLED_LABEL]))
+        .set_card_labels(user.id, "c1", &names(&["B"]))
         .await?
         .ok_or("card vanished")?;
-    assert_eq!(updated.labels, names(&[DISABLED_LABEL]));
+    assert_eq!(updated.labels, names(&["B"]));
 
-    // Both seed labels at once (union-filtered either way).
+    // Both labels at once (union-filtered either way).
     let updated = store
-        .set_card_labels(user.id, "c1", &names(&[ENABLED_LABEL, DISABLED_LABEL]))
+        .set_card_labels(user.id, "c1", &names(&["A", "B"]))
         .await?
         .ok_or("card vanished")?;
-    assert_eq!(updated.labels, names(&[DISABLED_LABEL, ENABLED_LABEL]));
+    assert_eq!(updated.labels, names(&["A", "B"]));
+
+    // A user with exactly ONE label can set that very label (a
+    // `!=`-mutated existence check would reject it whenever no second,
+    // differing label exists).
+    let single = store.create_user("single").await?;
+    store.insert_card(&new_card(single.id, "solo")).await?;
+    let updated = store
+        .set_card_labels(single.id, "solo", &names(&["A"]))
+        .await?
+        .ok_or("card vanished")?;
+    assert_eq!(updated.labels, names(&["A"]));
 
     // Unknown label → error, and the set is left untouched.
     let Err(err) = store
@@ -251,7 +259,7 @@ async fn set_card_labels_replaces_set_and_validates() -> TestResult {
             .await?
             .ok_or("card vanished")?
             .labels,
-        names(&[DISABLED_LABEL, ENABLED_LABEL])
+        names(&["A", "B"])
     );
 
     // Empty set → error (a label-less card would be invisible).
@@ -264,13 +272,13 @@ async fn set_card_labels_replaces_set_and_validates() -> TestResult {
     let other = store.create_user("bob").await?;
     assert_eq!(
         store
-            .set_card_labels(other.id, "c1", &names(&[ENABLED_LABEL]))
+            .set_card_labels(other.id, "c1", &names(&["A"]))
             .await?,
         None
     );
     assert_eq!(
         store
-            .set_card_labels(user.id, "nope", &names(&[ENABLED_LABEL]))
+            .set_card_labels(user.id, "nope", &names(&["A"]))
             .await?,
         None
     );
@@ -419,7 +427,7 @@ async fn search_cards_filters_orders_and_pages() -> TestResult {
     c3.prompt = "ownership".to_owned();
     c3.solution = "RUST moves values".to_owned();
     c3.next_time = 50;
-    c3.labels = names(&[DISABLED_LABEL]);
+    c3.labels = names(&["B"]);
     store.insert_card(&c3).await?;
 
     let mut c4 = new_card(user.id, "c4");
@@ -495,16 +503,16 @@ async fn search_cards_filters_by_labels() -> TestResult {
 
     let mut disabled_match = new_card(user.id, "c2");
     disabled_match.prompt = "rust disabled".to_owned();
-    disabled_match.labels = names(&[DISABLED_LABEL]);
+    disabled_match.labels = names(&["B"]);
     store.insert_card(&disabled_match).await?;
 
     let mut disabled_other = new_card(user.id, "c3");
     disabled_other.prompt = "unrelated".to_owned();
-    disabled_other.labels = names(&[DISABLED_LABEL]);
+    disabled_other.labels = names(&["B"]);
     store.insert_card(&disabled_other).await?;
 
     let (hits, count) = store
-        .search_cards(user.id, None, Some(&names(&[ENABLED_LABEL])), 0, 10)
+        .search_cards(user.id, None, Some(&names(&["A"])), 0, 10)
         .await?;
     assert_eq!(count, 1);
     assert_eq!(
@@ -513,7 +521,7 @@ async fn search_cards_filters_by_labels() -> TestResult {
     );
 
     let (hits, count) = store
-        .search_cards(user.id, None, Some(&names(&[DISABLED_LABEL])), 0, 10)
+        .search_cards(user.id, None, Some(&names(&["B"])), 0, 10)
         .await?;
     assert_eq!(count, 2);
     assert_eq!(
@@ -523,13 +531,7 @@ async fn search_cards_filters_by_labels() -> TestResult {
 
     // Union of both = everything; no filter = everything; empty = nothing.
     let (_, count) = store
-        .search_cards(
-            user.id,
-            None,
-            Some(&names(&[ENABLED_LABEL, DISABLED_LABEL])),
-            0,
-            10,
-        )
+        .search_cards(user.id, None, Some(&names(&["A", "B"])), 0, 10)
         .await?;
     assert_eq!(count, 3);
     let (_, count) = store.search_cards(user.id, None, None, 0, 10).await?;
@@ -539,13 +541,7 @@ async fn search_cards_filters_by_labels() -> TestResult {
 
     // The filter composes with the search text.
     let (hits, count) = store
-        .search_cards(
-            user.id,
-            Some("rust"),
-            Some(&names(&[DISABLED_LABEL])),
-            0,
-            10,
-        )
+        .search_cards(user.id, Some("rust"), Some(&names(&["B"])), 0, 10)
         .await?;
     assert_eq!(count, 1);
     assert_eq!(hits[0].id, "c2");
@@ -601,7 +597,7 @@ async fn search_cards_folds_full_unicode_case() -> TestResult {
 async fn next_card_picks_earliest_due_card_with_any_label() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let user = store.create_user("alice").await?;
-    let enabled = names(&[ENABLED_LABEL]);
+    let enabled = names(&["A"]);
 
     // due, second-earliest
     let mut due_later = new_card(user.id, "due-later");
@@ -616,7 +612,7 @@ async fn next_card_picks_earliest_due_card_with_any_label() -> TestResult {
     // due, but only carries the Disabled label
     let mut disabled = new_card(user.id, "disabled");
     disabled.next_time = 50;
-    disabled.labels = names(&[DISABLED_LABEL]);
+    disabled.labels = names(&["B"]);
     store.insert_card(&disabled).await?;
 
     // enabled but not yet due
@@ -624,36 +620,39 @@ async fn next_card_picks_earliest_due_card_with_any_label() -> TestResult {
     future.next_time = 10_000;
     store.insert_card(&future).await?;
 
-    let next = store.next_card(user.id, 1_000, &enabled).await?;
+    let next = store.next_card(user.id, 1_000, Some(&enabled)).await?;
     assert_eq!(next.map(|c| c.id), Some("due-first".to_owned()));
 
     // Before the earliest next_time there is nothing to review.
-    assert_eq!(store.next_card(user.id, 99, &enabled).await?, None);
+    assert_eq!(store.next_card(user.id, 99, Some(&enabled)).await?, None);
 
-    // The Disabled label finds only the disabled card (union semantics).
+    // Label "B" finds only the card carrying it (union semantics).
     let next = store
-        .next_card(user.id, 1_000, &names(&[DISABLED_LABEL]))
+        .next_card(user.id, 1_000, Some(&names(&["B"])))
         .await?;
     assert_eq!(next.map(|c| c.id), Some("disabled".to_owned()));
-    // Both labels = the union; an empty selection yields no card.
+    // Both labels = the union; an empty selection yields no card; no
+    // filter at all (`None`) also just takes the earliest due card.
     let next = store
-        .next_card(user.id, 1_000, &names(&[ENABLED_LABEL, DISABLED_LABEL]))
+        .next_card(user.id, 1_000, Some(&names(&["A", "B"])))
         .await?;
     assert_eq!(next.map(|c| c.id), Some("disabled".to_owned()));
-    assert_eq!(store.next_card(user.id, 1_000, &[]).await?, None);
+    assert_eq!(store.next_card(user.id, 1_000, Some(&[])).await?, None);
+    let next = store.next_card(user.id, 1_000, None).await?;
+    assert_eq!(next.map(|c| c.id), Some("disabled".to_owned()));
 
     // state does not matter, only labels/next_time.
     store
         .set_card_state(user.id, "due-first", CardState::Ok, 600, 5_000)
         .await?;
-    let next = store.next_card(user.id, 1_000, &enabled).await?;
+    let next = store.next_card(user.id, 1_000, Some(&enabled)).await?;
     assert_eq!(next.map(|c| c.id), Some("due-later".to_owned()));
 
     // A 'new' card is treated like any other.
     store
         .set_card_state(user.id, "due-later", CardState::New, 600, 700)
         .await?;
-    let next = store.next_card(user.id, 1_000, &enabled).await?;
+    let next = store.next_card(user.id, 1_000, Some(&enabled)).await?;
     assert_eq!(next.map(|c| c.id), Some("due-later".to_owned()));
     Ok(())
 }

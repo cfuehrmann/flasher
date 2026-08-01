@@ -8,16 +8,17 @@
 //! The label filter above the card (labels dissolved the hardcoded
 //! enabled-only rule, owner decision 2026-08-01) selects which labels
 //! may be quizzed — union semantics, any selected label matches. The
-//! first-usage default is `Enabled` (the old behavior); the selection
-//! persists in `localStorage`, independent of the groom tab's own
-//! persisted selection. Changing it refetches the next card.
+//! first-usage default is everything selected (label names carry no
+//! semantics, so there is no name-based default); the selection persists
+//! in `localStorage`, independent of the groom tab's own persisted
+//! selection. Changing it refetches the next card.
 //!
 //! The reveal state is deliberately NOT mirrored into the URL or anywhere
 //! else: it is transient in-memory state, so a browser refresh (or a tab
 //! switch, which remounts this component) always starts collapsed at the
 //! prompt.
 
-use flasher_types::{CardResponse, ENABLED_LABEL, LabelResponse};
+use flasher_types::{CardResponse, LabelResponse};
 use leptos::prelude::*;
 
 use crate::api;
@@ -32,14 +33,15 @@ use crate::markdown::MarkdownView;
 #[cfg(feature = "csr")]
 const STORAGE_LABELS_KEY: &str = "flasher-quiz-labels";
 
-/// The persisted quiz label selection, or the first-usage default
-/// (`Enabled` — the pre-labels behavior).
-fn initial_labels() -> Vec<String> {
+/// The persisted quiz label selection, or `None` when nothing is
+/// stored — the default (ALL labels; names carry no semantics, so no
+/// name-based default exists) is applied once the labels list lands.
+fn initial_labels() -> Option<Vec<String>> {
     #[cfg(feature = "csr")]
     if let Some(raw) = storage_get(STORAGE_LABELS_KEY) {
-        return split_labels(&raw);
+        return Some(split_labels(&raw));
     }
-    vec![ENABLED_LABEL.to_owned()]
+    None
 }
 
 /// The quiz state machine.
@@ -65,7 +67,13 @@ enum QuizState {
 pub fn Quiz() -> impl IntoView {
     let state = RwSignal::new(QuizState::Loading);
     // The label filter selection (persisted, independent of groom's).
-    let selected = RwSignal::new(initial_labels());
+    // When nothing is stored, the selection is not READY until the
+    // labels list lands and the default (ALL labels) applies.
+    let initial_selection = initial_labels();
+    // Only the csr effects read this (their code is cfg'd out under ssr).
+    #[cfg_attr(not(feature = "csr"), allow(unused_variables))]
+    let selection_ready = RwSignal::new(initial_selection.is_some());
+    let selected = RwSignal::new(initial_selection.unwrap_or_default());
     // The user's labels (for the filter's checkbox panel).
     let all_labels = RwSignal::new(Vec::<LabelResponse>::new());
 
@@ -99,14 +107,21 @@ pub fn Quiz() -> impl IntoView {
         });
     });
 
-    // Loads the labels list (the filter's panel). Shared by the mount
-    // load and the error retry (adversarial review 2026-08-01: a retry
-    // must reload the labels too, or a transient failure leaves an
+    // Loads the labels list (the filter's panel); the default selection
+    // (ALL labels) applies where the names are known. Shared by the
+    // mount load and the error retry (adversarial review 2026-08-01: a
+    // retry must reload the labels too, or a transient failure leaves an
     // empty panel).
     let load_labels = Callback::new(move |(): ()| {
         leptos::task::spawn_local(async move {
             match api::labels().await {
-                Ok(labels) => all_labels.set(labels),
+                Ok(labels) => {
+                    if !selection_ready.get_untracked() {
+                        selected.set(labels.iter().map(|label| label.name.clone()).collect());
+                        selection_ready.set(true);
+                    }
+                    all_labels.set(labels);
+                }
                 Err(err) => state.set(QuizState::Error(err)),
             }
         });
@@ -123,10 +138,13 @@ pub fn Quiz() -> impl IntoView {
         selected.set(next);
     });
 
-    // Fetch the first card on mount, and refetch whenever the selection
-    // changes (client-side only).
+    // Fetch the first card once the selection is ready, and refetch
+    // whenever the selection changes (client-side only).
     #[cfg(feature = "csr")]
     Effect::new(move |_| {
+        if !selection_ready.get() {
+            return;
+        }
         let _ = selected.get();
         fetch_next.run(());
     });
@@ -239,9 +257,6 @@ pub fn Quiz() -> impl IntoView {
                     <div class="quiz-card" id="quiz-done">
                         <p class="quiz-status">
                             "All done for now — no due cards match the selected labels."
-                        </p>
-                        <p class="quiz-hint">
-                            "Cards you add start with the Disabled label; enable them in the Groom tab, or widen the label filter above."
                         </p>
                     </div>
                 }

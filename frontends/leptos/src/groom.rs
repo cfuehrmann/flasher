@@ -56,8 +56,6 @@
 use std::time::Duration;
 
 use flasher_types::{CardResponse, CardState, LabelResponse, MAX_TAKE};
-#[cfg(feature = "csr")]
-use flasher_types::{DISABLED_LABEL, ENABLED_LABEL};
 use leptos::prelude::*;
 
 use crate::api;
@@ -101,38 +99,18 @@ const STORAGE_SEARCH_KEY: &str = "flasher-groom-search";
 const STORAGE_TAKE_KEY: &str = "flasher-groom-take";
 
 /// The persisted label selection, or `None` when nothing is stored —
-/// the default (ALL labels, today's "everything") is then applied once
-/// the labels list lands. The pre-labels filter value translates
-/// one-time: `enabled`/`disabled` map to their label (persisted under
-/// the new key right away, so the migration sticks even if the user
-/// never touches the filter), `all` falls through to the default
-/// (owner decision 2026-08-01).
+/// the default (ALL labels) is then applied once the labels list lands.
+/// The pre-labels filter key is simply dropped when seen: label names
+/// carry no semantics (owner decision 2026-08-01), so there is nothing
+/// meaningful to translate its all/enabled/disabled value into.
 fn initial_labels() -> Option<Vec<String>> {
     #[cfg(feature = "csr")]
     {
-        // The legacy key is ALWAYS removed when seen (adversarial review
-        // 2026-08-01): otherwise it would linger forever once the new
-        // key exists.
-        let old = storage_get(OLD_STORAGE_FILTER_KEY);
-        if old.is_some() {
+        if storage_get(OLD_STORAGE_FILTER_KEY).is_some() {
             storage_remove(OLD_STORAGE_FILTER_KEY);
         }
         if let Some(raw) = storage_get(STORAGE_LABELS_KEY) {
             return Some(split_labels(&raw));
-        }
-        if let Some(old) = old {
-            return match old.as_str() {
-                "enabled" => {
-                    storage_set(STORAGE_LABELS_KEY, ENABLED_LABEL);
-                    Some(vec![ENABLED_LABEL.to_owned()])
-                }
-                "disabled" => {
-                    storage_set(STORAGE_LABELS_KEY, DISABLED_LABEL);
-                    Some(vec![DISABLED_LABEL.to_owned()])
-                }
-                // "all" (and anything unexpected): the default below.
-                _ => None,
-            };
         }
     }
     None

@@ -75,9 +75,8 @@ pub struct CardResponse {
     pub change_time: i64,
     /// Unix epoch millis.
     pub next_time: i64,
-    /// The card's labels (names). Since the labels migration the old
-    /// `disabled` flag is a label like any other: cards start out with
-    /// `Disabled` and are quizzed once they carry `Enabled`.
+    /// The card's labels (opaque names; the app attaches no semantics
+    /// to any of them).
     pub labels: Vec<String>,
 }
 
@@ -92,11 +91,15 @@ pub struct SetCardStateRequest {
     pub change_time: i64,
 }
 
-/// Body of `POST /api/cards`.
+/// Body of `POST /api/cards`. `labels` is the card's initial label set:
+/// the user picks it at creation time (owner decision 2026-08-01), so it
+/// is required and must not be empty (422). Names are opaque — unknown
+/// ones are created on demand.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CreateCardRequest {
     pub prompt: String,
     pub solution: String,
+    pub labels: Vec<String>,
 }
 
 /// Body of `PATCH /api/cards/{id}`: an all-optional partial update of the
@@ -116,24 +119,16 @@ pub struct CardUpdateRequest {
 }
 
 /// One label as returned by `GET /api/labels`. Labels are per-user and
-/// identified by name on the wire (unique per user); the two seed labels
-/// `Enabled`/`Disabled` dissolve the old `disabled` flag (owner decision
-/// 2026-08-01).
+/// identified by name on the wire (unique per user). Label names carry
+/// NO semantics anywhere in the app (owner decision 2026-08-01): they
+/// are opaque strings the user invents and assigns at card-creation
+/// time; a fresh database has no labels at all.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct LabelResponse {
     /// Database id of the label row.
     pub id: i64,
     pub name: String,
 }
-
-/// The two seed labels every user has (the dissolved `disabled` flag):
-/// cards start out with [`DISABLED_LABEL`] and are quizzed once they
-/// carry [`ENABLED_LABEL`]. Shared so server defaults, the store's
-/// per-user seeding and the frontend's default filter selections cannot
-/// drift apart.
-pub const ENABLED_LABEL: &str = "Enabled";
-/// See [`ENABLED_LABEL`].
-pub const DISABLED_LABEL: &str = "Disabled";
 
 /// Upper bound for the optional per-request `take` of `GET /api/cards`
 /// (the groom tab requests exactly as many rows as fit its viewport):
@@ -367,9 +362,13 @@ mod tests {
         let request = CreateCardRequest {
             prompt: "Q?".to_owned(),
             solution: "A.".to_owned(),
+            labels: vec!["Disabled".to_owned()],
         };
         let json = serde_json::to_string(&request)?;
-        assert_eq!(json, r#"{"prompt":"Q?","solution":"A."}"#);
+        assert_eq!(
+            json,
+            r#"{"prompt":"Q?","solution":"A.","labels":["Disabled"]}"#
+        );
         let parsed: CreateCardRequest = serde_json::from_str(&json)?;
         assert_eq!(parsed, request);
         Ok(())

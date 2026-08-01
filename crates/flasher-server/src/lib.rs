@@ -112,9 +112,9 @@ use flasher_core::SrsConfig;
 use flasher_store::{AutoSave, Card, CardState, NewCard, SetCardState, Store, User};
 use flasher_types::{
     AutoSaveResponse, BootstrapResponse, CardResponse, CardUpdateRequest, CreateCardRequest,
-    DISABLED_LABEL, ENABLED_LABEL, FindCardsResponse, GetAutoSaveResponse, HealthResponse,
-    LabelResponse, MAX_TAKE, NextCardResponse, PasskeyResponse, PutAutoSaveRequest,
-    RegisterStartRequest, RenamePasskeyRequest, SessionResponse, SetCardStateRequest,
+    FindCardsResponse, GetAutoSaveResponse, HealthResponse, LabelResponse, MAX_TAKE,
+    NextCardResponse, PasskeyResponse, PutAutoSaveRequest, RegisterStartRequest,
+    RenamePasskeyRequest, SessionResponse, SetCardStateRequest,
 };
 use serde::Deserialize;
 use tokio::net::TcpListener;
@@ -1131,33 +1131,33 @@ async fn list_labels(
 
 /// Query parameters of `GET /api/cards/next`: `labels` is a comma-joined
 /// list of label names (union semantics — the quiz's label filter). An
-/// ABSENT parameter keeps the pre-labels contract: `Enabled` only.
-/// (An explicitly empty parameter matches nothing.)
+/// ABSENT parameter disables filtering (label names carry no semantics,
+/// so there is no name-based default). An explicitly empty parameter
+/// matches nothing.
 #[derive(Debug, Deserialize)]
 struct NextCardQuery {
     labels: Option<String>,
 }
 
-/// `GET /api/cards/next` — the next due card carrying any of the
-/// requested labels, or `null`.
+/// `GET /api/cards/next` — the next due card (carrying any of the
+/// requested labels when given), or `null`.
 async fn next_card(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
     Query(query): Query<NextCardQuery>,
 ) -> Result<Json<NextCardResponse>, ApiError> {
-    let labels = query
-        .labels
-        .map_or_else(|| vec![ENABLED_LABEL.to_owned()], |raw| split_labels(&raw));
+    let labels = query.labels.as_deref().map(split_labels);
     let card = state
         .store
-        .next_card(user_id, now_millis(), &labels)
+        .next_card(user_id, now_millis(), labels.as_deref())
         .await?;
     Ok(Json(card.map(card_response)))
 }
 
 /// `POST /api/cards` — port of `CardsHandler.Create`: state `new`,
-/// label `Disabled` (the dissolved `disabled = true`), `change_time = now`,
-/// `next_time = now + NewCardWaitingTime`.
+/// `change_time = now`, `next_time = now + NewCardWaitingTime`, and the
+/// label set the user picked (required, non-empty; unknown names are
+/// created on demand — label names carry no semantics).
 async fn create_card(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
@@ -1165,6 +1165,11 @@ async fn create_card(
 ) -> Result<(StatusCode, Json<CardResponse>), ApiError> {
     if request.prompt.trim().is_empty() {
         return Err(ApiError::EmptyPrompt);
+    }
+    if request.labels.is_empty() {
+        return Err(ApiError::InvalidLabels(
+            flasher_store::Error::EmptyLabelSet.to_string(),
+        ));
     }
     let now = now_millis();
     let card = NewCard {
@@ -1175,7 +1180,7 @@ async fn create_card(
         state: CardState::New,
         change_time: now,
         next_time: flasher_core::next_time_for_new_card(now, &state.srs),
-        labels: vec![DISABLED_LABEL.to_owned()],
+        labels: request.labels,
     };
     state.store.insert_card(&card).await?;
     let response = CardResponse {
