@@ -134,7 +134,7 @@ async fn patch_deletes_draft_only_after_successful_content_update() -> TestResul
         Some(draft.prompt.clone())
     );
 
-    // A disabled-only toggle keeps the draft (like the old
+    // A label-only toggle keeps the draft (like the old
     // Enable/Disable endpoints, which never touched the autosave).
     let card: flasher_types::CardResponse = client
         .post(format!("{base}/api/cards"))
@@ -145,7 +145,7 @@ async fn patch_deletes_draft_only_after_successful_content_update() -> TestResul
         .await?;
     let response = client
         .patch(format!("{base}/api/cards/{}", card.id))
-        .json(&serde_json::json!({ "disabled": false }))
+        .json(&serde_json::json!({ "labels": ["Enabled"] }))
         .send()
         .await?;
     assert_eq!(response.status(), 200);

@@ -560,6 +560,46 @@ browser e2e (clicking) together — never a backend without its user-facing test
     flasher-types. <b>Deferred:</b> a draft-banner appearing/disappearing shifts the
     layout without a resize event, so the fit is stale (≤ ~one row under/overflow) until
     the next resize or remount — self-healing, sticky chrome covers the overflow direction.</li>
+    <li class="done"><b>Labels on cards, dissolved enabled/disabled (#129 follow-up, owner
+    2026-08-01):</b> the <code>disabled</code> flag became a per-user label model
+    (<code>labels</code> + <code>card_labels</code>; migration 0004 seeds
+    <code>Enabled</code>/<code>Disabled</code> and converts every card — verified against
+    the real database: 163/163 cards labeled). Users created later get seed labels from
+    the user create/upsert path. Groom's status dropdown is now a multi-label checkbox
+    filter (union semantics, empty selection matches nothing, first-usage default =
+    everything); the quiz has the same filter (default Enabled-only, the old behavior),
+    persisted INDEPENDENTLY of groom's; the pre-labels groom filter key translates
+    one-time into the new selection. The row Enable/Disable toggle flips the single
+    label; badges show labels except the default <code>Enabled</code>;
+    <code>PATCH /api/cards/{id}</code> replaces a card's label set (existing labels only,
+    non-empty, else 422); new cards still start with the <code>Disabled</code> label;
+    <code>GET /api/labels</code> lists them. Label creation UI is #129; old-migration
+    deletion check is #130; README warns migrations are not yet guaranteed stable.
+    (Bug caught by the new e2e during the slice: the filter component froze the empty
+    pre-fetch label list in a plain prop — the list is a signal now.)
+    Review round 11 (unprimed, browser-verified): PATCH is now client-error-atomic
+    (labels validate before any write — no more half-applied patch + surviving stale
+    draft, regression-pinned), the quiz next-card fetch got the groom tab's
+    stale-response generation guard, both retries also reload the labels list (a
+    transient labels failure stranded groom on a false "No cards match."), the legacy
+    filter key is always removed once seen, the add-card confirmation speaks "Disabled
+    label", <code>/api/labels</code> joined the auth-negative suite, and
+    persisted-selection validation went onto #129's checklist.</li>
+    <li class="done"><b>Label UI polish (owner feedback, 2026-08-01):</b> card rows badge
+    ALL of a card's labels uniformly (Enabled no longer special-cased; flex-wrap stays the
+    narrow-screen valve). The filter is now its own left-aligned row directly under the top
+    menu on both pages — a plain "Labels ▾" button (no counts) with the selected labels as
+    badges to its right; panel checkboxes sit in a clean right-hand column. The row "⋯"
+    menu gained a per-card label editor (checkbox modal for arbitrary label sets, Save
+    disabled while empty, same drop-out-of-filter fallback as the toggle; new e2e). The
+    viewport-fit accounting became exact (gap only between rows, no trailing gap — the new
+    chrome row pushed the old boundary over; unit-pinned). Follow-up (owner, same day):
+    panel checkboxes floated mid-panel on groom — the pre-labels <code>.groom input</code>
+    rule stretched every input on the page; it is scoped to the search box now
+    (CV-verified pixel-identical panels on both pages). Then (owner, same day): the
+    Enable/Disable row toggle went away — label editing became a first-class
+    <b>Labels</b> row button next to Edit (not a ⋯-menu item), covering the flip and
+    arbitrary sets; the ⋯ menu is back to the destructive pair (reset progress, delete).</li>
   </ul>
 </div>
 

@@ -6,6 +6,7 @@
 
 mod types;
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -13,11 +14,12 @@ use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use time::OffsetDateTime;
 
-pub use flasher_types::DisabledFilter;
-pub use types::{AutoSave, Card, CardState, NewCard, PasskeyRow, User};
+pub use flasher_types::{DISABLED_LABEL, ENABLED_LABEL};
+pub use types::{AutoSave, Card, CardState, Label, NewCard, PasskeyRow, User};
 
-/// Columns selected for every `Card` read, in `FromRow` order.
-const CARD_COLUMNS: &str = "id, prompt, solution, state, change_time, next_time, disabled";
+/// Columns selected for every `Card` read, in `FromRow` order (labels are
+/// loaded separately, from `card_labels` joined with `labels`).
+const CARD_COLUMNS: &str = "id, prompt, solution, state, change_time, next_time";
 
 /// Columns selected for every `PasskeyRow` read, in `FromRow` order.
 const PASSKEY_COLUMNS: &str = "id, user_id, credential_id, name, data, created_at, last_used_at";
@@ -34,6 +36,14 @@ pub enum Error {
     /// Creating the database file's parent directories failed.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),
+    /// A label set referenced a label the user does not have (the API
+    /// maps this to 422).
+    #[error("unknown label: {0}")]
+    UnknownLabel(String),
+    /// A label set replacement was empty (the API maps this to 422); a
+    /// card with no labels would be invisible to every union filter.
+    #[error("label set must not be empty")]
+    EmptyLabelSet,
 }
 
 impl Error {
@@ -153,6 +163,7 @@ impl Store {
         .bind(created_at)
         .fetch_one(&self.pool)
         .await?;
+        self.ensure_seed_labels(user.id).await?;
         Ok(user)
     }
 
@@ -210,14 +221,18 @@ impl Store {
         .bind(created_at)
         .fetch_optional(&self.pool)
         .await?;
-        if let Some(user) = inserted {
-            return Ok(user);
-        }
-        // The insert hit the uniqueness conflict: the user already exists.
-        // RowNotFound can only occur if the row is deleted concurrently.
-        self.get_user_by_name(username)
-            .await?
-            .ok_or(Error::Sqlx(sqlx::Error::RowNotFound))
+        let user = match inserted {
+            Some(user) => user,
+            // The insert hit the uniqueness conflict: the user already
+            // exists. RowNotFound can only occur if the row is deleted
+            // concurrently.
+            None => self
+                .get_user_by_name(username)
+                .await?
+                .ok_or(Error::Sqlx(sqlx::Error::RowNotFound))?,
+        };
+        self.ensure_seed_labels(user.id).await?;
+        Ok(user)
     }
 
     /// The number of users.
@@ -243,17 +258,122 @@ impl Store {
         Ok(users)
     }
 
+    // ---------------------------------------------------------------- labels
+
+    /// All labels of the user, ordered by name.
+    ///
+    /// # Errors
+    /// Returns an error on database failure.
+    pub async fn labels(&self, user_id: i64) -> Result<Vec<Label>, Error> {
+        let labels = sqlx::query_as::<_, Label>(
+            "SELECT id, name FROM labels WHERE user_id = ? ORDER BY name",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(labels)
+    }
+
+    /// Returns the id of the user's label `name`, creating it if needed.
+    ///
+    /// Used by insert/upsert paths and the importer; the API's label-set
+    /// replacement deliberately does NOT go through here (unknown labels
+    /// are a client error there, not an auto-create).
+    ///
+    /// # Errors
+    /// Returns an error on database failure.
+    pub async fn ensure_label(&self, user_id: i64, name: &str) -> Result<i64, Error> {
+        let inserted = sqlx::query_scalar::<_, i64>(
+            "INSERT INTO labels (user_id, name) VALUES (?, ?) \
+             ON CONFLICT (user_id, name) DO NOTHING \
+             RETURNING id",
+        )
+        .bind(user_id)
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await?;
+        if let Some(id) = inserted {
+            return Ok(id);
+        }
+        let id =
+            sqlx::query_scalar::<_, i64>("SELECT id FROM labels WHERE user_id = ? AND name = ?")
+                .bind(user_id)
+                .bind(name)
+                .fetch_one(&self.pool)
+                .await?;
+        Ok(id)
+    }
+
+    /// Makes sure the user carries the two seed labels (the dissolved
+    /// `disabled` flag). Called from the user create/upsert paths: users
+    /// created after the labels migration get their seeds here, not from
+    /// the migration.
+    async fn ensure_seed_labels(&self, user_id: i64) -> Result<(), Error> {
+        self.ensure_label(user_id, ENABLED_LABEL).await?;
+        self.ensure_label(user_id, DISABLED_LABEL).await?;
+        Ok(())
+    }
+
+    /// The label names attached to one card, ordered by name.
+    async fn labels_of(&self, card_id: &str) -> Result<Vec<String>, Error> {
+        let names = sqlx::query_scalar::<_, String>(
+            "SELECT l.name FROM card_labels cl JOIN labels l ON l.id = cl.label_id \
+             WHERE cl.card_id = ? ORDER BY l.name",
+        )
+        .bind(card_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(names)
+    }
+
+    /// `card_id -> label names` for every labeled card of the user (one
+    /// query for the all-in-memory `search_cards`).
+    async fn card_labels_map(&self, user_id: i64) -> Result<HashMap<String, Vec<String>>, Error> {
+        let rows = sqlx::query_as::<_, (String, String)>(
+            "SELECT cl.card_id, l.name FROM card_labels cl \
+             JOIN labels l ON l.id = cl.label_id \
+             JOIN cards c ON c.id = cl.card_id \
+             WHERE c.user_id = ? ORDER BY l.name",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut map: HashMap<String, Vec<String>> = HashMap::new();
+        for (card_id, name) in rows {
+            map.entry(card_id).or_default().push(name);
+        }
+        Ok(map)
+    }
+
+    /// Attaches `card`'s labels (via [`Store::ensure_label`], replacing
+    /// any current set). Shared by insert and upsert.
+    async fn attach_labels(&self, user_id: i64, card: &NewCard) -> Result<(), Error> {
+        sqlx::query("DELETE FROM card_labels WHERE card_id = ?")
+            .bind(&card.id)
+            .execute(&self.pool)
+            .await?;
+        for name in &card.labels {
+            let label_id = self.ensure_label(user_id, name).await?;
+            sqlx::query("INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)")
+                .bind(&card.id)
+                .bind(label_id)
+                .execute(&self.pool)
+                .await?;
+        }
+        Ok(())
+    }
+
     // ---------------------------------------------------------------- cards
 
-    /// Inserts a new card.
+    /// Inserts a new card, attaching its labels.
     ///
     /// # Errors
     /// Returns an error on database failure, including a uniqueness
     /// violation if the card id already exists.
     pub async fn insert_card(&self, card: &NewCard) -> Result<(), Error> {
         sqlx::query(
-            "INSERT INTO cards (id, user_id, prompt, solution, state, change_time, next_time, disabled) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO cards (id, user_id, prompt, solution, state, change_time, next_time) \
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&card.id)
         .bind(card.user_id)
@@ -262,29 +382,27 @@ impl Store {
         .bind(card.state)
         .bind(card.change_time)
         .bind(card.next_time)
-        .bind(card.disabled)
         .execute(&self.pool)
         .await?;
-        Ok(())
+        self.attach_labels(card.user_id, card).await
     }
 
-    /// Inserts the card, or replaces all of its fields if the id already
-    /// exists. Used by the importer for idempotence.
+    /// Inserts the card, or replaces all of its fields and labels if the
+    /// id already exists. Used by the importer for idempotence.
     ///
     /// # Errors
     /// Returns an error on database failure.
     pub async fn upsert_card(&self, user_id: i64, card: &Card) -> Result<(), Error> {
         sqlx::query(
-            "INSERT INTO cards (id, user_id, prompt, solution, state, change_time, next_time, disabled) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
+            "INSERT INTO cards (id, user_id, prompt, solution, state, change_time, next_time) \
+             VALUES (?, ?, ?, ?, ?, ?, ?) \
              ON CONFLICT (id) DO UPDATE SET \
              user_id = excluded.user_id, \
              prompt = excluded.prompt, \
              solution = excluded.solution, \
              state = excluded.state, \
              change_time = excluded.change_time, \
-             next_time = excluded.next_time, \
-             disabled = excluded.disabled",
+             next_time = excluded.next_time",
         )
         .bind(&card.id)
         .bind(user_id)
@@ -293,10 +411,19 @@ impl Store {
         .bind(card.state)
         .bind(card.change_time)
         .bind(card.next_time)
-        .bind(card.disabled)
         .execute(&self.pool)
         .await?;
-        Ok(())
+        let as_new = NewCard {
+            user_id,
+            id: card.id.clone(),
+            prompt: card.prompt.clone(),
+            solution: card.solution.clone(),
+            state: card.state,
+            change_time: card.change_time,
+            next_time: card.next_time,
+            labels: card.labels.clone(),
+        };
+        self.attach_labels(user_id, &as_new).await
     }
 
     /// Returns the card with this id owned by this user, if any.
@@ -311,12 +438,19 @@ impl Store {
         .bind(id)
         .fetch_optional(&self.pool)
         .await?;
-        Ok(card)
+        match card {
+            Some(mut card) => {
+                card.labels = self.labels_of(&card.id).await?;
+                Ok(Some(card))
+            }
+            None => Ok(None),
+        }
     }
 
     /// Applies a partial update of the content fields; `None` leaves the
     /// field unchanged. Returns the updated card, or `None` if no card
-    /// with this id exists for the user.
+    /// with this id exists for the user. (Labels are replaced separately,
+    /// via [`Store::set_card_labels`].)
     ///
     /// # Errors
     /// Returns an error on database failure.
@@ -326,24 +460,72 @@ impl Store {
         id: &str,
         prompt: Option<&str>,
         solution: Option<&str>,
-        disabled: Option<bool>,
     ) -> Result<Option<Card>, Error> {
         let card = sqlx::query_as::<_, Card>(&format!(
             "UPDATE cards SET \
              prompt = COALESCE(?, prompt), \
-             solution = COALESCE(?, solution), \
-             disabled = COALESCE(?, disabled) \
+             solution = COALESCE(?, solution) \
              WHERE user_id = ? AND id = ? \
              RETURNING {CARD_COLUMNS}"
         ))
         .bind(prompt)
         .bind(solution)
-        .bind(disabled)
         .bind(user_id)
         .bind(id)
         .fetch_optional(&self.pool)
         .await?;
-        Ok(card)
+        match card {
+            Some(mut card) => {
+                card.labels = self.labels_of(&card.id).await?;
+                Ok(Some(card))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Replaces the card's whole label set. Every name must be an
+    /// existing label of the user (no backdoor creation) and the set
+    /// must not be empty (a label-less card would be invisible to every
+    /// union filter). Returns the updated card, `None` if no card with
+    /// this id exists for the user.
+    ///
+    /// # Errors
+    /// [`Error::UnknownLabel`] for a label the user does not have,
+    /// [`Error::EmptyLabelSet`] for an empty set, or a database error.
+    pub async fn set_card_labels(
+        &self,
+        user_id: i64,
+        id: &str,
+        labels: &[String],
+    ) -> Result<Option<Card>, Error> {
+        if labels.is_empty() {
+            return Err(Error::EmptyLabelSet);
+        }
+        let mut label_ids = Vec::with_capacity(labels.len());
+        let known = self.labels(user_id).await?;
+        for name in labels {
+            let label = known
+                .iter()
+                .find(|label| &label.name == name)
+                .ok_or_else(|| Error::UnknownLabel(name.clone()))?;
+            label_ids.push(label.id);
+        }
+        // The card must exist and belong to the user.
+        let Some(_card) = self.get_card(user_id, id).await? else {
+            return Ok(None);
+        };
+        sqlx::query("DELETE FROM card_labels WHERE card_id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        for label_id in label_ids {
+            sqlx::query("INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)")
+                .bind(id)
+                .bind(label_id)
+                .execute(&self.pool)
+                .await?;
+        }
+        self.get_card(user_id, id).await
     }
 
     /// Sets the SRS state and scheduling times of a card owned by this
@@ -372,7 +554,13 @@ impl Store {
         .bind(id)
         .fetch_optional(&self.pool)
         .await?;
-        Ok(card)
+        match card {
+            Some(mut card) => {
+                card.labels = self.labels_of(&card.id).await?;
+                Ok(Some(card))
+            }
+            None => Ok(None),
+        }
     }
 
     /// Conditional variant of [`Store::set_card_state`]: the update is
@@ -407,7 +595,8 @@ impl Store {
         .bind(expected_change_time)
         .fetch_optional(&self.pool)
         .await?;
-        if let Some(card) = updated {
+        if let Some(mut card) = updated {
+            card.labels = self.labels_of(&card.id).await?;
             return Ok(SetCardState::Applied(card));
         }
         // The conditional update missed: either the card does not exist
@@ -437,13 +626,15 @@ impl Store {
     /// (`Contains(searchText, OrdinalIgnoreCase)`), ordered by
     /// `next_time` ascending (most due first), ties broken by `id`,
     /// then skip/take paging. `None` or an empty search matches all
-    /// cards of the user. `filter` restricts the hits by the `disabled`
-    /// flag (groom filter, issue #127). Returns the page and the total
-    /// number of matching cards.
+    /// cards of the user. `labels` restricts the hits by label
+    /// (labels replace the `disabled` flag, owner decision 2026-08-01):
+    /// `None` disables filtering, `Some(set)` keeps cards carrying ANY
+    /// label of the set (union semantics — `Some([])` matches nothing).
+    /// Returns the page and the total number of matching cards.
     ///
     /// Deliberate deviation from the old Find (owner decision
-    /// 2026-07-31): `disabled` is NOT a sort key — the old "enabled
-    /// first, disabled last" order made the groom list re-sort on every
+    /// 2026-07-31): labels are NOT a sort key — the old "enabled first,
+    /// disabled last" order made the groom list re-sort on every
     /// enable/disable toggle.
     ///
     /// Filtering and sorting happen in Rust, not SQL: `SQLite`'s `LIKE`
@@ -457,7 +648,7 @@ impl Store {
         &self,
         user_id: i64,
         search: Option<&str>,
-        filter: DisabledFilter,
+        labels: Option<&[String]>,
         skip: u32,
         limit: u32,
     ) -> Result<(Vec<Card>, i64), Error> {
@@ -467,16 +658,20 @@ impl Store {
         .bind(user_id)
         .fetch_all(&self.pool)
         .await?;
+        let mut label_map = self.card_labels_map(user_id).await?;
         let needle = search.unwrap_or("").to_lowercase();
         let mut hits: Vec<Card> = cards
             .into_iter()
+            .map(|mut card| {
+                card.labels = label_map.remove(&card.id).unwrap_or_default();
+                card
+            })
             .filter(|card| {
-                let status_matches = match filter {
-                    DisabledFilter::Enabled => !card.disabled,
-                    DisabledFilter::Disabled => card.disabled,
-                    DisabledFilter::All => true,
+                let labels_match = match labels {
+                    None => true,
+                    Some(set) => card.labels.iter().any(|name| set.contains(name)),
                 };
-                status_matches
+                labels_match
                     && (needle.is_empty()
                         || card.prompt.to_lowercase().contains(&needle)
                         || card.solution.to_lowercase().contains(&needle))
@@ -494,25 +689,50 @@ impl Store {
         Ok((page, count))
     }
 
-    /// The next card to review: enabled, `next_time <= now`, earliest
-    /// `next_time` first. Matches the semantics of the old
-    /// `CardStore.FindNext`; there is deliberately no special handling of
-    /// `state = 'new'` at the store level.
+    /// The next card to review: `next_time <= now`, earliest `next_time`
+    /// first, carrying ANY of `labels` (union semantics — the quiz's
+    /// label filter; an empty slice yields no card). Matches the rest of
+    /// the semantics of the old `CardStore.FindNext`; there is
+    /// deliberately no special handling of `state = 'new'` at the store
+    /// level.
     ///
     /// # Errors
     /// Returns an error on database failure.
-    pub async fn next_card(&self, user_id: i64, now: i64) -> Result<Option<Card>, Error> {
-        let card = sqlx::query_as::<_, Card>(&format!(
+    pub async fn next_card(
+        &self,
+        user_id: i64,
+        now: i64,
+        labels: &[String],
+    ) -> Result<Option<Card>, Error> {
+        if labels.is_empty() {
+            return Ok(None);
+        }
+        // One bound parameter per label name (union via IN).
+        let placeholders = labels.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let statement = format!(
             "SELECT {CARD_COLUMNS} FROM cards \
-             WHERE user_id = ? AND disabled = 0 AND next_time <= ? \
+             WHERE user_id = ? AND next_time <= ? \
+             AND EXISTS ( \
+                 SELECT 1 FROM card_labels cl JOIN labels l ON l.id = cl.label_id \
+                 WHERE cl.card_id = cards.id AND l.name IN ({placeholders}) \
+             ) \
              ORDER BY next_time ASC, id \
              LIMIT 1"
-        ))
-        .bind(user_id)
-        .bind(now)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(card)
+        );
+        let mut query = sqlx::query_as::<_, Card>(&statement)
+            .bind(user_id)
+            .bind(now);
+        for name in labels {
+            query = query.bind(name);
+        }
+        let card = query.fetch_optional(&self.pool).await?;
+        match card {
+            Some(mut card) => {
+                card.labels = self.labels_of(&card.id).await?;
+                Ok(Some(card))
+            }
+            None => Ok(None),
+        }
     }
 
     // ------------------------------------------------------------- autosave

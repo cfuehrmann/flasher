@@ -533,7 +533,11 @@ textarea:focus-visible {
   gap: 0.75rem;
 }
 
-.groom input {
+/* Scoped to the SEARCH box, not .groom-wide: the label filter panel and
+   the per-card label editor add checkbox inputs to the page, and a
+   .groom-wide width:100% stretches them (their glyphs then render
+   mid-panel instead of at the right edge; owner feedback 2026-08-01). */
+.groom-search input {
   width: 100%;
   box-sizing: border-box;
   font: inherit;
@@ -545,7 +549,7 @@ textarea:focus-visible {
   transition: border-color 120ms ease;
 }
 
-.groom input:focus-visible {
+.groom-search input:focus-visible {
   border-color: var(--accent-border);
 }
 
@@ -566,12 +570,79 @@ textarea:focus-visible {
   background: var(--bg);
 }
 
-/* Search box (with the clear button inside it) + status filter (issue
-   #127) share one row: the box takes the remaining width, the filter
-   keeps its natural size. */
+/* Search box (with the clear button inside it) + label filter share one
+   row: the box takes the remaining width, the filter keeps its natural
+   size. */
 .groom-controls {
   display: flex;
   gap: 0.5rem;
+}
+
+/* Multi-label filter (groom + quiz, labels dissolved the old status
+   dropdown, owner decision 2026-08-01): its own left-aligned row right
+   under the top menu — the "Labels ▾" button, then the selected labels
+   as badges — plus a checkbox panel, using the ⋯-menu layering idiom
+   (fixed backdrop at z-10, panel at z-11, both below the modal at z-20). */
+.label-filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.5rem;
+}
+
+.label-filter-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+.label-filter-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.25rem;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 12rem;
+  padding: 0.625rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Label name on the left, checkbox on the right — the checkboxes form
+   one clean right-hand column (owner feedback 2026-08-01). */
+.label-filter-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Generic label badge: muted outline, used for EVERY label alike — on
+   card rows (all of a card's labels) and for the filter's selection. */
+.badge.label {
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+}
+
+/* The per-card label editor inside the confirm-style modal: one
+   checkbox row per label (same left/right rhythm as the filter panel). */
+.modal-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0 0 1rem;
+}
+
+.modal-labels .label-filter-item {
+  white-space: normal;
 }
 
 /* Wrapper that makes the clear button visually part of the search box

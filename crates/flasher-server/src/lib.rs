@@ -112,9 +112,9 @@ use flasher_core::SrsConfig;
 use flasher_store::{AutoSave, Card, CardState, NewCard, SetCardState, Store, User};
 use flasher_types::{
     AutoSaveResponse, BootstrapResponse, CardResponse, CardUpdateRequest, CreateCardRequest,
-    DisabledFilter, FindCardsResponse, GetAutoSaveResponse, HealthResponse, MAX_TAKE,
-    NextCardResponse, PasskeyResponse, PutAutoSaveRequest, RegisterStartRequest,
-    RenamePasskeyRequest, SessionResponse, SetCardStateRequest,
+    DISABLED_LABEL, ENABLED_LABEL, FindCardsResponse, GetAutoSaveResponse, HealthResponse,
+    LabelResponse, MAX_TAKE, NextCardResponse, PasskeyResponse, PutAutoSaveRequest,
+    RegisterStartRequest, RenamePasskeyRequest, SessionResponse, SetCardStateRequest,
 };
 use serde::Deserialize;
 use tokio::net::TcpListener;
@@ -364,8 +364,11 @@ pub enum ApiError {
     #[error("prompt must not be empty")]
     EmptyPrompt,
     /// A card update must change at least one field.
-    #[error("update must set at least one of prompt, solution, disabled")]
+    #[error("update must set at least one of prompt, solution, labels")]
     EmptyUpdate,
+    /// A label set replacement named an unknown label or was empty.
+    #[error("{0}")]
+    InvalidLabels(String),
     /// The autosave written by `PUT /api/autosave` could not be read
     /// back (can only happen on a concurrent delete in between).
     #[error("autosave disappeared after write")]
@@ -426,6 +429,7 @@ impl IntoResponse for ApiError {
             Self::CardNotFound => StatusCode::NOT_FOUND.into_response(),
             Self::EmptyPrompt
             | Self::EmptyUpdate
+            | Self::InvalidLabels(_)
             | Self::InvalidUsername
             | Self::InvalidPasskeyName => {
                 (StatusCode::UNPROCESSABLE_ENTITY, self.to_string()).into_response()
@@ -483,6 +487,7 @@ pub fn app(dist_dir: PathBuf, state: AppState) -> Router {
     let api = Router::new()
         .route("/health", get(health))
         .nest("/auth", auth)
+        .route("/labels", get(list_labels))
         .route("/cards/next", get(next_card))
         .route("/cards", post(create_card).get(find_cards))
         .route(
@@ -1105,17 +1110,53 @@ fn auth_internal(err: impl std::fmt::Display) -> ApiError {
     ApiError::Internal(format!("auth: {err}"))
 }
 
-/// `GET /api/cards/next` — the next due enabled card, or `null`.
+/// `GET /api/labels` — the user's labels (per-user unique names; the two
+/// seed labels `Enabled`/`Disabled` dissolve the old `disabled` flag).
+async fn list_labels(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+) -> Result<Json<Vec<LabelResponse>>, ApiError> {
+    let labels = state
+        .store
+        .labels(user_id)
+        .await?
+        .into_iter()
+        .map(|label| LabelResponse {
+            id: label.id,
+            name: label.name,
+        })
+        .collect();
+    Ok(Json(labels))
+}
+
+/// Query parameters of `GET /api/cards/next`: `labels` is a comma-joined
+/// list of label names (union semantics — the quiz's label filter). An
+/// ABSENT parameter keeps the pre-labels contract: `Enabled` only.
+/// (An explicitly empty parameter matches nothing.)
+#[derive(Debug, Deserialize)]
+struct NextCardQuery {
+    labels: Option<String>,
+}
+
+/// `GET /api/cards/next` — the next due card carrying any of the
+/// requested labels, or `null`.
 async fn next_card(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
+    Query(query): Query<NextCardQuery>,
 ) -> Result<Json<NextCardResponse>, ApiError> {
-    let card = state.store.next_card(user_id, now_millis()).await?;
+    let labels = query
+        .labels
+        .map_or_else(|| vec![ENABLED_LABEL.to_owned()], |raw| split_labels(&raw));
+    let card = state
+        .store
+        .next_card(user_id, now_millis(), &labels)
+        .await?;
     Ok(Json(card.map(card_response)))
 }
 
 /// `POST /api/cards` — port of `CardsHandler.Create`: state `new`,
-/// `disabled = true`, `change_time = now`,
+/// label `Disabled` (the dissolved `disabled = true`), `change_time = now`,
 /// `next_time = now + NewCardWaitingTime`.
 async fn create_card(
     State(state): State<AppState>,
@@ -1134,7 +1175,7 @@ async fn create_card(
         state: CardState::New,
         change_time: now,
         next_time: flasher_core::next_time_for_new_card(now, &state.srs),
-        disabled: true,
+        labels: vec![DISABLED_LABEL.to_owned()],
     };
     state.store.insert_card(&card).await?;
     let response = CardResponse {
@@ -1144,27 +1185,37 @@ async fn create_card(
         state: card.state,
         change_time: card.change_time,
         next_time: card.next_time,
-        disabled: card.disabled,
+        labels: card.labels,
     };
     Ok((StatusCode::CREATED, Json(response)))
 }
 
+/// Splits a comma-joined labels query parameter into names. (`Enabled`
+/// and `Disabled` contain no comma; label creation with arbitrary names
+/// is future work and will keep this constraint.)
+fn split_labels(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
 /// Query parameters of `GET /api/cards` (`snake_case`; the old route used
 /// `searchText`, but this API is internal with no compat constraints).
-/// An absent `disabled_filter` defaults to `all` (owner decision
-/// 2026-07-31, revised the same day), matching the groom UI's
-/// first-usage default.
+/// An absent `labels` disables filtering, matching the groom UI's
+/// first-usage default of showing everything.
 #[derive(Debug, Deserialize)]
 struct FindCardsQuery {
     search_text: Option<String>,
-    disabled_filter: Option<DisabledFilter>,
+    labels: Option<String>,
     skip: Option<u32>,
     take: Option<u32>,
 }
 
 /// `GET /api/cards` — port of `CardsHandler.Find`: full-Unicode
-/// case-insensitive substring match over prompt and solution, filtered by
-/// the `disabled` flag per `disabled_filter`, then `next_time` ascending
+/// case-insensitive substring match over prompt and solution, filtered to
+/// cards carrying ANY of the `labels` (comma-joined; absent = no
+/// filtering, empty = nothing), then `next_time` ascending
 /// (`id` tie-break); the page size is the requested `take` (1..=[`MAX_TAKE`],
 /// the groom tab sizes it to its viewport) or the configured default when
 /// absent. Returns the page plus the total match count.
@@ -1177,12 +1228,13 @@ async fn find_cards(
         .take
         .filter(|&take| take > 0)
         .map_or(state.page_size, |take| take.min(MAX_TAKE));
+    let labels = query.labels.as_deref().map(split_labels);
     let (cards, count) = state
         .store
         .search_cards(
             user_id,
             query.search_text.as_deref(),
-            query.disabled_filter.unwrap_or_default(),
+            labels.as_deref(),
             query.skip.unwrap_or(0),
             take,
         )
@@ -1212,13 +1264,16 @@ async fn get_card(
 }
 
 /// `PATCH /api/cards/{id}` — port of `CardsHandler.Update`: an
-/// all-optional partial update of prompt/solution/disabled (the old
+/// all-optional partial update of prompt/solution/labels (the old
 /// request had no `disabled`, it was toggled via Enable/Disable — here
-/// one endpoint covers all three). Like the old handler, there is no
-/// prompt-emptiness guard on update; an all-absent body is a 422.
+/// one endpoint covers all three). `labels` REPLACES the card's whole
+/// set and must name existing labels only (unknown names and an empty
+/// set are 422 — no backdoor creation, no invisible cards). Like the old
+/// handler, there is no prompt-emptiness guard on update; an all-absent
+/// body is a 422.
 /// Side effect ported from `CardsHandler.Update`: when the request
 /// changes content (prompt and/or solution), the user's autosave draft is
-/// deleted; a pure `disabled` toggle keeps it (the old Enable/Disable
+/// deleted; a pure label toggle keeps it (the old Enable/Disable
 /// endpoints never touched the autosave). Returns the updated card, 404
 /// for unknown/other-user ids.
 ///
@@ -1233,21 +1288,44 @@ async fn patch_card(
     Path(id): Path<String>,
     Json(request): Json<CardUpdateRequest>,
 ) -> Result<Json<CardResponse>, ApiError> {
-    if request.prompt.is_none() && request.solution.is_none() && request.disabled.is_none() {
+    if request.prompt.is_none() && request.solution.is_none() && request.labels.is_none() {
         return Err(ApiError::EmptyUpdate);
     }
     let content_changed = request.prompt.is_some() || request.solution.is_some();
-    let updated = state
-        .store
-        .update_card_fields(
-            user_id,
-            &id,
-            request.prompt.as_deref(),
-            request.solution.as_deref(),
-            request.disabled,
-        )
-        .await?
-        .ok_or(ApiError::CardNotFound)?;
+    // The label step goes FIRST (adversarial review 2026-08-01): its
+    // validation (unknown names, empty set) is the only client-error
+    // that can still fail, and it must fail BEFORE any write — a 422
+    // after the content update would leave the card half-patched. The
+    // remaining failure modes of the content step (card gone, database
+    // error) are shared with the label step.
+    let mut updated = match &request.labels {
+        Some(labels) => match state.store.set_card_labels(user_id, &id, labels).await {
+            Ok(card) => card.ok_or(ApiError::CardNotFound)?,
+            Err(
+                err @ (flasher_store::Error::UnknownLabel(_) | flasher_store::Error::EmptyLabelSet),
+            ) => {
+                return Err(ApiError::InvalidLabels(err.to_string()));
+            }
+            Err(err) => return Err(err.into()),
+        },
+        None => state
+            .store
+            .get_card(user_id, &id)
+            .await?
+            .ok_or(ApiError::CardNotFound)?,
+    };
+    if request.prompt.is_some() || request.solution.is_some() {
+        updated = state
+            .store
+            .update_card_fields(
+                user_id,
+                &id,
+                request.prompt.as_deref(),
+                request.solution.as_deref(),
+            )
+            .await?
+            .ok_or(ApiError::CardNotFound)?;
+    }
     if content_changed {
         state.store.delete_autosave(user_id).await?;
     }
@@ -1271,8 +1349,8 @@ async fn delete_card(
 /// `DELETE /api/history/{id}` — port of `HistoryHandler.Delete`: resets
 /// the learning history by putting the card back to state `new` with
 /// `change_time = now` and `next_time = now + NewCardWaitingTime`
-/// (the `disabled` flag is untouched). Returns the updated card, 404 for
-/// unknown/other-user ids.
+/// (the card's labels are untouched — they live in their own table).
+/// Returns the updated card, 404 for unknown/other-user ids.
 async fn delete_history(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
@@ -1415,7 +1493,7 @@ fn card_response(card: Card) -> CardResponse {
         state: card.state,
         change_time: card.change_time,
         next_time: card.next_time,
-        disabled: card.disabled,
+        labels: card.labels,
     }
 }
 

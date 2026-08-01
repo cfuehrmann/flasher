@@ -34,7 +34,19 @@ struct CardRow {
     state: String,
     change_time: i64,
     next_time: i64,
-    disabled: bool,
+}
+
+#[derive(serde::Serialize, sqlx::FromRow)]
+struct LabelRow {
+    id: i64,
+    user_id: i64,
+    name: String,
+}
+
+#[derive(serde::Serialize, sqlx::FromRow)]
+struct CardLabelRow {
+    card_id: String,
+    name: String,
 }
 
 #[derive(serde::Serialize, sqlx::FromRow)]
@@ -72,8 +84,19 @@ async fn dump(store: &Store) -> Result<serde_json::Value, sqlx::Error> {
             .fetch_all(pool)
             .await?;
     let cards = sqlx::query_as::<_, CardRow>(
-        "SELECT id, user_id, prompt, solution, state, change_time, next_time, disabled \
+        "SELECT id, user_id, prompt, solution, state, change_time, next_time \
          FROM cards ORDER BY user_id, id",
+    )
+    .fetch_all(pool)
+    .await?;
+    let labels = sqlx::query_as::<_, LabelRow>(
+        "SELECT id, user_id, name FROM labels ORDER BY user_id, name",
+    )
+    .fetch_all(pool)
+    .await?;
+    let card_labels = sqlx::query_as::<_, CardLabelRow>(
+        "SELECT cl.card_id, l.name FROM card_labels cl JOIN labels l ON l.id = cl.label_id \
+         ORDER BY cl.card_id, l.name",
     )
     .fetch_all(pool)
     .await?;
@@ -98,6 +121,8 @@ async fn dump(store: &Store) -> Result<serde_json::Value, sqlx::Error> {
         "passkeys": passkeys,
         "sessions": sessions,
         "cards": cards,
+        "labels": labels,
+        "card_labels": card_labels,
         "autosaves": autosaves,
     }))
 }
@@ -314,7 +339,7 @@ async fn verify_catches_a_tampered_db_state_count() -> TestResult {
             state: CardState::New,
             change_time: 1,
             next_time: 2,
-            disabled: false,
+            labels: vec![flasher_store::ENABLED_LABEL.to_owned()],
         })
         .await?;
 

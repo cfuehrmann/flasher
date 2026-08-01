@@ -92,9 +92,12 @@ exclude_re = [
     # build in Chromium: the search debounce + unicode folding, paging
     # arithmetic and the page-info line, the enable/disable toggle, delete
     # (incl. last-item-on-page and the learned-card progress warning), the
-    # progress reset, and the row "⋯" menu open/dismiss. The two generation
-    # counters (debounce/stale-fetch guards) are race guards no state-based
-    # browser test can drive deterministically; they are defensive by design.
+    # progress reset, and the row "⋯" menu open/dismiss. The generation
+    # counters in groom.rs AND quiz.rs (debounce/stale-fetch guards) are race
+    # guards no state-based browser test can drive deterministically; they
+    # are defensive by design.
+    'quiz\.rs:\d+:\d+: replace \+= with (-=|\*=) in Quiz',
+    'quiz\.rs:\d+:\d+: replace != with == in Quiz',
     'groom\.rs:\d+:\d+: .* in (Groom|ConfirmAction::progress_warning|due_label)$',
     'replace (as_i64|due_label) -> ',
     # ConfirmAction's modal-text helpers: pure, but only the browser e2e
@@ -159,4 +162,33 @@ exclude_re = [
     # (The `all(test, ...)` cfg form evades cargo-mutants' own test-code
     # detection, hence the explicit exclusion.)
     'csr_tests::',
+
+    # --- Browser-only label-filter glue (labels on cards, 2026-08-01) --------
+    # api::labels / api::next_card are HTTP wrappers (gloo-net): no
+    # host-target fetch exists, so host tests cannot observe them. Both are
+    # pinned by the browser e2e suite: quiz_label_filter_selects_persists_
+    # and_is_independent (03_quiz.rs) drives next_card's labels parameter,
+    # and every label-filter test drives the labels list through the panels.
+    'replace labels -> Result<Vec<LabelResponse>, String> with ',
+    'replace != with == in labels',
+    'replace next_card -> Result<NextCardResponse, String> with ',
+    # initial_labels (groom and quiz) only READ localStorage, which does not
+    # exist on the host target — under ssr the cfg'd branch vanishes and the
+    # default is all a host test could observe. The behaviors are e2e-pinned:
+    # old_groom_filter_key_translates_to_label_selection (04_groom.rs) drives
+    # the legacy-key translation incl. the enabled/disabled match arms and
+    # the new-key persistence; filter_and_search_survive_tab_switch_and_
+    # reload pins the groom selection restore; the quiz default (Enabled
+    # only) is pinned by quiz_label_filter_selects_persists_and_is_
+    # independent's first-usage assertion.
+    'replace initial_labels -> ',
+    'delete match arm "enabled" in initial_labels',
+    'delete match arm "disabled" in initial_labels',
+    # GroomRow renders only in the browser — the ssr test never reaches a
+    # loaded list. disable_enable_toggle (04_groom.rs) pins the label
+    # comparisons that were here: badge presence/absence via the label
+    # editor (the row Enable/Disable toggle was removed 2026-08-01,
+    # subsumed by the editor).
+    'replace == with != in GroomRow',
+    'replace != with == in GroomRow',
 ]

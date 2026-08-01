@@ -75,7 +75,10 @@ pub struct CardResponse {
     pub change_time: i64,
     /// Unix epoch millis.
     pub next_time: i64,
-    pub disabled: bool,
+    /// The card's labels (names). Since the labels migration the old
+    /// `disabled` flag is a label like any other: cards start out with
+    /// `Disabled` and are quizzed once they carry `Enabled`.
+    pub labels: Vec<String>,
 }
 
 /// Body of `POST /api/cards/{id}/set-ok|set-failed`: the `change_time`
@@ -98,8 +101,10 @@ pub struct CreateCardRequest {
 
 /// Body of `PATCH /api/cards/{id}`: an all-optional partial update of the
 /// content fields, like the old `CardUpdate` — `null`/absent leaves the
-/// field unchanged. A body with all three fields absent is rejected with
-/// 422 by the server.
+/// field unchanged. `labels` REPLACES the card's whole label set; only
+/// existing label names are accepted and the set must not be empty (the
+/// server rejects both with 422). A body with all three fields absent is
+/// rejected with 422 by the server.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CardUpdateRequest {
     #[serde(default)]
@@ -107,49 +112,28 @@ pub struct CardUpdateRequest {
     #[serde(default)]
     pub solution: Option<String>,
     #[serde(default)]
-    pub disabled: Option<bool>,
+    pub labels: Option<Vec<String>>,
 }
 
-/// Groom list filter on the `disabled` flag: the `disabled_filter` query
-/// parameter of `GET /api/cards` (`snake_case` values). Both sides share
-/// this enum, so the wire values cannot drift. The default is `All`
-/// (owner decision 2026-07-31, revised the same day): the groom list
-/// shows everything on first use; the UI persists the user's choice
-/// (localStorage), so the default only ever applies to a fresh browser.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DisabledFilter {
-    /// Only enabled cards.
-    Enabled,
-    /// Only disabled cards.
-    Disabled,
-    /// No filtering — enabled and disabled cards.
-    #[default]
-    All,
+/// One label as returned by `GET /api/labels`. Labels are per-user and
+/// identified by name on the wire (unique per user); the two seed labels
+/// `Enabled`/`Disabled` dissolve the old `disabled` flag (owner decision
+/// 2026-08-01).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct LabelResponse {
+    /// Database id of the label row.
+    pub id: i64,
+    pub name: String,
 }
 
-impl DisabledFilter {
-    /// The `snake_case` wire representation (query parameter value).
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Enabled => "enabled",
-            Self::Disabled => "disabled",
-            Self::All => "all",
-        }
-    }
-
-    /// Parses the `snake_case` wire representation.
-    #[must_use]
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "enabled" => Some(Self::Enabled),
-            "disabled" => Some(Self::Disabled),
-            "all" => Some(Self::All),
-            _ => None,
-        }
-    }
-}
+/// The two seed labels every user has (the dissolved `disabled` flag):
+/// cards start out with [`DISABLED_LABEL`] and are quizzed once they
+/// carry [`ENABLED_LABEL`]. Shared so server defaults, the store's
+/// per-user seeding and the frontend's default filter selections cannot
+/// drift apart.
+pub const ENABLED_LABEL: &str = "Enabled";
+/// See [`ENABLED_LABEL`].
+pub const DISABLED_LABEL: &str = "Disabled";
 
 /// Upper bound for the optional per-request `take` of `GET /api/cards`
 /// (the groom tab requests exactly as many rows as fit its viewport):
@@ -336,37 +320,16 @@ mod tests {
     }
 
     #[test]
-    fn disabled_filter_serializes_snake_case() -> TestResult {
-        assert_eq!(
-            serde_json::to_string(&DisabledFilter::Enabled)?,
-            "\"enabled\""
-        );
-        assert_eq!(
-            serde_json::to_string(&DisabledFilter::Disabled)?,
-            "\"disabled\""
-        );
-        assert_eq!(serde_json::to_string(&DisabledFilter::All)?, "\"all\"");
-        assert_eq!(
-            serde_json::from_str::<DisabledFilter>("\"disabled\"")?,
-            DisabledFilter::Disabled
-        );
-        assert!(serde_json::from_str::<DisabledFilter>("\"bogus\"").is_err());
+    fn label_response_uses_snake_case_fields() -> TestResult {
+        let label = LabelResponse {
+            id: 7,
+            name: "Enabled".to_owned(),
+        };
+        let json = serde_json::to_string(&label)?;
+        assert_eq!(json, r#"{"id":7,"name":"Enabled"}"#);
+        let parsed: LabelResponse = serde_json::from_str(&json)?;
+        assert_eq!(parsed, label);
         Ok(())
-    }
-
-    #[test]
-    fn disabled_filter_str_round_trip_and_default() {
-        for filter in [
-            DisabledFilter::Enabled,
-            DisabledFilter::Disabled,
-            DisabledFilter::All,
-        ] {
-            assert_eq!(DisabledFilter::parse(filter.as_str()), Some(filter));
-        }
-        assert_eq!(DisabledFilter::parse("bogus"), None);
-        // Owner decision 2026-07-31 (revised same day): the groom list
-        // defaults to all on first use; the choice persists client-side.
-        assert_eq!(DisabledFilter::default(), DisabledFilter::All);
     }
 
     #[test]
@@ -378,12 +341,12 @@ mod tests {
             state: CardState::Ok,
             change_time: 1,
             next_time: 2,
-            disabled: false,
+            labels: vec!["Enabled".to_owned()],
         };
         let json = serde_json::to_string(&card)?;
         assert_eq!(
             json,
-            r#"{"id":"c1","prompt":"p","solution":"s","state":"ok","change_time":1,"next_time":2,"disabled":false}"#
+            r#"{"id":"c1","prompt":"p","solution":"s","state":"ok","change_time":1,"next_time":2,"labels":["Enabled"]}"#
         );
         let parsed: CardResponse = serde_json::from_str(&json)?;
         assert_eq!(parsed, card);
@@ -420,14 +383,17 @@ mod tests {
             CardUpdateRequest {
                 prompt: None,
                 solution: None,
-                disabled: None,
+                labels: None,
             }
         );
-        let partial: CardUpdateRequest = serde_json::from_str(r#"{"disabled":true}"#)?;
-        assert_eq!(partial.disabled, Some(true));
+        let partial: CardUpdateRequest = serde_json::from_str(r#"{"labels":["Disabled"]}"#)?;
+        assert_eq!(partial.labels, Some(vec!["Disabled".to_owned()]));
         assert_eq!(partial.prompt, None);
         let json = serde_json::to_string(&partial)?;
-        assert_eq!(json, r#"{"prompt":null,"solution":null,"disabled":true}"#);
+        assert_eq!(
+            json,
+            r#"{"prompt":null,"solution":null,"labels":["Disabled"]}"#
+        );
         Ok(())
     }
 
@@ -544,7 +510,7 @@ mod tests {
                 state: CardState::New,
                 change_time: 1,
                 next_time: 2,
-                disabled: true,
+                labels: vec!["Disabled".to_owned()],
             }],
             count: 7,
             page_size: 10,
@@ -552,7 +518,7 @@ mod tests {
         let json = serde_json::to_string(&response)?;
         assert_eq!(
             json,
-            r#"{"cards":[{"id":"c1","prompt":"p","solution":"s","state":"new","change_time":1,"next_time":2,"disabled":true}],"count":7,"page_size":10}"#
+            r#"{"cards":[{"id":"c1","prompt":"p","solution":"s","state":"new","change_time":1,"next_time":2,"labels":["Disabled"]}],"count":7,"page_size":10}"#
         );
         let parsed: FindCardsResponse = serde_json::from_str(&json)?;
         assert_eq!(parsed, response);

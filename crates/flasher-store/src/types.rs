@@ -17,7 +17,9 @@ pub struct User {
     pub created_at: i64,
 }
 
-/// A flash card as persisted in the `cards` table.
+/// A flash card as persisted in the `cards` table, plus its labels
+/// (from `card_labels` joined with `labels`; loaded separately from the
+/// card row itself).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Card {
     pub id: String,
@@ -28,7 +30,9 @@ pub struct Card {
     pub change_time: i64,
     /// Unix epoch millis.
     pub next_time: i64,
-    pub disabled: bool,
+    /// Label names, filled by the store's read paths after the row load.
+    #[sqlx(skip)]
+    pub labels: Vec<String>,
 }
 
 /// Data needed to insert a new card.
@@ -43,7 +47,15 @@ pub struct NewCard {
     pub change_time: i64,
     /// Unix epoch millis.
     pub next_time: i64,
-    pub disabled: bool,
+    /// Label names to attach (created on demand via `ensure_label`).
+    pub labels: Vec<String>,
+}
+
+/// A label as persisted in the `labels` table (per-user unique name).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Label {
+    pub id: i64,
+    pub name: String,
 }
 
 /// The in-progress edit a client autosaves during a card edit session.

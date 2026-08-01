@@ -322,7 +322,7 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
             })}
             {move || confirmation.get().then(|| view! {
                 <p class="form-ok" id="add-card-confirmation">
-                    "Card created — it starts disabled; enable it in the Groom tab."
+                    "Card created — it starts with the Disabled label; enable it in the Groom tab."
                 </p>
             })}
             {move || error.get().map(|err| view! {

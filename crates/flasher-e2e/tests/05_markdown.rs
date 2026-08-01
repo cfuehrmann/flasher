@@ -44,7 +44,7 @@ async fn seed_due_card(h: &TestHarness, id: &str, prompt: &str, solution: &str) 
             state: CardState::New,
             change_time: now - 60_000,
             next_time: now - 1_000,
-            disabled: false,
+            labels: vec![flasher_store::ENABLED_LABEL.to_owned()],
         })
         .await
         .map_err(store_err)

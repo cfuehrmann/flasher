@@ -12,7 +12,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use chromiumoxide::cdp::browser_protocol::input::InsertTextParams;
 use flasher_e2e::{E2E_USER, Error, Result, TestHarness};
-use flasher_store::{CardState, DisabledFilter, NewCard, Store};
+use flasher_store::{CardState, NewCard, Store};
 
 /// Timeout for every DOM wait; generous because the wasm bundle has to
 /// download and boot first (same reasoning as the harness default).
@@ -80,7 +80,11 @@ async fn seed_card(
             state,
             change_time,
             next_time,
-            disabled,
+            labels: vec![if disabled {
+                flasher_store::DISABLED_LABEL.to_owned()
+            } else {
+                flasher_store::ENABLED_LABEL.to_owned()
+            }],
         })
         .await
         .map_err(store_err)
@@ -195,26 +199,34 @@ async fn wait_scrolled(h: &TestHarness) -> Result<()> {
     }
 }
 
-/// Picks a status-filter option like a user: sets the select's value and
-/// fires the bubbling `change` event its `on:change` handler listens to
-/// (CDP has no realistic "choose a native select option" input path).
-async fn set_filter(h: &TestHarness, value: &str) -> Result<()> {
-    let applied = h
-        .eval::<bool>(&format!(
-            "(() => {{
-            const s = document.querySelector('#groom-filter');
-            s.value = '{value}';
-            s.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            return s.value === '{value}';
-        }})()"
-        ))
+/// Sets exactly the given labels checked in a label filter (union
+/// semantics), clicking like a user: open the panel, toggle each
+/// checkbox into the wanted state, close via the backdrop. `id_prefix`
+/// distinguishes the groom and quiz filters.
+async fn set_label_filter(h: &TestHarness, id_prefix: &str, only: &[&str]) -> Result<()> {
+    h.click(&format!("#{id_prefix}-label-filter-button"))
         .await?;
-    if !applied {
-        return Err(Error::message(format!(
-            "filter option {value:?} not selectable"
-        )));
+    h.wait_for_selector(&format!("#{id_prefix}-label-filter-panel"), TIMEOUT)
+        .await?;
+    // The seed labels (creation is future work — a GitHub issue).
+    for name in ["Enabled", "Disabled"] {
+        let box_sel = format!("#{id_prefix}-label-{name}");
+        let want = only.contains(&name);
+        let is = h
+            .eval::<bool>(&format!("document.querySelector('{box_sel}').checked"))
+            .await?;
+        if is != want {
+            h.click(&box_sel).await?;
+        }
     }
-    Ok(())
+    h.click(".label-filter-backdrop").await?;
+    wait_until_gone(h, ".label-filter-panel", TIMEOUT).await
+}
+
+/// The persisted label selection of a filter (`localStorage`).
+async fn persisted_labels(h: &TestHarness, key: &str) -> Result<String> {
+    h.eval::<String>(&format!("localStorage.getItem('{key}') ?? ''"))
+        .await
 }
 
 /// Polls until no element matches `sel` (row/badge/modal removal).
@@ -401,17 +413,14 @@ async fn filter_enabled_disabled_all() -> Result<()> {
             "test premise: the calibrated page size {fit} must leave the 11 enabled cards paged"
         )));
     }
-    // First usage (fresh browser profile, nothing persisted): the filter
-    // defaults to `all` (owner decision 2026-07-31) — all 12 cards.
+    // First usage (fresh browser profile, nothing persisted): the label
+    // filter defaults to everything selected (owner decision 2026-07-31)
+    // — all 12 cards, and both selection badges show next to the button.
     h.wait_for_text("#groom-page-info", &showing(0, fit, 12), TIMEOUT)
         .await?;
-    if h.eval::<String>("document.querySelector('#groom-filter').value")
-        .await?
-        != "all"
-    {
-        return Err(Error::message(
-            "the filter should default to all on first use",
-        ));
+    for name in ["Enabled", "Disabled"] {
+        h.wait_for_selector(&format!("#groom-selected-{name}"), TIMEOUT)
+            .await?;
     }
     let results = h.text_content("#groom-results").await?;
     if !results.contains("P01") || !results.contains("Disabled prompt") {
@@ -421,46 +430,49 @@ async fn filter_enabled_disabled_all() -> Result<()> {
     }
     h.screenshot("04_groom/filter-all").await?;
 
-    // `enabled`: the disabled card hides, the 11 enabled ones paginate.
-    set_filter(&h, "enabled").await?;
+    // Only `Enabled`: the disabled card hides, the 11 enabled paginate.
+    set_label_filter(&h, "groom", &["Enabled"]).await?;
     h.wait_for_text("#groom-page-info", &showing(0, fit, 11), TIMEOUT)
         .await?;
     let results = h.text_content("#groom-results").await?;
     if results.contains("Disabled prompt") {
         return Err(Error::message(format!(
-            "enabled filter must hide the disabled card, shows: {results:?}"
+            "the Enabled-only filter must hide the disabled card, shows: {results:?}"
         )));
     }
     h.screenshot("04_groom/filter-enabled").await?;
 
-    // Go to page 2, then switch the filter: it must reset to page 0.
+    // Go to page 2, then switch to Disabled-only: it must reset to page 0.
     h.click("#groom-next").await?;
     h.wait_for_text("#groom-page-info", &showing(1, fit, 11), TIMEOUT)
         .await?;
-    set_filter(&h, "disabled").await?;
+    set_label_filter(&h, "groom", &["Disabled"]).await?;
     h.wait_for_text("#groom-page-info", "showing 1–1 of 1", TIMEOUT)
         .await?;
     let results = h.text_content("#groom-results").await?;
     if !results.contains("Disabled prompt") || results.contains("P01") {
         return Err(Error::message(format!(
-            "disabled filter should list only the disabled card, shows: {results:?}"
+            "the Disabled-only filter should list only the disabled card, shows: {results:?}"
         )));
     }
     h.screenshot("04_groom/filter-disabled").await?;
+
+    // An empty selection matches nothing (union of no labels).
+    set_label_filter(&h, "groom", &[]).await?;
+    h.wait_for_selector("#groom-empty", TIMEOUT).await?;
+    h.screenshot("04_groom/filter-none").await?;
     Ok(())
 }
 
 /// Asserts the restored groom state after a remount: the list is back
 /// to the one persisted hit, and both controls show the persisted
-/// values (`disabled` filter, `alpha` search).
+/// values (`Disabled`-only label selection, `alpha` search).
 async fn expect_restored(h: &TestHarness) -> Result<()> {
     h.wait_for_text("#groom-page-info", "of 1", TIMEOUT).await?;
-    let filter = h
-        .eval::<String>("document.querySelector('#groom-filter').value")
-        .await?;
-    if filter != "disabled" {
+    let labels = persisted_labels(h, "flasher-groom-labels").await?;
+    if labels != "Disabled" {
         return Err(Error::message(format!(
-            "filter should be restored as disabled, is {filter:?}"
+            "the label selection should be restored as Disabled, is {labels:?}"
         )));
     }
     let search = h
@@ -512,9 +524,9 @@ async fn filter_and_search_survive_tab_switch_and_reload() -> Result<()> {
     goto_groom(&h).await?;
     h.wait_for_text("#groom-page-info", "of 3", TIMEOUT).await?;
 
-    // Filter `disabled`, then search `alpha`: exactly the one matching
-    // disabled card remains.
-    set_filter(&h, "disabled").await?;
+    // Filter `Disabled` only, then search `alpha`: exactly the one
+    // matching disabled card remains.
+    set_label_filter(&h, "groom", &["Disabled"]).await?;
     h.wait_for_text("#groom-page-info", "of 2", TIMEOUT).await?;
     h.type_into("#groom-search", "alpha").await?;
     h.wait_for_text("#groom-page-info", "of 1", TIMEOUT).await?;
@@ -565,9 +577,10 @@ async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
     h.goto("/groom").await?;
     h.wait_for_selector("#groom-search", TIMEOUT).await?;
 
-    // The first-usage default is `all`; the fallback this test pins
-    // needs the `enabled` filter so the toggle drops the row out.
-    set_filter(&h, "enabled").await?;
+    // The first-usage default selects everything; the fallback this
+    // test pins needs the Enabled-only filter so the toggle drops the
+    // row out.
+    set_label_filter(&h, "groom", &["Enabled"]).await?;
     h.wait_for_text("#groom-page-info", &showing(0, fit, fit + 1), TIMEOUT)
         .await?;
     h.click("#groom-next").await?;
@@ -577,10 +590,15 @@ async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
         return Err(Error::message("page 2 should show exactly 1 row"));
     }
 
-    // Disabling the single row of page 2 drops it out of the `enabled`
-    // filter: the UI must land back on page 1 with the refreshed count.
+    // Disabling the single row of page 2 (via the label editor) drops
+    // it out of the Enabled-only filter: the UI must land back on
+    // page 1 with the refreshed count.
     let last_id = format!("card-t{:02}", fit + 1);
-    h.click(&format!("#toggle-disabled-{last_id}")).await?;
+    h.click(&format!("#labels-{last_id}")).await?;
+    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
+    h.click("#label-modal-label-Enabled").await?;
+    h.click("#label-modal-label-Disabled").await?;
+    h.click("#label-modal-save").await?;
     h.wait_for_text("#groom-page-info", &showing(0, fit, fit), TIMEOUT)
         .await?;
     if row_count(&h).await? != fit {
@@ -591,8 +609,8 @@ async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
         .await
         .map_err(store_err)?
         .ok_or_else(|| Error::message(format!("{last_id} vanished")))?;
-    if !card.disabled {
-        return Err(Error::message("store row should be disabled=true"));
+    if !card.labels.iter().any(|label| label == "Disabled") {
+        return Err(Error::message("store row should carry the Disabled label"));
     }
     h.screenshot("04_groom/toggle-last-item-back").await?;
     Ok(())
@@ -696,58 +714,64 @@ async fn disable_enable_toggle() -> Result<()> {
     .await?;
 
     goto_groom(&h).await?;
-    // The first-usage default is `all`; this test is about the
-    // filter interplay, so it starts from `enabled`.
-    set_filter(&h, "enabled").await?;
-    h.wait_for_selector("#toggle-disabled-card-toggle", TIMEOUT)
-        .await?;
+    // The first-usage default selects everything; this test is about
+    // the filter interplay, so it starts from Enabled-only.
+    set_label_filter(&h, "groom", &["Enabled"]).await?;
+    h.wait_for_selector("#labels-card-toggle", TIMEOUT).await?;
 
-    // Disable: the row leaves the default `enabled` filter, and the
-    // store row follows.
-    h.click("#toggle-disabled-card-toggle").await?;
+    // Disable via the label editor: the row leaves the Enabled-only
+    // filter, and the store row gains the Disabled label.
+    h.click("#labels-card-toggle").await?;
+    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
+    h.click("#label-modal-label-Enabled").await?;
+    h.click("#label-modal-label-Disabled").await?;
+    h.click("#label-modal-save").await?;
     wait_until_gone(&h, "#groom-row-card-toggle", TIMEOUT).await?;
     let card = store
         .get_card(user_id, "card-toggle")
         .await
         .map_err(store_err)?
         .ok_or_else(|| Error::message("card-toggle vanished"))?;
-    if !card.disabled {
-        return Err(Error::message("store row should be disabled=true"));
+    if !card.labels.iter().any(|label| label == "Disabled") {
+        return Err(Error::message("store row should carry the Disabled label"));
     }
 
-    // The `disabled` filter shows the card: badge, `Enable` label.
-    set_filter(&h, "disabled").await?;
-    h.wait_for_selector("#disabled-card-toggle", TIMEOUT)
+    // The Disabled-only filter shows the card, label-badged.
+    set_label_filter(&h, "groom", &["Disabled"]).await?;
+    h.wait_for_selector("#label-Disabled-card-toggle", TIMEOUT)
         .await?;
-    if h.text_content("#toggle-disabled-card-toggle").await? != "Enable" {
-        return Err(Error::message("toggle should read Enable once disabled"));
-    }
     h.screenshot("04_groom/disabled-badge").await?;
 
-    // Enable again: the row leaves the `disabled` filter, the store row
-    // follows, and the `enabled` filter shows the card badge-free.
-    h.click("#toggle-disabled-card-toggle").await?;
+    // Enable again via the editor: the row leaves the Disabled-only
+    // filter, the store row follows, and Enabled-only shows the card
+    // with the Enabled badge instead.
+    h.click("#labels-card-toggle").await?;
+    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
+    h.click("#label-modal-label-Disabled").await?;
+    h.click("#label-modal-label-Enabled").await?;
+    h.click("#label-modal-save").await?;
     wait_until_gone(&h, "#groom-row-card-toggle", TIMEOUT).await?;
     let card = store
         .get_card(user_id, "card-toggle")
         .await
         .map_err(store_err)?
         .ok_or_else(|| Error::message("card-toggle vanished"))?;
-    if card.disabled {
-        return Err(Error::message("store row should be disabled=false"));
+    if card.labels.iter().any(|label| label == "Disabled") {
+        return Err(Error::message(
+            "store row should not carry the Disabled label",
+        ));
     }
-    set_filter(&h, "enabled").await?;
-    h.wait_for_selector("#toggle-disabled-card-toggle", TIMEOUT)
+    set_label_filter(&h, "groom", &["Enabled"]).await?;
+    // Every label is badged uniformly (owner feedback 2026-08-01): the
+    // Enabled badge shows, the Disabled badge is gone.
+    h.wait_for_selector("#label-Enabled-card-toggle", TIMEOUT)
         .await?;
-    if h.eval::<bool>("!!document.querySelector('#disabled-card-toggle')")
+    if h.eval::<bool>("!!document.querySelector('#label-Disabled-card-toggle')")
         .await?
     {
         return Err(Error::message(
-            "enabled card must not show a disabled badge",
+            "enabled card must not show a Disabled badge",
         ));
-    }
-    if h.text_content("#toggle-disabled-card-toggle").await? != "Disable" {
-        return Err(Error::message("toggle should read Disable once enabled"));
     }
     Ok(())
 }
@@ -850,7 +874,7 @@ async fn delete_last_item_on_page_goes_back() -> Result<()> {
         return Err(Error::message("should be back on page 1 with a full page"));
     }
     let (_cards, count) = store
-        .search_cards(user_id, None, DisabledFilter::All, 0, 100)
+        .search_cards(user_id, None, None, 0, 100)
         .await
         .map_err(store_err)?;
     if count != i64::try_from(fit).unwrap_or(i64::MAX) {
@@ -926,8 +950,9 @@ async fn reset_progress_with_confirm_modal() -> Result<()> {
     Ok(())
 }
 
-/// The money test of the slice: a disabled due card is not quizzable;
-/// enabling it in Groom makes it appear in the Quiz tab.
+/// The money test of the slice: a Disabled-labeled due card is not
+/// quizzable (the quiz's default selection is Enabled-only); enabling it
+/// in Groom makes it appear in the Quiz tab.
 #[tokio::test]
 #[ignore = "browser"]
 async fn disabled_card_not_quizzable_until_enabled() -> Result<()> {
@@ -952,12 +977,15 @@ async fn disabled_card_not_quizzable_until_enabled() -> Result<()> {
     h.screenshot("04_groom/cross-quiz-done").await?;
 
     h.click("#tab-groom").await?;
-    // The card starts disabled; the first-usage default filter `all`
-    // lists it for the toggle.
-    h.wait_for_selector("#toggle-disabled-card-cross", TIMEOUT)
-        .await?;
-    h.click("#toggle-disabled-card-cross").await?;
-    wait_until_gone(&h, "#disabled-card-cross", TIMEOUT).await?;
+    // The card starts with the Disabled label; the first-usage default
+    // (everything selected) lists it for the label editor.
+    h.wait_for_selector("#labels-card-cross", TIMEOUT).await?;
+    h.click("#labels-card-cross").await?;
+    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
+    h.click("#label-modal-label-Disabled").await?;
+    h.click("#label-modal-label-Enabled").await?;
+    h.click("#label-modal-save").await?;
+    wait_until_gone(&h, "#label-Disabled-card-cross", TIMEOUT).await?;
 
     h.click("#tab-quiz").await?;
     h.wait_for_text("#quiz-prompt", "Cross feature prompt", TIMEOUT)
@@ -1117,7 +1145,10 @@ async fn row_menu_opens_and_dismisses() -> Result<()> {
     h.screenshot("04_groom/row-menu-open").await?;
 
     // A backdrop click dismisses the menu without arming any modal.
-    h.click(".groom-menu-backdrop").await?;
+    // (Dispatch on the backdrop itself: the element CENTER of the
+    // full-viewport backdrop can sit under the now taller menu.)
+    h.eval::<bool>("document.querySelector('.groom-menu-backdrop').click(); true")
+        .await?;
     wait_until_gone(&h, ".groom-menu", TIMEOUT).await?;
     if h.eval::<bool>("!!document.querySelector('#groom-modal')")
         .await?
@@ -1210,11 +1241,14 @@ async fn viewport_fit_handles_mixed_row_heights() -> Result<()> {
     let h = TestHarness::start().await?;
     let (store, user_id) = seed_store(&h).await?;
     // Every third prompt carries a newline, so its row is one text line
-    // taller than its neighbors'.
+    // taller than its neighbors'. The pattern STARTS with a tall row
+    // (i % 3 == 1): the underfill assertion below compares the slack
+    // against the tallest RENDERED pitch, which only bounds the next
+    // row's height when a tall row is guaranteed on the page.
     let now = now_ms();
     for i in 1..=30_usize {
         let offset = i64::try_from(i).unwrap_or(i64::MAX) * 60_000;
-        let prompt = if i % 3 == 0 {
+        let prompt = if i % 3 == 1 {
             format!("Tall {i:02}\nsecond line")
         } else {
             format!("Short {i:02}")
@@ -1423,5 +1457,156 @@ async fn sticky_chrome_keeps_header_and_controls_pinned() -> Result<()> {
             "the header should stay pinned on the Add tab too, is at {top_top}px"
         )));
     }
+    Ok(())
+}
+
+/// One-time migration of the persisted filter (owner decision
+/// 2026-08-01): a pre-labels `flasher-groom-filter` value translates
+/// into the new label selection (`disabled` → Disabled-only) and the
+/// old key is removed.
+#[tokio::test]
+#[ignore = "browser"]
+async fn old_groom_filter_key_translates_to_label_selection() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    for (id, prompt, disabled) in [("card-old-a", "Alpha", true), ("card-old-b", "Beta", false)] {
+        seed_card(
+            &store,
+            user_id,
+            id,
+            prompt,
+            "S",
+            CardState::New,
+            now,
+            now + 60_000,
+            disabled,
+        )
+        .await?;
+    }
+
+    // Boot once (fresh profile), plant the legacy key, reload.
+    goto_groom(&h).await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
+    h.eval::<bool>("localStorage.setItem('flasher-groom-filter', 'disabled'); true")
+        .await?;
+    h.goto("/groom").await?;
+
+    // The legacy value becomes the Disabled-only selection: only the
+    // disabled card shows, and the old key is gone.
+    h.wait_for_text("#groom-page-info", "showing 1–1 of 1", TIMEOUT)
+        .await?;
+    let results = h.text_content("#groom-results").await?;
+    if !results.contains("Alpha") || results.contains("Beta") {
+        return Err(Error::message(format!(
+            "the translated selection should show only the disabled card, shows: {results:?}"
+        )));
+    }
+    let old_key = h
+        .eval::<String>("localStorage.getItem('flasher-groom-filter') ?? '<gone>'")
+        .await?;
+    if old_key != "<gone>" {
+        return Err(Error::message(format!(
+            "the legacy key should be removed after translation, is {old_key:?}"
+        )));
+    }
+    let new_key = persisted_labels(&h, "flasher-groom-labels").await?;
+    if new_key != "Disabled" {
+        return Err(Error::message(format!(
+            "the new key should hold the translated selection, holds {new_key:?}"
+        )));
+    }
+    Ok(())
+}
+
+/// The row's Labels button opens the per-card label editor (owner
+/// feedback 2026-08-01 — promoted out of the ⋯ menu, replacing the old
+/// Enable/Disable toggle): checkboxes pre-checked from the card's
+/// labels, arbitrary sets are saved (both labels → both badges, back to
+/// one), and Save stays disabled while nothing is checked.
+#[tokio::test]
+#[ignore = "browser"]
+async fn row_labels_button_edits_the_cards_labels() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    seed_card(
+        &store,
+        user_id,
+        "card-edit",
+        "Edit labels prompt",
+        "S",
+        CardState::New,
+        now,
+        now + 60_000,
+        true,
+    )
+    .await?;
+
+    goto_groom(&h).await?;
+    h.wait_for_selector("#groom-row-card-edit", TIMEOUT).await?;
+
+    // The editor opens with the card's labels pre-checked (Disabled
+    // only) and the prompt in the title.
+    h.click("#labels-card-edit").await?;
+    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
+    h.wait_for_text("#groom-labels-modal-text", "Edit labels prompt", TIMEOUT)
+        .await?;
+    if !h
+        .eval::<bool>("document.querySelector('#label-modal-label-Disabled').checked")
+        .await?
+    {
+        return Err(Error::message("the Disabled checkbox should start checked"));
+    }
+    if h.eval::<bool>("document.querySelector('#label-modal-label-Enabled').checked")
+        .await?
+    {
+        return Err(Error::message(
+            "the Enabled checkbox should start unchecked",
+        ));
+    }
+
+    // Uncheck everything: Save disables (a label-less card would be
+    // invisible to every union filter; the server rejects it too).
+    h.click("#label-modal-label-Disabled").await?;
+    if !h
+        .eval::<bool>("document.querySelector('#label-modal-save').disabled")
+        .await?
+    {
+        return Err(Error::message(
+            "Save should be disabled with nothing checked",
+        ));
+    }
+    h.screenshot("04_groom/labels-modal").await?;
+
+    // Give the card BOTH labels and save: both badges appear, the store
+    // follows.
+    h.click("#label-modal-label-Disabled").await?;
+    h.click("#label-modal-label-Enabled").await?;
+    h.click("#label-modal-save").await?;
+    h.wait_for_selector("#label-Enabled-card-edit", TIMEOUT)
+        .await?;
+    h.wait_for_selector("#label-Disabled-card-edit", TIMEOUT)
+        .await?;
+    let card = store
+        .get_card(user_id, "card-edit")
+        .await
+        .map_err(store_err)?
+        .ok_or_else(|| Error::message("card-edit vanished"))?;
+    if card.labels != ["Disabled".to_owned(), "Enabled".to_owned()] {
+        return Err(Error::message(format!(
+            "store should hold both labels, holds {:?}",
+            card.labels
+        )));
+    }
+
+    // Back to Disabled only via the editor.
+    h.click("#labels-card-edit").await?;
+    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
+    h.click("#label-modal-label-Enabled").await?;
+    h.click("#label-modal-save").await?;
+    wait_until_gone(&h, "#label-Enabled-card-edit", TIMEOUT).await?;
+    h.wait_for_selector("#label-Disabled-card-edit", TIMEOUT)
+        .await?;
     Ok(())
 }

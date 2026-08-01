@@ -7,8 +7,8 @@
 //! the components themselves cfg-free.
 
 use flasher_types::{
-    AutoSaveResponse, CardResponse, DisabledFilter, FindCardsResponse, GetAutoSaveResponse,
-    HealthResponse, NextCardResponse,
+    AutoSaveResponse, CardResponse, FindCardsResponse, GetAutoSaveResponse, HealthResponse,
+    LabelResponse, NextCardResponse,
 };
 #[cfg(feature = "csr")]
 use flasher_types::{
@@ -43,10 +43,36 @@ pub async fn health() -> Result<HealthResponse, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
-/// `GET /api/cards/next` — the next due card, or `None`.
+/// `GET /api/labels` — the user's labels (per-user unique names).
 #[cfg(feature = "csr")]
-pub async fn next_card() -> Result<NextCardResponse, String> {
+pub async fn labels() -> Result<Vec<LabelResponse>, String> {
+    let response = gloo_net::http::Request::get("/api/labels")
+        .send()
+        .await
+        .map_err(|err| err.to_string())?;
+    if response.status() != 200 {
+        return Err(error_message(response).await);
+    }
+    response
+        .json::<Vec<LabelResponse>>()
+        .await
+        .map_err(|err| err.to_string())
+}
+
+/// `GET /api/labels` (ssr stub, never called — its only callers are
+/// csr-gated).
+#[cfg(not(feature = "csr"))]
+#[allow(clippy::unused_async, dead_code)]
+pub async fn labels() -> Result<Vec<LabelResponse>, String> {
+    Err(SSR_STUB_ERROR.to_owned())
+}
+
+/// `GET /api/cards/next` — the next due card carrying any of `labels`
+/// (comma-joined union filter), or `None`.
+#[cfg(feature = "csr")]
+pub async fn next_card(labels: &str) -> Result<NextCardResponse, String> {
     let response = gloo_net::http::Request::get("/api/cards/next")
+        .query([("labels", labels)])
         .send()
         .await
         .map_err(|err| err.to_string())?;
@@ -62,7 +88,7 @@ pub async fn next_card() -> Result<NextCardResponse, String> {
 /// `GET /api/cards/next` (ssr stub, never called).
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async)]
-pub async fn next_card() -> Result<NextCardResponse, String> {
+pub async fn next_card(_labels: &str) -> Result<NextCardResponse, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
@@ -139,14 +165,14 @@ async fn set_state(id: &str, action: &str, change_time: i64) -> Result<(), Strin
 
 /// `GET /api/cards` — one page of the groom list plus the total match
 /// count (before paging) and the effective page size. An empty
-/// `search_text` lists all cards; `filter` restricts the list by the
-/// `disabled` flag (groom filter, issue #127); `take` is the requested
-/// page size (the groom tab sizes it to its viewport; the server clamps
-/// and echoes it).
+/// `search_text` lists all cards; `labels` restricts the list to cards
+/// carrying any of them (comma-joined union filter, empty = nothing);
+/// `take` is the requested page size (the groom tab sizes it to its
+/// viewport; the server clamps and echoes it).
 #[cfg(feature = "csr")]
 pub async fn find_cards(
     search_text: &str,
-    filter: DisabledFilter,
+    labels: &str,
     skip: u32,
     take: u32,
 ) -> Result<FindCardsResponse, String> {
@@ -155,7 +181,7 @@ pub async fn find_cards(
     let mut query = vec![
         ("skip", skip.as_str()),
         ("take", take.as_str()),
-        ("disabled_filter", filter.as_str()),
+        ("labels", labels),
     ];
     if !search_text.is_empty() {
         query.push(("search_text", search_text));
@@ -179,7 +205,7 @@ pub async fn find_cards(
 #[allow(clippy::unused_async)]
 pub async fn find_cards(
     _search_text: &str,
-    _filter: DisabledFilter,
+    _labels: &str,
     _skip: u32,
     _take: u32,
 ) -> Result<FindCardsResponse, String> {
@@ -195,7 +221,7 @@ pub async fn update_card(id: &str, prompt: &str, solution: &str) -> Result<CardR
         .json(&CardUpdateRequest {
             prompt: Some(prompt.to_owned()),
             solution: Some(solution.to_owned()),
-            disabled: None,
+            labels: None,
         })
         .map_err(|err| err.to_string())?;
     let response = request.send().await.map_err(|err| err.to_string())?;
@@ -328,15 +354,15 @@ pub async fn get_card(_id: &str) -> Result<Option<CardResponse>, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
-/// `PATCH /api/cards/{id}` — toggle only the `disabled` flag; prompt and
+/// `PATCH /api/cards/{id}` — replace the card's label set; prompt and
 /// solution stay untouched.
 #[cfg(feature = "csr")]
-pub async fn set_disabled(id: &str, disabled: bool) -> Result<CardResponse, String> {
+pub async fn set_card_labels(id: &str, labels: &[String]) -> Result<CardResponse, String> {
     let request = gloo_net::http::Request::patch(&format!("/api/cards/{id}"))
         .json(&CardUpdateRequest {
             prompt: None,
             solution: None,
-            disabled: Some(disabled),
+            labels: Some(labels.to_vec()),
         })
         .map_err(|err| err.to_string())?;
     let response = request.send().await.map_err(|err| err.to_string())?;
@@ -352,7 +378,7 @@ pub async fn set_disabled(id: &str, disabled: bool) -> Result<CardResponse, Stri
 /// `PATCH /api/cards/{id}` (ssr stub, never called).
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async)]
-pub async fn set_disabled(_id: &str, _disabled: bool) -> Result<CardResponse, String> {
+pub async fn set_card_labels(_id: &str, _labels: &[String]) -> Result<CardResponse, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 

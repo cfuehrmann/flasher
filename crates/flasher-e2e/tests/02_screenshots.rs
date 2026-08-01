@@ -75,7 +75,11 @@ async fn seed_card(
             state,
             change_time: now_ms() - 3_600_000,
             next_time,
-            disabled,
+            labels: vec![if disabled {
+                flasher_store::DISABLED_LABEL.to_owned()
+            } else {
+                flasher_store::ENABLED_LABEL.to_owned()
+            }],
         })
         .await
         .map_err(store_err)

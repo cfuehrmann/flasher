@@ -470,6 +470,17 @@ async fn expired_session_is_rejected() -> TestResult {
         .await?;
     assert_eq!(resp.status(), 401);
 
+    // `/api/labels` (labels feature) sits behind the same session
+    // extractor: no cookie and a dead cookie are both 401.
+    let resp = reqwest::get(format!("{base}/api/labels")).await?;
+    assert_eq!(resp.status(), 401);
+    let resp = reqwest::Client::new()
+        .get(format!("{base}/api/labels"))
+        .header(reqwest::header::COOKIE, session_cookie("dead-token"))
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 401);
+
     server.abort();
     Ok(())
 }

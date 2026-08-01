@@ -5,11 +5,13 @@
 //! stale timers no-ops, so no cancel handle is needed); changing the query
 //! resets to the first card and refetches. The clear button inside the box
 //! empties the query immediately (no debounce — one click, one fetch)
-//! and is disabled while the box is empty. Next to it, a filter
-//! selects all (the first-usage default, owner decision 2026-07-31),
-//! enabled or disabled cards (issue #127); changing it also resets to
-//! the first card and refetches immediately (no debounce — one click, one fetch).
-//! Both the filter and the search text persist in `localStorage`, so they
+//! and is disabled while the box is empty. Next to it, the label filter
+//! (labels dissolved the old status dropdown, owner decision 2026-08-01):
+//! a multi-select of the user's labels with union semantics — a card
+//! matches when it carries ANY selected label; the first-usage default
+//! selects everything. Changing the selection also resets to the first
+//! card and refetches immediately (no debounce — one click, one fetch).
+//! Both the selection and the search text persist in `localStorage`, so they
 //! survive tab switches (a tab switch remounts this component) and
 //! browser refresh alike; storage failures (private mode, disabled
 //! storage) are ignored — persistence is a convenience, never fatal.
@@ -35,27 +37,33 @@
 //! lines: the clamped prompt, then a meta line with badges + due date on
 //! the left and the actions right-aligned on the same line. Row actions:
 //! edit (opens the card editor via the `on_edit` callback) and the
-//! enable/disable toggle (immediate) stay inline; the rare destructive
+//! enable/disable toggle (immediate; today it flips the card's single
+//! label Enabled↔Disabled) stay inline; the rare destructive
 //! ones (delete, reset-progress) sit in a per-row "⋯" menu behind a
 //! confirm modal. Toggle and reset
-//! refetch the current page; the toggle's refetch refreshes the badge in
-//! place — or drops the row when the card no longer matches the active
-//! filter (the sort — `next_time` asc, `id` tie-break — does not involve
-//! `disabled`, so it never re-orders), while a progress
-//! reset moves `next_time` and can genuinely re-order the page.
-//! Deleting the last row of a page beyond the first steps back one page,
+//! refetch the current window; the toggle's refetch refreshes the badges in
+//! place — or drops the row when the card's new labels miss the active
+//! selection (the sort — `next_time` asc, `id` tie-break — does not
+//! involve labels, so it never re-orders), while a progress
+//! reset moves `next_time` and can genuinely re-order the window.
+//! Deleting the last row of a window beyond the first steps back one window,
 //! any other delete refetches in place so the count stays exact; a toggle
-//! that drops the last row of a later page out of the active filter steps
-//! back the same way.
+//! that drops the last row of a later window out of the active selection
+//! steps back the same way.
 //!
 //! Loading, error (with retry) and empty states mirror the quiz tab.
 
 use std::time::Duration;
 
-use flasher_types::{CardResponse, CardState, DisabledFilter, MAX_TAKE};
+use flasher_types::{CardResponse, CardState, LabelResponse, MAX_TAKE};
+#[cfg(feature = "csr")]
+use flasher_types::{DISABLED_LABEL, ENABLED_LABEL};
 use leptos::prelude::*;
 
 use crate::api;
+use crate::labels::{LabelFilter, join_labels, toggle_label_name};
+#[cfg(feature = "csr")]
+use crate::labels::{split_labels, storage_get, storage_remove, storage_set};
 
 /// Page size of the very first fetch, before the viewport-fit calibration
 /// has measured the real row heights (or when localStorage is
@@ -74,50 +82,60 @@ const DEBOUNCE: Duration = Duration::from_millis(300);
 #[cfg(feature = "csr")]
 const RESIZE_DEBOUNCE: Duration = Duration::from_millis(150);
 
-/// `localStorage` keys under which the filter and the search text
-/// persist (owner wish 2026-07-31: both survive tab switches — a tab
-/// switch remounts this component — and browser refresh).
+/// `localStorage` key under which the label selection persists (owner
+/// wish 2026-07-31, labels since 2026-08-01: it survives tab switches —
+/// a tab switch remounts this component — and browser refresh).
 #[cfg(feature = "csr")]
-const STORAGE_FILTER_KEY: &str = "flasher-groom-filter";
-/// See [`STORAGE_FILTER_KEY`].
+const STORAGE_LABELS_KEY: &str = "flasher-groom-labels";
+/// The pre-labels filter key (single-select all/enabled/disabled),
+/// translated once into [`STORAGE_LABELS_KEY`] and then removed.
+#[cfg(feature = "csr")]
+const OLD_STORAGE_FILTER_KEY: &str = "flasher-groom-filter";
+/// See [`STORAGE_LABELS_KEY`].
 #[cfg(feature = "csr")]
 const STORAGE_SEARCH_KEY: &str = "flasher-groom-search";
-/// See [`STORAGE_FILTER_KEY`]; the calibrated viewport-fit page size, so
+/// See [`STORAGE_LABELS_KEY`]; the calibrated viewport-fit page size, so
 /// a remount or refresh starts with the right size instead of
 /// overflowing and correcting.
 #[cfg(feature = "csr")]
 const STORAGE_TAKE_KEY: &str = "flasher-groom-take";
 
-/// Reads a `localStorage` value; any storage failure (private mode,
-/// disabled storage) yields `None` — persistence is a convenience, never
-/// fatal.
-#[cfg(feature = "csr")]
-fn storage_get(key: &str) -> Option<String> {
-    leptos::prelude::window()
-        .local_storage()
-        .ok()
-        .flatten()
-        .and_then(|storage| storage.get_item(key).ok())
-        .flatten()
-}
-
-/// Writes a `localStorage` value, ignoring storage failures.
-#[cfg(feature = "csr")]
-fn storage_set(key: &str, value: &str) {
-    if let Ok(Some(storage)) = leptos::prelude::window().local_storage() {
-        let _ = storage.set_item(key, value);
-    }
-}
-
-/// The persisted filter choice, or the first-usage default (`All`).
-fn initial_filter() -> DisabledFilter {
+/// The persisted label selection, or `None` when nothing is stored —
+/// the default (ALL labels, today's "everything") is then applied once
+/// the labels list lands. The pre-labels filter value translates
+/// one-time: `enabled`/`disabled` map to their label (persisted under
+/// the new key right away, so the migration sticks even if the user
+/// never touches the filter), `all` falls through to the default
+/// (owner decision 2026-08-01).
+fn initial_labels() -> Option<Vec<String>> {
     #[cfg(feature = "csr")]
-    if let Some(filter) =
-        storage_get(STORAGE_FILTER_KEY).and_then(|value| DisabledFilter::parse(&value))
     {
-        return filter;
+        // The legacy key is ALWAYS removed when seen (adversarial review
+        // 2026-08-01): otherwise it would linger forever once the new
+        // key exists.
+        let old = storage_get(OLD_STORAGE_FILTER_KEY);
+        if old.is_some() {
+            storage_remove(OLD_STORAGE_FILTER_KEY);
+        }
+        if let Some(raw) = storage_get(STORAGE_LABELS_KEY) {
+            return Some(split_labels(&raw));
+        }
+        if let Some(old) = old {
+            return match old.as_str() {
+                "enabled" => {
+                    storage_set(STORAGE_LABELS_KEY, ENABLED_LABEL);
+                    Some(vec![ENABLED_LABEL.to_owned()])
+                }
+                "disabled" => {
+                    storage_set(STORAGE_LABELS_KEY, DISABLED_LABEL);
+                    Some(vec![DISABLED_LABEL.to_owned()])
+                }
+                // "all" (and anything unexpected): the default below.
+                _ => None,
+            };
+        }
     }
-    DisabledFilter::default()
+    None
 }
 
 /// The persisted search text (empty when none was stored).
@@ -144,14 +162,16 @@ fn initial_take() -> usize {
 }
 
 /// Rows that fit into `available_px`: the longest prefix of
-/// `row_heights` (with `gap_px` between rows) whose summed height fits
-/// — summing per-row because prompts clamp at two lines, so rows come
-/// in two heights and a single average would under/overflow by a row
-/// (adversarial review 2026-07-31). When every given row fits, the
-/// remaining space is filled with rows of the TALLEST given height (the
-/// only estimate available for unrendered rows; tallest never
-/// overflows). Always at least one row (a broken measurement must never
-/// produce an empty page), at most [`MAX_TAKE_USIZE`].
+/// `row_heights` whose summed height fits — summing per-row because
+/// prompts clamp at two lines, so rows come in two heights and a single
+/// average would under/overflow by a row (adversarial review 2026-07-31).
+/// `gap_px` counts only BETWEEN rows (no trailing gap after the last
+/// one — anything else would underfill by a fraction of a row). When
+/// every given row fits, the remaining space is filled with rows of the
+/// TALLEST given height (the only estimate available for unrendered
+/// rows; tallest never overflows). Always at least one row (a broken
+/// measurement must never produce an empty page), at most
+/// [`MAX_TAKE_USIZE`].
 // Only the csr measurement glue and the unit tests call this.
 #[cfg_attr(not(feature = "csr"), allow(dead_code))]
 fn rows_that_fit(available_px: f64, row_heights: &[f64], gap_px: f64) -> usize {
@@ -160,7 +180,14 @@ fn rows_that_fit(available_px: f64, row_heights: &[f64], gap_px: f64) -> usize {
     let mut tallest = 0.0_f64;
     for &height in row_heights {
         tallest = tallest.max(height);
-        let next = used + height + gap_px;
+        let next = if count == 0 {
+            height
+        } else {
+            used + gap_px + height
+        };
+        // The `count > 0` guard is load-bearing: a first row that does
+        // not fit must be INCLUDED (never an empty page) — an early
+        // return would bypass the clamp below.
         if next > available_px && count > 0 {
             return count;
         }
@@ -168,11 +195,11 @@ fn rows_that_fit(available_px: f64, row_heights: &[f64], gap_px: f64) -> usize {
         count += 1;
     }
     // All rendered rows fit: fill the rest with tallest-seen rows (not
-    // applicable when nothing was measured: tallest is 0 then).
+    // applicable when nothing was measured: tallest is 0 then, and it
+    // also implies count ≥ 1 here).
     if tallest > 0.0 {
-        let pitch = tallest + gap_px;
-        while used + pitch <= available_px && count < MAX_TAKE_USIZE {
-            used += pitch;
+        while used + gap_px + tallest <= available_px && count < MAX_TAKE_USIZE {
+            used += gap_px + tallest;
             count += 1;
         }
     }
@@ -360,9 +387,17 @@ pub fn Groom(
     // off, and the first fetch already applies it.
     let input = RwSignal::new(initial_search());
     let query = RwSignal::new(input.get_untracked());
-    // The all/enabled/disabled filter (issue #127): the persisted
-    // choice, or `All` on first use (owner decision 2026-07-31).
-    let filter = RwSignal::new(initial_filter());
+    // The multi-label filter (labels dissolved the status dropdown,
+    // owner decision 2026-08-01): the persisted selection. When nothing
+    // is stored, the selection is not READY until the labels list lands
+    // and the default (ALL labels, today's "everything") applies.
+    let initial_selection = initial_labels();
+    // Only the csr effects read this (their code is cfg'd out under ssr).
+    #[cfg_attr(not(feature = "csr"), allow(unused_variables))]
+    let selection_ready = RwSignal::new(initial_selection.is_some());
+    let selected = RwSignal::new(initial_selection.unwrap_or_default());
+    // The user's labels (for the filter's checkbox panel).
+    let all_labels = RwSignal::new(Vec::<LabelResponse>::new());
     // The list is OFFSET-based, not page-number-based (owner feedback
     // 2026-07-31): the offset is the anchor, so a viewport re-fit changes
     // how many cards show below the top one — never WHICH card is on
@@ -378,37 +413,67 @@ pub fn Groom(
     // armed is stale and must not touch the state (rapid paging).
     let fetch_generation = RwSignal::new(0_u64);
 
+    // Loads the labels list; the default selection (ALL labels) applies
+    // where the names are known. Shared by the mount load and the error
+    // retry (adversarial review 2026-08-01: a retry must reload the
+    // labels too — a transient labels failure otherwise strands the tab
+    // with an empty panel and, without a ready selection, a false
+    // "No cards match.").
+    let load_labels = Callback::new(move |(): ()| {
+        leptos::task::spawn_local(async move {
+            match api::labels().await {
+                Ok(labels) => {
+                    if !selection_ready.get_untracked() {
+                        selected.set(labels.iter().map(|label| label.name.clone()).collect());
+                        selection_ready.set(true);
+                    }
+                    all_labels.set(labels);
+                }
+                Err(err) => state.set(LoadState::Error(err)),
+            }
+        });
+    });
+    #[cfg(feature = "csr")]
+    load_labels.run(());
+
     // Fetches one window for a query; the single entry point for loading,
     // paging, retry and post-mutation refresh.
-    let fetch = Callback::new(
-        move |(q, f, s, t): (String, DisabledFilter, usize, usize)| {
-            state.set(LoadState::Loading);
-            fetch_generation.update(|count| *count += 1);
-            let armed = fetch_generation.get_untracked();
-            leptos::task::spawn_local(async move {
-                let skip = u32::try_from(s).unwrap_or(u32::MAX);
-                let take = u32::try_from(t).unwrap_or(u32::MAX);
-                let result = api::find_cards(&q, f, skip, take).await;
-                if fetch_generation.get_untracked() != armed {
-                    // A newer fetch is already in flight; ignore this one.
-                    return;
-                }
-                state.set(match result {
-                    Ok(found) => LoadState::Loaded {
-                        cards: found.cards,
-                        count: found.count,
-                    },
-                    Err(err) => LoadState::Error(err),
-                });
+    let fetch = Callback::new(move |(q, l, s, t): (String, String, usize, usize)| {
+        state.set(LoadState::Loading);
+        fetch_generation.update(|count| *count += 1);
+        let armed = fetch_generation.get_untracked();
+        leptos::task::spawn_local(async move {
+            let skip = u32::try_from(s).unwrap_or(u32::MAX);
+            let take = u32::try_from(t).unwrap_or(u32::MAX);
+            let result = api::find_cards(&q, &l, skip, take).await;
+            if fetch_generation.get_untracked() != armed {
+                // A newer fetch is already in flight; ignore this one.
+                return;
+            }
+            state.set(match result {
+                Ok(found) => LoadState::Loaded {
+                    cards: found.cards,
+                    count: found.count,
+                },
+                Err(err) => LoadState::Error(err),
             });
-        },
-    );
+        });
+    });
 
-    // (Re)fetch whenever the debounced query, the filter, the offset or
-    // the requested page size changes.
+    // (Re)fetch whenever the debounced query, the label selection, the
+    // offset or the requested page size changes. Before the selection is
+    // ready (labels list pending) there is nothing to fetch.
     #[cfg(feature = "csr")]
     Effect::new(move |_| {
-        fetch.run((query.get(), filter.get(), skip.get(), take.get()));
+        if !selection_ready.get() {
+            return;
+        }
+        fetch.run((
+            query.get(),
+            join_labels(&selected.get()),
+            skip.get(),
+            take.get(),
+        ));
     });
 
     // Viewport-fit page size (owner wish 2026-07-31). The first fetch
@@ -548,63 +613,56 @@ pub fn Groom(
         });
     };
 
-    // Filter change: like a search change — reset to the first card and
-    // refetch (the `batch` makes both one effect trigger), but immediate:
-    // a select needs no debounce. Unknown values are impossible from the
-    // rendered options and are ignored. The choice persists across tab
-    // switches and refresh (localStorage).
-    let on_filter_change = move |ev: leptos::ev::Event| {
-        if let Some(value) = DisabledFilter::parse(&event_target_value(&ev)) {
-            #[cfg(feature = "csr")]
-            storage_set(STORAGE_FILTER_KEY, value.as_str());
-            batch(|| {
-                skip.set(0);
-                filter.set(value);
-            });
-        }
-    };
-
-    // Enable/disable toggle — immediate, no confirmation. `disabled` is
-    // not part of the server-side ordering, so the row cannot jump; the
-    // refetch refreshes the badge/label in place — or drops the row when
-    // it no longer matches the active filter (e.g. disabling a card
-    // under the `enabled` filter), which is exactly what the
-    // filter promises. A row that drops out as the last one of a later
-    // page steps back one page (same fallback as delete), so the user
-    // never lands on a false "No cards match." without a way back.
-    let toggle_disabled = Callback::new(move |card: CardResponse| {
-        leptos::task::spawn_local(async move {
-            match api::set_disabled(&card.id, !card.disabled).await {
-                Ok(_updated) => {
-                    // `card` is the pre-toggle render: the row leaves the
-                    // list when the NEW state misses the filter.
-                    let drops_out = match filter.get_untracked() {
-                        DisabledFilter::Enabled => !card.disabled,
-                        DisabledFilter::Disabled => card.disabled,
-                        DisabledFilter::All => false,
-                    };
-                    let was_single = matches!(
-                        state.get_untracked(),
-                        LoadState::Loaded { ref cards, .. } if cards.len() == 1
-                    );
-                    if drops_out && was_single && skip.get_untracked() > 0 {
-                        skip.update(|s| *s = s.saturating_sub(take.get_untracked()));
-                    } else {
-                        fetch.run((
-                            query.get_untracked(),
-                            filter.get_untracked(),
-                            skip.get_untracked(),
-                            take.get_untracked(),
-                        ));
-                    }
-                }
-                Err(err) => state.set(LoadState::Error(err)),
-            }
+    // Label selection change: like a search change — reset to the first
+    // card and refetch (the `batch` makes both one effect trigger), but
+    // immediate: a checkbox needs no debounce. The choice persists across
+    // tab switches and refresh (localStorage).
+    let on_label_change = Callback::new(move |next: Vec<String>| {
+        #[cfg(feature = "csr")]
+        storage_set(STORAGE_LABELS_KEY, &join_labels(&next));
+        batch(|| {
+            skip.set(0);
+            selected.set(next);
         });
     });
 
-    // Confirmed delete: step back one page when the last row of a later
-    // page vanished (the effect refetches), otherwise refetch in place so
+    // Shared post-label-change handling (the per-card label editor —
+    // the row Enable/Disable toggle was removed once the editor covered
+    // it, owner feedback 2026-08-01): labels are not part of the
+    // server-side ordering, so the row cannot jump; the refetch
+    // refreshes the badges in place — or drops the row when the new
+    // label set no longer intersects the active filter selection, which
+    // is exactly what the filter promises. A row that drops out as the
+    // last one of a later window steps back one window (same fallback as
+    // delete), so the user never lands on a false "No cards match."
+    // without a way back.
+    let after_label_change = Callback::new(move |new_labels: Vec<String>| {
+        let selection = selected.get_untracked();
+        let drops_out = !selection.iter().any(|name| new_labels.contains(name));
+        let was_single = matches!(
+            state.get_untracked(),
+            LoadState::Loaded { ref cards, .. } if cards.len() == 1
+        );
+        if drops_out && was_single && skip.get_untracked() > 0 {
+            skip.update(|s| *s = s.saturating_sub(take.get_untracked()));
+        } else {
+            fetch.run((
+                query.get_untracked(),
+                join_labels(&selection),
+                skip.get_untracked(),
+                take.get_untracked(),
+            ));
+        }
+    });
+
+    // The per-card label editor (owner feedback 2026-08-01): the card
+    // being edited plus the working selection (checkboxes pre-checked
+    // from the card's labels; Save stays disabled while empty — the
+    // server rejects a label-less card too).
+    let label_edit = RwSignal::new(None::<(CardResponse, Vec<String>)>);
+
+    // Confirmed delete: step back one window when the last row of a later
+    // window vanished (the effect refetches), otherwise refetch in place so
     // the next card slides in and the count stays exact.
     let do_delete = Callback::new(move |card: CardResponse| {
         leptos::task::spawn_local(async move {
@@ -619,7 +677,7 @@ pub fn Groom(
                     } else {
                         fetch.run((
                             query.get_untracked(),
-                            filter.get_untracked(),
+                            join_labels(&selected.get_untracked()),
                             skip.get_untracked(),
                             take.get_untracked(),
                         ));
@@ -631,13 +689,13 @@ pub fn Groom(
     });
 
     // Confirmed progress reset: the reset can change the ordering
-    // (next_time moves), so the current page is refetched.
+    // (next_time moves), so the current window is refetched.
     let do_reset = Callback::new(move |card: CardResponse| {
         leptos::task::spawn_local(async move {
             match api::delete_history(&card.id).await {
                 Ok(_updated) => fetch.run((
                     query.get_untracked(),
-                    filter.get_untracked(),
+                    join_labels(&selected.get_untracked()),
                     skip.get_untracked(),
                     take.get_untracked(),
                 )),
@@ -652,6 +710,15 @@ pub fn Groom(
             // the paging bar stay directly below the sticky header while
             // the list scrolls (CSS: .groom-head, top: var(--top-h)).
             <div class="groom-head">
+                // The labels row comes FIRST, directly under the top
+                // menu (owner feedback 2026-08-01): button on the left,
+                // selected labels as badges to its right.
+                <LabelFilter
+                    labels=all_labels
+                    selected=selected
+                    on_change=on_label_change
+                    id_prefix="groom"
+                />
                 // No visible "Search" label (owner decision 2026-07-31): the
                 // placeholder makes the box self-explanatory and the label
                 // only cost a line; the aria-label keeps the accessible name.
@@ -679,16 +746,6 @@ pub fn Groom(
                             "×"
                         </button>
                     </div>
-                    <select
-                        id="groom-filter"
-                        aria-label="Filter cards by status"
-                        prop:value=move || filter.get().as_str()
-                        on:change=on_filter_change
-                    >
-                        <option value="enabled">"Enabled"</option>
-                        <option value="disabled">"Disabled"</option>
-                        <option value="all">"All"</option>
-                    </select>
                 </div>
                 {move || {
                     let LoadState::Loaded { cards, count } = state.get() else {
@@ -751,12 +808,15 @@ pub fn Groom(
                             type="button"
                             id="groom-retry"
                             on:click=move |_| {
-                                fetch.run((
-                                    query.get_untracked(),
-                                    filter.get_untracked(),
-                                    skip.get_untracked(),
-                                    take.get_untracked(),
-                                ));
+                                load_labels.run(());
+                                if selection_ready.get_untracked() {
+                                    fetch.run((
+                                        query.get_untracked(),
+                                        join_labels(&selected.get_untracked()),
+                                        skip.get_untracked(),
+                                        take.get_untracked(),
+                                    ));
+                                }
                             }
                         >
                             "Retry"
@@ -780,7 +840,10 @@ pub fn Groom(
                                             <GroomRow
                                                 card=card
                                                 on_edit=on_edit
-                                                toggle_disabled=toggle_disabled
+                                                ask_labels=Callback::new(move |card: CardResponse| {
+                                                    let labels = card.labels.clone();
+                                                    label_edit.set(Some((card, labels)));
+                                                })
                                                 ask_delete=Callback::new(move |card| {
                                                     confirm.set(Some(ConfirmAction::Delete(card)));
                                                 })
@@ -850,46 +913,127 @@ pub fn Groom(
                     </div>
                 }
             })}
+            {move || label_edit.get().map(|(card, working)| {
+                view! {
+                    <div class="modal-backdrop" id="groom-labels-modal">
+                        <div class="modal" role="dialog" aria-modal="true">
+                            <p class="modal-text" id="groom-labels-modal-text">
+                                "Labels for "
+                                <span class="modal-prompt">{card.prompt.clone()}</span>
+                            </p>
+                            <div class="modal-labels">
+                                {all_labels
+                                    .get()
+                                    .into_iter()
+                                    .map(|label| {
+                                        let name = label.name.clone();
+                                        let box_id = format!("label-modal-label-{name}");
+                                        let on_toggle = {
+                                            let name = name.clone();
+                                            move |ev: leptos::ev::Event| {
+                                                label_edit.update(|slot| {
+                                                    if let Some((_, working)) = slot {
+                                                        *working = toggle_label_name(
+                                                            working,
+                                                            &name,
+                                                            event_target_checked(&ev),
+                                                        );
+                                                    }
+                                                });
+                                            }
+                                        };
+                                        let for_id = box_id.clone();
+                                        view! {
+                                            <label class="label-filter-item" for=for_id>
+                                                {label.name.clone()}
+                                                <input
+                                                    type="checkbox"
+                                                    id=box_id
+                                                    prop:checked=working.contains(&name)
+                                                    on:change=on_toggle
+                                                />
+                                            </label>
+                                        }
+                                    })
+                                    .collect_view()}
+                            </div>
+                            <div class="modal-buttons">
+                                <button
+                                    type="button"
+                                    id="label-modal-save"
+                                    disabled=working.is_empty()
+                                    on:click=move |_| {
+                                        let card = card.clone();
+                                        let labels = working.clone();
+                                        label_edit.set(None);
+                                        leptos::task::spawn_local(async move {
+                                            match api::set_card_labels(&card.id, &labels).await {
+                                                Ok(_updated) => after_label_change.run(labels),
+                                                Err(err) => state.set(LoadState::Error(err)),
+                                            }
+                                        });
+                                    }
+                                >
+                                    "Save"
+                                </button>
+                                <button
+                                    type="button"
+                                    id="label-modal-cancel"
+                                    on:click=move |_| label_edit.set(None)
+                                >
+                                    "Cancel"
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            })}
         </section>
     }
 }
 
 /// One card row of the groom list: truncated prompt on the first line,
-/// and a single meta line below it — state badge (plus a `disabled`
-/// badge) and due date on the left, the row actions right-aligned on
-/// the SAME line (owner decision: one visual row less per card than the
-/// old three-line layout). The everyday, reversible actions (edit,
-/// enable/disable) stay one click away; the rare destructive ones
-/// (reset progress, delete) live in a "⋯" overflow menu and still arm
-/// the same confirm modal. The menu closes via a transparent
-/// full-viewport backdrop — the same pattern the modal uses, so no
-/// window listeners are needed.
+/// and a single meta line below it — state badge, ALL of the card's
+/// label badges (owner feedback 2026-08-01: no special treatment for
+/// Enabled; flex-wrap is the documented valve when several badges meet a
+/// narrow screen) and due date on the left, the row actions
+/// right-aligned on the SAME line (owner decision: one visual row less
+/// per card than the old three-line layout). The everyday, reversible
+/// actions (edit, the per-card label editor) are first-class row
+/// buttons — the old Enable/Disable toggle is gone, subsumed by the
+/// label editor; the rare destructive ones (reset progress, delete)
+/// live in a "⋯" overflow menu and still arm the same confirm modal.
+/// The menu closes via a transparent full-viewport backdrop — the
+/// same pattern the modal uses, so no window listeners are needed.
 #[component]
 fn GroomRow(
     card: CardResponse,
     on_edit: Callback<CardResponse>,
-    toggle_disabled: Callback<CardResponse>,
+    ask_labels: Callback<CardResponse>,
     ask_delete: Callback<CardResponse>,
     ask_reset: Callback<CardResponse>,
 ) -> impl IntoView {
     let id = card.id.clone();
     let row_id = format!("groom-row-{id}");
     let state_badge_id = format!("state-{id}");
-    let disabled_badge_id = format!("disabled-{id}");
     let due_id = format!("due-{id}");
     let edit_id = format!("edit-{id}");
-    let toggle_id = format!("toggle-disabled-{id}");
     let menu_id = format!("menu-{id}");
+    let labels_id = format!("labels-{id}");
     let reset_id = format!("reset-{id}");
     let delete_id = format!("delete-{id}");
     let state = card.state.as_str();
-    let disabled = card.disabled;
     let due = due_label(card.next_time);
-    let toggle_label = if disabled { "Enable" } else { "Disable" };
+    // Badges: ALL of the card's labels, one uniform outline style.
+    let badge_labels: Vec<(String, String)> = card
+        .labels
+        .iter()
+        .map(|label| (label.clone(), format!("label-{label}-{id}")))
+        .collect();
     let menu_open = RwSignal::new(false);
     // One owned clone per click handler (each handler moves its capture).
     let card_edit = card.clone();
-    let card_toggle = card.clone();
+    let card_labels = card.clone();
     let card_reset = card.clone();
     let card_delete = card.clone();
 
@@ -900,13 +1044,16 @@ fn GroomRow(
                 <span class=format!("badge state-{state}") id=state_badge_id>
                     {state}
                 </span>
-                {disabled.then(|| {
-                    view! {
-                        <span class="badge disabled" id=disabled_badge_id>
-                            "disabled"
-                        </span>
-                    }
-                })}
+                {badge_labels
+                    .into_iter()
+                    .map(|(label, badge_id)| {
+                        view! {
+                            <span class="badge label" id=badge_id>
+                                {label}
+                            </span>
+                        }
+                    })
+                    .collect_view()}
                 <span class="groom-due" id=due_id>{due}</span>
                 <div class="groom-actions">
                     <button
@@ -916,12 +1063,15 @@ fn GroomRow(
                     >
                         "Edit"
                     </button>
+                    // Label editing is a first-class row action (owner
+                    // feedback 2026-08-01 — it replaced both the
+                    // Enable/Disable toggle and the ⋯-menu item).
                     <button
                         type="button"
-                        id=toggle_id
-                        on:click=move |_| toggle_disabled.run(card_toggle.clone())
+                        id=labels_id
+                        on:click=move |_| ask_labels.run(card_labels.clone())
                     >
-                        {toggle_label}
+                        "Labels"
                     </button>
                     <button
                         type="button"
@@ -1025,9 +1175,10 @@ mod tests {
         assert_eq!(rows_that_fit(249.0, &[100.0, 50.0, 100.0], 0.0), 2);
         assert_eq!(rows_that_fit(249.0, &[50.0, 100.0, 100.0], 0.0), 2);
         assert_eq!(rows_that_fit(250.0, &[100.0, 100.0, 50.0], 0.0), 3);
-        // The gap counts between rows.
+        // The gap counts only BETWEEN rows (no trailing gap: exactly
+        // 2·100 + 10 fits at 210).
         assert_eq!(rows_that_fit(205.0, &[100.0, 100.0], 10.0), 1);
-        assert_eq!(rows_that_fit(220.0, &[100.0, 100.0], 10.0), 2);
+        assert_eq!(rows_that_fit(210.0, &[100.0, 100.0], 10.0), 2);
     }
 
     #[test]
@@ -1045,6 +1196,9 @@ mod tests {
         // All rendered rows fit: the rest is filled with tallest-seen
         // rows (the only estimate for unrendered ones).
         assert_eq!(rows_that_fit(400.0, &[80.0, 80.0], 20.0), 4);
+        // Boundary: the gap counts on the growth side too — at
+        // available = used + tallest the next row does NOT fit.
+        assert_eq!(rows_that_fit(260.0, &[80.0, 80.0], 20.0), 2);
         // The server's clamp is mirrored, so the echoed page size always
         // equals the requested take.
         assert_eq!(rows_that_fit(1_000_000.0, &[1.0], 0.0), 100);

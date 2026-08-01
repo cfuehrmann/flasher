@@ -59,6 +59,7 @@ mod api;
 mod auth;
 mod editor;
 mod groom;
+mod labels;
 mod markdown;
 mod quiz;
 mod route;

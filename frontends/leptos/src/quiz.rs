@@ -5,16 +5,42 @@
 //! no card is due (`Done`). Fetch and rating failures land in `Error`
 //! with a retry button.
 //!
+//! The label filter above the card (labels dissolved the hardcoded
+//! enabled-only rule, owner decision 2026-08-01) selects which labels
+//! may be quizzed — union semantics, any selected label matches. The
+//! first-usage default is `Enabled` (the old behavior); the selection
+//! persists in `localStorage`, independent of the groom tab's own
+//! persisted selection. Changing it refetches the next card.
+//!
 //! The reveal state is deliberately NOT mirrored into the URL or anywhere
 //! else: it is transient in-memory state, so a browser refresh (or a tab
 //! switch, which remounts this component) always starts collapsed at the
 //! prompt.
 
-use flasher_types::CardResponse;
+use flasher_types::{CardResponse, ENABLED_LABEL, LabelResponse};
 use leptos::prelude::*;
 
 use crate::api;
+use crate::labels::{LabelFilter, join_labels};
+#[cfg(feature = "csr")]
+use crate::labels::{split_labels, storage_get, storage_set};
 use crate::markdown::MarkdownView;
+
+/// `localStorage` key for the quiz's label selection — deliberately NOT
+/// the groom tab's key: the two filters are independent (owner decision
+/// 2026-08-01).
+#[cfg(feature = "csr")]
+const STORAGE_LABELS_KEY: &str = "flasher-quiz-labels";
+
+/// The persisted quiz label selection, or the first-usage default
+/// (`Enabled` — the pre-labels behavior).
+fn initial_labels() -> Vec<String> {
+    #[cfg(feature = "csr")]
+    if let Some(raw) = storage_get(STORAGE_LABELS_KEY) {
+        return split_labels(&raw);
+    }
+    vec![ENABLED_LABEL.to_owned()]
+}
 
 /// The quiz state machine.
 #[derive(Clone)]
@@ -25,7 +51,7 @@ enum QuizState {
     Prompt(CardResponse),
     /// The solution is revealed; the card waits for a rating.
     Solution(CardResponse),
-    /// No card is due.
+    /// No card is due (for the selected labels).
     Done,
     /// A fetch or rating request failed.
     Error(String),
@@ -38,19 +64,71 @@ enum QuizState {
 #[component]
 pub fn Quiz() -> impl IntoView {
     let state = RwSignal::new(QuizState::Loading);
+    // The label filter selection (persisted, independent of groom's).
+    let selected = RwSignal::new(initial_labels());
+    // The user's labels (for the filter's checkbox panel).
+    let all_labels = RwSignal::new(Vec::<LabelResponse>::new());
 
-    // Fetches the next due card and transitions into Prompt/Done/Error.
-    // `Callback` is `Copy`, so the same action can be shared between the
-    // mount effect, the retry button and the rating handler.
+    // Bumped by every next-card fetch; a response that lands after a
+    // newer fetch was armed is stale and must not touch the state
+    // (rapid filter toggles, or a rating completing right after a
+    // toggle — same guard as the groom tab's; adversarial review
+    // 2026-08-01).
+    let fetch_generation = RwSignal::new(0_u64);
+
+    // Fetches the next due card matching the selection and transitions
+    // into Prompt/Done/Error. `Callback` is `Copy`, so the same action
+    // can be shared between the mount effect, the retry button and the
+    // rating handler.
     let fetch_next = Callback::new(move |(): ()| {
         state.set(QuizState::Loading);
+        fetch_generation.update(|count| *count += 1);
+        let armed = fetch_generation.get_untracked();
+        let labels = join_labels(&selected.get_untracked());
         leptos::task::spawn_local(async move {
-            state.set(match api::next_card().await {
+            let result = api::next_card(&labels).await;
+            if fetch_generation.get_untracked() != armed {
+                // A newer fetch is already in flight; ignore this one.
+                return;
+            }
+            state.set(match result {
                 Ok(Some(card)) => QuizState::Prompt(card),
                 Ok(None) => QuizState::Done,
                 Err(err) => QuizState::Error(err),
             });
         });
+    });
+
+    // Loads the labels list (the filter's panel). Shared by the mount
+    // load and the error retry (adversarial review 2026-08-01: a retry
+    // must reload the labels too, or a transient failure leaves an
+    // empty panel).
+    let load_labels = Callback::new(move |(): ()| {
+        leptos::task::spawn_local(async move {
+            match api::labels().await {
+                Ok(labels) => all_labels.set(labels),
+                Err(err) => state.set(QuizState::Error(err)),
+            }
+        });
+    });
+    #[cfg(feature = "csr")]
+    load_labels.run(());
+
+    // Selection change: persist (localStorage) and refetch the next
+    // card — a deliberate act, so abandoning the current card is right
+    // (it may no longer match).
+    let on_label_change = Callback::new(move |next: Vec<String>| {
+        #[cfg(feature = "csr")]
+        storage_set(STORAGE_LABELS_KEY, &join_labels(&next));
+        selected.set(next);
+    });
+
+    // Fetch the first card on mount, and refetch whenever the selection
+    // changes (client-side only).
+    #[cfg(feature = "csr")]
+    Effect::new(move |_| {
+        let _ = selected.get();
+        fetch_next.run(());
     });
 
     // Set while a rating POST is in flight. Guards the rating buttons
@@ -91,12 +169,16 @@ pub fn Quiz() -> impl IntoView {
         });
     });
 
-    // Fetch the first card on mount (client-side only).
-    #[cfg(feature = "csr")]
-    Effect::new(move |_| fetch_next.run(()));
-
     view! {
         <section class="quiz">
+            <div class="quiz-controls">
+                <LabelFilter
+                    labels=all_labels
+                    selected=selected
+                    on_change=on_label_change
+                    id_prefix="quiz"
+                />
+            </div>
             {move || match state.get() {
                 QuizState::Loading => view! {
                     <p class="quiz-status" id="quiz-loading">"Loading the next card…"</p>
@@ -155,9 +237,11 @@ pub fn Quiz() -> impl IntoView {
                 }
                 QuizState::Done => view! {
                     <div class="quiz-card" id="quiz-done">
-                        <p class="quiz-status">"All done for now — no cards are due."</p>
+                        <p class="quiz-status">
+                            "All done for now — no due cards match the selected labels."
+                        </p>
                         <p class="quiz-hint">
-                            "Cards you add start out disabled; enable them in the Groom tab."
+                            "Cards you add start with the Disabled label; enable them in the Groom tab, or widen the label filter above."
                         </p>
                     </div>
                 }
@@ -169,7 +253,10 @@ pub fn Quiz() -> impl IntoView {
                             <button
                                 type="button"
                                 id="quiz-retry"
-                                on:click=move |_| fetch_next.run(())
+                                on:click=move |_| {
+                                    load_labels.run(());
+                                    fetch_next.run(());
+                                }
                             >
                                 "Retry"
                             </button>

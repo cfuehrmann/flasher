@@ -36,6 +36,12 @@ Lighthouse checks. `AGENTS.md` documents the doctrine and workflow.
 
 ## For developers / contributors
 
+> **Warning — migrations are not yet guaranteed stable.** The SQLite
+> schema still changes in incompatible ways between versions (migrations
+> are embedded and run on startup). Before upgrading, back up
+> `flasher.db` (the store also keeps automatic pre-migration copies in
+> `backups/`); there is no downgrade path.
+
 Read **`AGENTS.md`** first — it defines the testing doctrine (browser e2e
 as the only public test surface), the gates, and the review protocol.
 `docs/plan.html` is the living plan; `docs/spec.md` the original spec.

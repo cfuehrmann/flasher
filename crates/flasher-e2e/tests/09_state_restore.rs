@@ -63,7 +63,7 @@ async fn seed_card(
             state: CardState::New,
             change_time: now_ms(),
             next_time,
-            disabled: false,
+            labels: vec![flasher_store::ENABLED_LABEL.to_owned()],
         })
         .await
         .map_err(store_err)

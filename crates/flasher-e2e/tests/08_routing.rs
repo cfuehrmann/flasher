@@ -53,7 +53,7 @@ async fn seed_page_cards(store: &Store, user_id: i64, n: usize) -> Result<()> {
                 state: CardState::New,
                 change_time: now,
                 next_time: now + offset,
-                disabled: false,
+                labels: vec![flasher_store::ENABLED_LABEL.to_owned()],
             })
             .await
             .map_err(store_err)?;
@@ -442,7 +442,7 @@ async fn active_tab_click_preserves_groom_state() -> Result<()> {
                 state: CardState::New,
                 change_time: now,
                 next_time: now + offset,
-                disabled: false,
+                labels: vec![flasher_store::ENABLED_LABEL.to_owned()],
             })
             .await
             .map_err(store_err)?;
@@ -458,7 +458,7 @@ async fn active_tab_click_preserves_groom_state() -> Result<()> {
                 state: CardState::New,
                 change_time: now,
                 next_time: now + offset,
-                disabled: false,
+                labels: vec![flasher_store::ENABLED_LABEL.to_owned()],
             })
             .await
             .map_err(store_err)?;

@@ -16,7 +16,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use flasher_e2e::{E2E_USER, Error, Result, TestHarness};
-use flasher_store::{CardState, DisabledFilter, NewCard, Store};
+use flasher_store::{CardState, NewCard, Store};
 
 /// Timeout for every DOM wait; generous because the wasm bundle has to
 /// download and boot first (same reasoning as the harness default).
@@ -71,7 +71,11 @@ async fn seed_card(
             state,
             change_time,
             next_time,
-            disabled,
+            labels: vec![if disabled {
+                flasher_store::DISABLED_LABEL.to_owned()
+            } else {
+                flasher_store::ENABLED_LABEL.to_owned()
+            }],
         })
         .await
         .map_err(store_err)
@@ -375,7 +379,7 @@ async fn add_card_creates_disabled_new_card() -> Result<()> {
 
     let (store, user_id) = seed_store(&h).await?;
     let (cards, count) = store
-        .search_cards(user_id, Some("e2e prompt"), DisabledFilter::All, 0, 10)
+        .search_cards(user_id, Some("e2e prompt"), None, 0, 10)
         .await
         .map_err(store_err)?;
     if count != 1 || cards.len() != 1 {
@@ -390,8 +394,10 @@ async fn add_card_creates_disabled_new_card() -> Result<()> {
             card.state
         )));
     }
-    if !card.disabled {
-        return Err(Error::message("new card should start out disabled"));
+    if !card.labels.iter().any(|label| label == "Disabled") {
+        return Err(Error::message(
+            "new card should start out with the Disabled label",
+        ));
     }
     if card.solution != "e2e solution" {
         return Err(Error::message(format!(
@@ -413,7 +419,7 @@ async fn add_card_creates_disabled_new_card() -> Result<()> {
         .await?;
     h.screenshot("03_quiz/add-card-validation").await?;
     let (_all, total) = store
-        .search_cards(user_id, None, DisabledFilter::All, 0, 100)
+        .search_cards(user_id, None, None, 0, 100)
         .await
         .map_err(store_err)?;
     if total != 1 {
@@ -421,5 +427,133 @@ async fn add_card_creates_disabled_new_card() -> Result<()> {
             "empty-prompt submit must not create a card; store holds {total}"
         )));
     }
+    Ok(())
+}
+
+/// Sets exactly the given labels checked in a label filter (union
+/// semantics), clicking like a user: open the panel, toggle each
+/// checkbox into the wanted state, close via the backdrop (same helper
+/// shape as the groom suite's).
+async fn set_label_filter(h: &TestHarness, id_prefix: &str, only: &[&str]) -> Result<()> {
+    h.click(&format!("#{id_prefix}-label-filter-button"))
+        .await?;
+    h.wait_for_selector(&format!("#{id_prefix}-label-filter-panel"), TIMEOUT)
+        .await?;
+    // The seed labels (creation is future work — a GitHub issue).
+    for name in ["Enabled", "Disabled"] {
+        let box_sel = format!("#{id_prefix}-label-{name}");
+        let want = only.contains(&name);
+        let is = h
+            .eval::<bool>(&format!("document.querySelector('{box_sel}').checked"))
+            .await?;
+        if is != want {
+            h.click(&box_sel).await?;
+        }
+    }
+    h.click(".label-filter-backdrop").await
+}
+
+/// The quiz's label filter (owner decision 2026-08-01): selects which
+/// labels may be quizzed (union semantics, default Enabled-only), is
+/// persisted across a real reload, and is independent of the groom
+/// tab's own persisted selection.
+#[tokio::test]
+#[ignore = "browser"]
+async fn quiz_label_filter_selects_persists_and_is_independent() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    let now = now_ms();
+    // An enabled due card (earliest) and a disabled due card.
+    seed_card(
+        &store,
+        user_id,
+        "card-enabled",
+        "Enabled prompt",
+        "Enabled solution",
+        CardState::New,
+        now - 120_000,
+        now - 2_000,
+        false,
+    )
+    .await?;
+    seed_card(
+        &store,
+        user_id,
+        "card-disabled",
+        "Disabled prompt",
+        "Disabled solution",
+        CardState::New,
+        now - 60_000,
+        now - 1_000,
+        true,
+    )
+    .await?;
+
+    h.goto("/").await?;
+    // First-usage default: Enabled only (the pre-labels behavior) — the
+    // selection badge shows it next to the button.
+    h.wait_for_text("#quiz-prompt", "Enabled prompt", TIMEOUT)
+        .await?;
+    h.wait_for_selector("#quiz-selected-Enabled", TIMEOUT)
+        .await?;
+    if h.eval::<bool>("!!document.querySelector('#quiz-selected-Disabled')")
+        .await?
+    {
+        return Err(Error::message(
+            "the quiz filter should default to Enabled only",
+        ));
+    }
+
+    // The open panel (new UI — the CV check reads this PNG).
+    h.click("#quiz-label-filter-button").await?;
+    h.wait_for_selector("#quiz-label-filter-panel", TIMEOUT)
+        .await?;
+    h.screenshot("03_quiz/quiz-label-panel").await?;
+    h.click(".label-filter-backdrop").await?;
+
+    // Disabled only: the next card is the disabled one.
+    set_label_filter(&h, "quiz", &["Disabled"]).await?;
+    h.wait_for_text("#quiz-prompt", "Disabled prompt", TIMEOUT)
+        .await?;
+
+    // Both: due order wins (the enabled card is due earliest).
+    set_label_filter(&h, "quiz", &["Enabled", "Disabled"]).await?;
+    h.wait_for_text("#quiz-prompt", "Enabled prompt", TIMEOUT)
+        .await?;
+
+    // Nothing: the done state, with the filter-aware hint.
+    set_label_filter(&h, "quiz", &[]).await?;
+    h.wait_for_text("#quiz-done", "no due cards match", TIMEOUT)
+        .await?;
+
+    // Back to Disabled-only, then a real reload: the selection persists.
+    set_label_filter(&h, "quiz", &["Disabled"]).await?;
+    h.wait_for_text("#quiz-prompt", "Disabled prompt", TIMEOUT)
+        .await?;
+    h.goto("/").await?;
+    h.wait_for_text("#quiz-prompt", "Disabled prompt", TIMEOUT)
+        .await?;
+
+    // Independence: the groom filter has its own persisted selection and
+    // does not touch the quiz's (nor vice versa).
+    h.click("#tab-groom").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
+    set_label_filter(&h, "groom", &["Enabled"]).await?;
+    h.wait_for_text("#groom-page-info", "of 1", TIMEOUT).await?;
+    h.click("#tab-quiz").await?;
+    h.wait_for_text("#quiz-prompt", "Disabled prompt", TIMEOUT)
+        .await?;
+    let groom_persisted = h
+        .eval::<String>("localStorage.getItem('flasher-groom-labels') ?? ''")
+        .await?;
+    let quiz_persisted = h
+        .eval::<String>("localStorage.getItem('flasher-quiz-labels') ?? ''")
+        .await?;
+    if groom_persisted != "Enabled" || quiz_persisted != "Disabled" {
+        return Err(Error::message(format!(
+            "selections should persist independently, groom={groom_persisted:?} quiz={quiz_persisted:?}"
+        )));
+    }
+    h.screenshot("03_quiz/quiz-label-filter").await?;
     Ok(())
 }

@@ -53,11 +53,11 @@ async fn create_card(base: &str, prompt: &str, solution: &str) -> TestResult<Str
 async fn find_returns_seeded_card_and_count() -> TestResult {
     let TestServer { base, server, .. } = start_test_server().await?;
     // The filter assertions live at API level on purpose (doctrine
-    // allows smoke-level only): the frontend always SENDS
-    // `disabled_filter`, so the absent-param default is observable only
-    // here, and the three wire values are pinned in one request each.
-    // A freshly created card starts disabled: the default filter (`all`)
-    // finds it, `enabled` hides it.
+    // allows smoke-level only): the frontend always SENDS `labels`, so
+    // the absent-param default is observable only here. A freshly created
+    // card starts out with the `Disabled` label: the absent filter finds
+    // it, `labels=Enabled` hides it, `labels=Disabled` finds it, an
+    // explicitly empty filter matches nothing.
     let id = create_card(&base, "Capital of France?", "Paris").await?;
 
     let default_filtered: FindCardsResponse = reqwest::get(format!("{base}/api/cards"))
@@ -65,47 +65,63 @@ async fn find_returns_seeded_card_and_count() -> TestResult {
         .json()
         .await?;
     assert_eq!(default_filtered.count, 1);
-    let only_enabled: FindCardsResponse =
-        reqwest::get(format!("{base}/api/cards?disabled_filter=enabled"))
-            .await?
-            .json()
-            .await?;
+    let only_enabled: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=Enabled"))
+        .await?
+        .json()
+        .await?;
     assert_eq!(only_enabled.count, 0);
+    let empty: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels="))
+        .await?
+        .json()
+        .await?;
+    assert_eq!(empty.count, 0);
 
-    let found: FindCardsResponse = reqwest::get(format!("{base}/api/cards?disabled_filter=all"))
+    let found: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=Disabled"))
         .await?
         .json()
         .await?;
     assert_eq!(found.count, 1);
     assert_eq!(found.cards.len(), 1);
     assert_eq!(found.cards[0].id, id);
+    assert_eq!(found.cards[0].labels, ["Disabled".to_owned()]);
     // The response echoes the server's configured page size.
     assert_eq!(found.page_size, i64::from(DEFAULT_PAGE_SIZE));
 
     // `search_text` filters, `skip` pages past the only card.
-    let hit: FindCardsResponse = reqwest::get(format!(
-        "{base}/api/cards?disabled_filter=all&search_text=france&skip=0"
-    ))
-    .await?
-    .json()
-    .await?;
-    assert_eq!(hit.count, 1);
-    let miss: FindCardsResponse = reqwest::get(format!(
-        "{base}/api/cards?disabled_filter=all&search_text=berlin"
-    ))
-    .await?
-    .json()
-    .await?;
-    assert_eq!(miss.count, 0);
-    assert!(miss.cards.is_empty());
-    let paged_out: FindCardsResponse =
-        reqwest::get(format!("{base}/api/cards?disabled_filter=all&skip=1"))
+    let hit: FindCardsResponse =
+        reqwest::get(format!("{base}/api/cards?search_text=france&skip=0"))
             .await?
             .json()
             .await?;
+    assert_eq!(hit.count, 1);
+    let miss: FindCardsResponse = reqwest::get(format!("{base}/api/cards?search_text=berlin"))
+        .await?
+        .json()
+        .await?;
+    assert_eq!(miss.count, 0);
+    assert!(miss.cards.is_empty());
+    let paged_out: FindCardsResponse = reqwest::get(format!("{base}/api/cards?skip=1"))
+        .await?
+        .json()
+        .await?;
     assert_eq!(paged_out.count, 1);
     assert!(paged_out.cards.is_empty());
 
+    server.abort();
+    Ok(())
+}
+
+/// `GET /api/labels` lists the user's labels (the two seed labels every
+/// user gets).
+#[tokio::test]
+async fn labels_lists_seed_labels() -> TestResult {
+    let TestServer { base, server, .. } = start_test_server().await?;
+    let labels: Vec<flasher_types::LabelResponse> = reqwest::get(format!("{base}/api/labels"))
+        .await?
+        .json()
+        .await?;
+    let names: Vec<&str> = labels.iter().map(|label| label.name.as_str()).collect();
+    assert_eq!(names, ["Disabled", "Enabled"]);
     server.abort();
     Ok(())
 }
@@ -140,7 +156,7 @@ async fn find_honors_take_and_falls_back_to_default() -> TestResult {
 }
 
 #[tokio::test]
-async fn patch_toggles_disabled_and_rejects_empty_or_unknown() -> TestResult {
+async fn patch_replaces_labels_and_rejects_empty_or_unknown() -> TestResult {
     let TestServer { base, server, .. } = start_test_server().await?;
     let client = reqwest::Client::new();
     let id = create_card(&base, "Q?", "A.").await?;
@@ -150,7 +166,7 @@ async fn patch_toggles_disabled_and_rejects_empty_or_unknown() -> TestResult {
         .json(&CardUpdateRequest {
             prompt: None,
             solution: None,
-            disabled: Some(false),
+            labels: Some(vec!["Enabled".to_owned()]),
         })
         .send()
         .await?;
@@ -163,18 +179,60 @@ async fn patch_toggles_disabled_and_rejects_empty_or_unknown() -> TestResult {
         .await?;
     assert_eq!(resp.status(), 422);
 
+    // Unknown label names and an empty set are both 422 (no backdoor
+    // creation, no invisible cards).
+    let resp = client
+        .patch(format!("{base}/api/cards/{id}"))
+        .json(&CardUpdateRequest {
+            prompt: None,
+            solution: None,
+            labels: Some(vec!["Nope".to_owned()]),
+        })
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 422);
+    let resp = client
+        .patch(format!("{base}/api/cards/{id}"))
+        .json(&CardUpdateRequest {
+            prompt: None,
+            solution: None,
+            labels: Some(vec![]),
+        })
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 422);
+
+    // A 422 must not leave a half-applied patch (adversarial review
+    // 2026-08-01): labels validate before any write, so the content
+    // update in the same body is NOT applied either.
+    let resp = client
+        .patch(format!("{base}/api/cards/{id}"))
+        .json(&CardUpdateRequest {
+            prompt: Some("HALF-PATCHED".to_owned()),
+            solution: None,
+            labels: Some(vec!["Nope".to_owned()]),
+        })
+        .send()
+        .await?;
+    assert_eq!(resp.status(), 422);
+    let unchanged: CardResponse = reqwest::get(format!("{base}/api/cards/{id}"))
+        .await?
+        .json()
+        .await?;
+    assert_eq!(unchanged.prompt, "Q?");
+
     let updated: CardResponse = client
         .patch(format!("{base}/api/cards/{id}"))
         .json(&CardUpdateRequest {
             prompt: None,
             solution: None,
-            disabled: Some(false),
+            labels: Some(vec!["Enabled".to_owned()]),
         })
         .send()
         .await?
         .json()
         .await?;
-    assert!(!updated.disabled);
+    assert_eq!(updated.labels, ["Enabled".to_owned()]);
     assert_eq!(updated.prompt, "Q?");
 
     server.abort();
@@ -229,7 +287,11 @@ async fn get_card_by_id_smoke() -> TestResult {
     assert_eq!(card.id, id);
     assert_eq!(card.prompt, "Capital of France?");
     assert_eq!(card.solution, "Paris");
-    assert!(card.disabled, "a freshly created card starts disabled");
+    assert_eq!(
+        card.labels,
+        ["Disabled".to_owned()],
+        "a freshly created card starts with the Disabled label"
+    );
 
     // Unknown id → 404. `/api/cards/next` must still resolve to the
     // static route, not the `{id}` param.
@@ -244,7 +306,7 @@ async fn get_card_by_id_smoke() -> TestResult {
 
 /// Ported `CardsHandler.Update` side effect: a PATCH that changes content
 /// (prompt and/or solution) deletes the user's autosave; a pure
-/// `disabled` toggle keeps it.
+/// label toggle keeps it.
 #[tokio::test]
 async fn patch_with_content_invalidates_autosave() -> TestResult {
     let TestServer {
@@ -256,7 +318,7 @@ async fn patch_with_content_invalidates_autosave() -> TestResult {
     let client = reqwest::Client::new();
     let id = create_card(&base, "Q?", "A.").await?;
 
-    // A pure disabled toggle leaves the autosave alone.
+    // A pure label toggle leaves the autosave alone.
     store
         .put_autosave(user_id, Some(&id), "draft p", "draft s", 1)
         .await?;
@@ -265,7 +327,7 @@ async fn patch_with_content_invalidates_autosave() -> TestResult {
         .json(&CardUpdateRequest {
             prompt: None,
             solution: None,
-            disabled: Some(false),
+            labels: Some(vec!["Enabled".to_owned()]),
         })
         .send()
         .await?;
@@ -281,12 +343,19 @@ async fn patch_with_content_invalidates_autosave() -> TestResult {
         .json(&CardUpdateRequest {
             prompt: Some("Q2?".to_owned()),
             solution: None,
-            disabled: None,
+            labels: None,
         })
         .send()
         .await?;
     assert_eq!(resp.status(), 200);
     assert_eq!(store.get_autosave(user_id).await?, None);
+    // The content update itself must have landed (a guard mutation
+    // skipping it would otherwise pass unnoticed above).
+    let updated: CardResponse = reqwest::get(format!("{base}/api/cards/{id}"))
+        .await?
+        .json()
+        .await?;
+    assert_eq!(updated.prompt, "Q2?");
 
     server.abort();
     Ok(())
