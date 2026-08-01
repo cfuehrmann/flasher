@@ -110,6 +110,35 @@ async fn find_returns_seeded_card_and_count() -> TestResult {
     Ok(())
 }
 
+/// The optional `take` sizes the page per request (the groom tab fits the
+/// list to its viewport): a valid value is honored and echoed as
+/// `page_size`, an absent or `0` value falls back to the server default.
+#[tokio::test]
+async fn find_honors_take_and_falls_back_to_default() -> TestResult {
+    let TestServer { base, server, .. } = start_test_server().await?;
+    for index in 0..5 {
+        create_card(&base, &format!("Q{index}?"), "A.").await?;
+    }
+
+    let taken: FindCardsResponse = reqwest::get(format!("{base}/api/cards?take=3"))
+        .await?
+        .json()
+        .await?;
+    assert_eq!(taken.cards.len(), 3);
+    assert_eq!(taken.count, 5);
+    assert_eq!(taken.page_size, 3);
+
+    let zero: FindCardsResponse = reqwest::get(format!("{base}/api/cards?take=0"))
+        .await?
+        .json()
+        .await?;
+    assert_eq!(zero.page_size, i64::from(DEFAULT_PAGE_SIZE));
+    assert_eq!(zero.cards.len(), 5);
+
+    server.abort();
+    Ok(())
+}
+
 #[tokio::test]
 async fn patch_toggles_disabled_and_rejects_empty_or_unknown() -> TestResult {
     let TestServer { base, server, .. } = start_test_server().await?;

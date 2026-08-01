@@ -91,6 +91,12 @@ body {
 /* Header + nav tabs (chrome recedes: ghost tabs, quiet active state)  */
 /* ------------------------------------------------------------------ */
 
+/* Sticky on every page (owner wish 2026-07-31): logo + tabs stay at the
+   viewport top while the page scrolls. The background hides the content
+   scrolling underneath; the z-index sits below the row menu (10/11) and
+   modal layers. The measured height of this block is exported to
+   .groom-head via --top-h (set from JS: flex-wrap makes it two rows tall
+   on narrow screens, so a constant would drift). */
 .top {
   display: flex;
   align-items: center;
@@ -99,6 +105,10 @@ body {
   gap: 0.5rem 1rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
 }
 
 .brand-logo {
@@ -539,6 +549,23 @@ textarea:focus-visible {
   border-color: var(--accent-border);
 }
 
+/* Sticky groom chrome (owner wish 2026-07-31): search/filter and the
+   paging bar stay directly below the sticky .top header while the card
+   list scrolls. --top-h is the header's measured height, exported from
+   JS (see .top); the fallback only covers the first frames. Spacing and
+   border mirror the header's own padding/border rhythm. */
+.groom-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: var(--top-h, 3.5rem);
+  z-index: 4;
+  background: var(--bg);
+}
+
 /* Search box (with the clear button inside it) + status filter (issue
    #127) share one row: the box takes the remaining width, the filter
    keeps its natural size. */
@@ -774,6 +801,9 @@ textarea:focus-visible {
 .modal-backdrop {
   position: fixed;
   inset: 0;
+  /* Above the sticky header (5) and groom-head (4): a confirm modal must
+     cover the pinned chrome too. */
+  z-index: 20;
   background: rgba(1, 4, 9, 0.7);
   display: flex;
   align-items: center;

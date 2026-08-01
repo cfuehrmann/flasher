@@ -541,6 +541,25 @@ browser e2e (clicking) together — never a backend without its user-facing test
     filtering + composition with search. Review round 9 (unprimed, browser-verified): toggling
     the last row of a later page out of the active filter stranded the user on a false
     "No cards match." — fixed with the delete-style step-back fallback (new e2e).</li>
+    <li class="done"><b>Groom page fits the viewport + sticky chrome (owner, 2026-07-31):</b>
+    cards-per-page is no longer a fixed 10 — the groom tab measures the rendered rows and
+    the free vertical space at runtime and requests exactly the rows that fill the page
+    (per-row heights summed, so mixed one/two-line prompts fit exactly; new optional
+    <code>take</code> on <code>GET /api/cards</code>, clamped at <code>MAX_TAKE</code> = 100
+    in flasher-types, echoed as <code>page_size</code>). The calibrated size persists in
+    localStorage, so remounts start right; resize re-fits (debounced). The list is
+    <b>offset-based</b>, not page-number-based (owner feedback: the top card moved on
+    resize) — the offset is the anchor, so a re-fit only changes how many cards show
+    below the top one. The header (logo + tabs) is sticky on all pages; on groom the
+    search/filter + paging bar stick below it (<code>--top-h</code> is the measured
+    header height). First-ever visit costs one corrective refetch (fallback 10 →
+    measured fit); later mounts fetch once. Review round 10 (unprimed, browser-verified):
+    fixed mobile URL-bar scroll churn (sub-row height-only resizes ignored), mixed-height
+    off-by-one (prefix-sum fit, new e2e), a re-fit lost in a Loading window (re-armed
+    pass), and a doctrine-banned sleep in e2e (state-based now); MAX_TAKE moved to
+    flasher-types. <b>Deferred:</b> a draft-banner appearing/disappearing shifts the
+    layout without a resize event, so the fit is stale (≤ ~one row under/overflow) until
+    the next resize or remount — self-healing, sticky chrome covers the overflow direction.</li>
   </ul>
 </div>
 

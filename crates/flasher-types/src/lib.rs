@@ -151,11 +151,19 @@ impl DisabledFilter {
     }
 }
 
+/// Upper bound for the optional per-request `take` of `GET /api/cards`
+/// (the groom tab requests exactly as many rows as fit its viewport):
+/// the server clamps to this, and the client mirrors the cap so the
+/// echoed `page_size` always equals the requested `take`.
+pub const MAX_TAKE: u32 = 100;
+
 /// Response of `GET /api/cards`, matching the shape of the old
 /// `FindResponse`: one page of cards plus the total number of cards
 /// matching the search (before paging), so the UI can render pagination.
-/// `page_size` echoes the server's configured page size
-/// (`FLASHER_PAGE_SIZE`), so clients never have to hard-code it.
+/// `page_size` echoes the effective page size — the request's `take`
+/// when present (the groom tab sizes it to its viewport), otherwise the
+/// server's configured `FLASHER_PAGE_SIZE` — so clients never have to
+/// hard-code it.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct FindCardsResponse {
     pub cards: Vec<CardResponse>,

@@ -61,6 +61,36 @@ async fn seed_page_cards(store: &Store, user_id: i64, n: usize) -> Result<()> {
     Ok(())
 }
 
+/// Waits until the groom viewport-fit calibration has run and persisted
+/// the fitted page size, and returns it (paging expectations are
+/// computed from the measured fit, never hard-coded).
+async fn wait_for_calibration(h: &TestHarness) -> Result<usize> {
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        // `?? ''`: a JS null (missing key) does not deserialize over CDP.
+        let persisted = h
+            .eval::<String>("localStorage.getItem('flasher-groom-take') ?? ''")
+            .await?;
+        if let Ok(fit) = persisted.parse::<usize>() {
+            return Ok(fit);
+        }
+        if Instant::now() >= deadline {
+            return Err(Error::message(
+                "the viewport-fit calibration did not persist a page size",
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+/// The "showing first–last of count" line for page `page` (0-based) of
+/// `count` cards at page size `fit`.
+fn showing(page: usize, fit: usize, count: usize) -> String {
+    let first = page * fit + 1;
+    let last = ((page + 1) * fit).min(count);
+    format!("showing {first}–{last} of {count}")
+}
+
 /// Polls `location.pathname` until it equals `path` (a tab switch's
 /// `pushState` and `history.back()` are fire-and-forget).
 async fn wait_for_path(h: &TestHarness, path: &str) -> Result<()> {
@@ -304,7 +334,13 @@ async fn groom_paging_bar_on_top() -> Result<()> {
     seed_page_cards(&store, user_id, 12).await?;
 
     h.click("#tab-groom").await?;
-    h.wait_for_text("#groom-page-info", "showing 1–10 of 12", TIMEOUT)
+    let fit = wait_for_calibration(&h).await?;
+    if fit >= 12 {
+        return Err(Error::message(format!(
+            "test premise: the calibrated page size {fit} must leave the 12 cards paged"
+        )));
+    }
+    h.wait_for_text("#groom-page-info", &showing(0, fit, 12), TIMEOUT)
         .await?;
 
     // DOM order: the paging bar precedes the first card row.
@@ -329,14 +365,15 @@ async fn groom_paging_bar_on_top() -> Result<()> {
 
     // Paging from the top bar still works.
     h.click("#groom-next").await?;
-    h.wait_for_text("#groom-page-info", "showing 11–12 of 12", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(1, fit, 12), TIMEOUT)
         .await?;
     let rows: usize = h
         .eval("document.querySelectorAll('.groom-row').length")
         .await?;
-    if rows != 2 {
+    let want = fit.min(12 - fit);
+    if rows != want {
         return Err(Error::message(format!(
-            "page 2 should show 2 rows, shows {rows}"
+            "page 2 should show {want} rows, shows {rows}"
         )));
     }
     h.screenshot("08_routing/groom-paging-top-page2").await?;
@@ -429,11 +466,17 @@ async fn active_tab_click_preserves_groom_state() -> Result<()> {
 
     h.goto("/groom").await?;
     h.wait_for_selector("#groom-search", TIMEOUT).await?;
+    let fit = wait_for_calibration(&h).await?;
+    if fit >= 12 {
+        return Err(Error::message(format!(
+            "test premise: the calibrated page size {fit} must leave the 12 matching cards paged"
+        )));
+    }
     h.type_into("#groom-search", "x").await?;
-    h.wait_for_text("#groom-page-info", "showing 1–10 of 12", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(0, fit, 12), TIMEOUT)
         .await?;
     h.click("#groom-next").await?;
-    h.wait_for_text("#groom-page-info", "showing 11–12 of 12", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(1, fit, 12), TIMEOUT)
         .await?;
 
     // Click the active Groom tab: search text and page survive.
@@ -445,7 +488,7 @@ async fn active_tab_click_preserves_groom_state() -> Result<()> {
             "clicking the active Groom tab must not clear the search, shows: {search:?}"
         )));
     }
-    h.wait_for_text("#groom-page-info", "showing 11–12 of 12", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(1, fit, 12), TIMEOUT)
         .await?;
     wait_for_path(&h, "/groom").await?;
     Ok(())

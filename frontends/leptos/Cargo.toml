@@ -54,6 +54,9 @@ js-sys = { version = "=0.3.103" }
 # (pushState/replaceState/popstate — deliberately no leptos_router).
 # Storage (localStorage) persists the groom tab's filter + search text
 # across tab switches and browser refresh (owner wish 2026-07-31).
+# Element/DomRect/HtmlElement/CssStyleDeclaration measure the sticky
+# header's height (--top-h) and the groom list's free vertical space
+# (viewport-fit page size, owner 2026-07-31).
 web-sys = { version = "=0.3.103", features = [
     "AuthenticatorAssertionResponse",
     "AuthenticatorAttestationResponse",
@@ -61,9 +64,15 @@ web-sys = { version = "=0.3.103", features = [
     "CredentialCreationOptions",
     "CredentialRequestOptions",
     "CredentialsContainer",
+    "CssStyleDeclaration",
+    "Document",
+    "DomRect",
+    "Element",
     "History",
+    "HtmlElement",
     "Location",
     "Navigator",
+    "NodeList",
     "PublicKeyCredential",
     "RequestCredentials",
     "Storage",

@@ -112,9 +112,9 @@ use flasher_core::SrsConfig;
 use flasher_store::{AutoSave, Card, CardState, NewCard, SetCardState, Store, User};
 use flasher_types::{
     AutoSaveResponse, BootstrapResponse, CardResponse, CardUpdateRequest, CreateCardRequest,
-    DisabledFilter, FindCardsResponse, GetAutoSaveResponse, HealthResponse, NextCardResponse,
-    PasskeyResponse, PutAutoSaveRequest, RegisterStartRequest, RenamePasskeyRequest,
-    SessionResponse, SetCardStateRequest,
+    DisabledFilter, FindCardsResponse, GetAutoSaveResponse, HealthResponse, MAX_TAKE,
+    NextCardResponse, PasskeyResponse, PutAutoSaveRequest, RegisterStartRequest,
+    RenamePasskeyRequest, SessionResponse, SetCardStateRequest,
 };
 use serde::Deserialize;
 use tokio::net::TcpListener;
@@ -122,7 +122,7 @@ use tower_http::compression::CompressionLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
 /// Default page size of `GET /api/cards`, matching the old
-/// `CardsOptions.PageSize`.
+/// `CardsOptions.PageSize`. Used when the request carries no `take`.
 pub const DEFAULT_PAGE_SIZE: u32 = 10;
 
 /// Name of the session cookie (`__Host-` prefix: `Secure`, `Path=/`, no
@@ -1159,18 +1159,24 @@ struct FindCardsQuery {
     search_text: Option<String>,
     disabled_filter: Option<DisabledFilter>,
     skip: Option<u32>,
+    take: Option<u32>,
 }
 
 /// `GET /api/cards` — port of `CardsHandler.Find`: full-Unicode
 /// case-insensitive substring match over prompt and solution, filtered by
 /// the `disabled` flag per `disabled_filter`, then `next_time` ascending
-/// (`id` tie-break); `take` is the configured page size. Returns the page
-/// plus the total match count.
+/// (`id` tie-break); the page size is the requested `take` (1..=[`MAX_TAKE`],
+/// the groom tab sizes it to its viewport) or the configured default when
+/// absent. Returns the page plus the total match count.
 async fn find_cards(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
     Query(query): Query<FindCardsQuery>,
 ) -> Result<Json<FindCardsResponse>, ApiError> {
+    let take = query
+        .take
+        .filter(|&take| take > 0)
+        .map_or(state.page_size, |take| take.min(MAX_TAKE));
     let (cards, count) = state
         .store
         .search_cards(
@@ -1178,13 +1184,13 @@ async fn find_cards(
             query.search_text.as_deref(),
             query.disabled_filter.unwrap_or_default(),
             query.skip.unwrap_or(0),
-            state.page_size,
+            take,
         )
         .await?;
     Ok(Json(FindCardsResponse {
         cards: cards.into_iter().map(card_response).collect(),
         count,
-        page_size: i64::from(state.page_size),
+        page_size: i64::from(take),
     }))
 }
 

@@ -122,6 +122,79 @@ async fn row_count(h: &TestHarness) -> Result<usize> {
         .await
 }
 
+/// Waits until the viewport-fit calibration has run and persisted the
+/// fitted page size, and returns it (owner wish 2026-07-31: the groom
+/// page size is the number of rows that fit the viewport, so paging
+/// expectations are computed from the measured fit, never hard-coded).
+async fn wait_for_calibration(h: &TestHarness) -> Result<usize> {
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        // `?? ''`: a JS null (missing key) does not deserialize over CDP.
+        let persisted = h
+            .eval::<String>("localStorage.getItem('flasher-groom-take') ?? ''")
+            .await?;
+        if let Ok(fit) = persisted.parse::<usize>() {
+            return Ok(fit);
+        }
+        if Instant::now() >= deadline {
+            return Err(Error::message(
+                "the viewport-fit calibration did not persist a page size",
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+/// Waits until a resize re-fit persists a page size different from
+/// `previous`, and returns the new one.
+async fn wait_for_refit(h: &TestHarness, previous: usize) -> Result<usize> {
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        let persisted = h
+            .eval::<String>("localStorage.getItem('flasher-groom-take') ?? ''")
+            .await?;
+        if let Ok(fit) = persisted.parse::<usize>()
+            && fit != previous
+        {
+            return Ok(fit);
+        }
+        if Instant::now() >= deadline {
+            return Err(Error::message(format!(
+                "no re-fit away from page size {previous} happened"
+            )));
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+/// The "showing first–last of count" line for page `page` (0-based) of
+/// `count` cards at page size `fit`.
+fn showing(page: usize, fit: usize, count: usize) -> String {
+    showing_at(page * fit, fit, count)
+}
+
+/// The "showing first–last of count" line for a window of `fit` cards
+/// starting at offset `skip`.
+fn showing_at(skip: usize, fit: usize, count: usize) -> String {
+    let first = skip + 1;
+    let last = (skip + fit).min(count);
+    format!("showing {first}–{last} of {count}")
+}
+
+/// Waits until the page is actually scrolled (a `scrollTo` has landed).
+async fn wait_scrolled(h: &TestHarness) -> Result<()> {
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        if h.eval::<f64>("window.scrollY").await? > 0.0 {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(Error::message("the page did not scroll"));
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
 /// Picks a status-filter option like a user: sets the select's value and
 /// fires the bubbling `change` event its `on:change` handler listens to
 /// (CDP has no realistic "choose a native select option" input path).
@@ -322,9 +395,15 @@ async fn filter_enabled_disabled_all() -> Result<()> {
     .await?;
 
     goto_groom(&h).await?;
+    let fit = wait_for_calibration(&h).await?;
+    if fit >= 11 {
+        return Err(Error::message(format!(
+            "test premise: the calibrated page size {fit} must leave the 11 enabled cards paged"
+        )));
+    }
     // First usage (fresh browser profile, nothing persisted): the filter
     // defaults to `all` (owner decision 2026-07-31) — all 12 cards.
-    h.wait_for_text("#groom-page-info", "showing 1–10 of 12", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(0, fit, 12), TIMEOUT)
         .await?;
     if h.eval::<String>("document.querySelector('#groom-filter').value")
         .await?
@@ -344,7 +423,7 @@ async fn filter_enabled_disabled_all() -> Result<()> {
 
     // `enabled`: the disabled card hides, the 11 enabled ones paginate.
     set_filter(&h, "enabled").await?;
-    h.wait_for_text("#groom-page-info", "showing 1–10 of 11", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(0, fit, 11), TIMEOUT)
         .await?;
     let results = h.text_content("#groom-results").await?;
     if results.contains("Disabled prompt") {
@@ -356,7 +435,7 @@ async fn filter_enabled_disabled_all() -> Result<()> {
 
     // Go to page 2, then switch the filter: it must reset to page 0.
     h.click("#groom-next").await?;
-    h.wait_for_text("#groom-page-info", "showing 11–11 of 11", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(1, fit, 11), TIMEOUT)
         .await?;
     set_filter(&h, "disabled").await?;
     h.wait_for_text("#groom-page-info", "showing 1–1 of 1", TIMEOUT)
@@ -464,22 +543,35 @@ async fn filter_and_search_survive_tab_switch_and_reload() -> Result<()> {
 /// Toggling the last row of a page beyond the first out of the active
 /// filter steps back one page (same fallback as delete) instead of
 /// stranding the user on a false "No cards match." without a paging bar
-/// (adversarial review, issue #127).
+/// (adversarial review, issue #127). The single-row second page is
+/// constructed relative to the calibrated viewport fit: seed plenty,
+/// measure the fit, trim to fit+1, reload.
 #[tokio::test]
 #[ignore = "browser"]
 async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
     let h = TestHarness::start().await?;
     let (store, user_id) = seed_store(&h).await?;
-    seed_page_cards(&store, user_id, 11, "card-t").await?;
+    seed_page_cards(&store, user_id, 30, "card-t").await?;
 
     goto_groom(&h).await?;
+    let fit = wait_for_calibration(&h).await?;
+    // Trim to exactly fit+1 cards, so the second page holds one row.
+    for i in (fit + 2)..=30 {
+        store
+            .delete_card(user_id, &format!("card-t{i:02}"))
+            .await
+            .map_err(store_err)?;
+    }
+    h.goto("/groom").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
+
     // The first-usage default is `all`; the fallback this test pins
     // needs the `enabled` filter so the toggle drops the row out.
     set_filter(&h, "enabled").await?;
-    h.wait_for_text("#groom-page-info", "showing 1–10 of 11", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(0, fit, fit + 1), TIMEOUT)
         .await?;
     h.click("#groom-next").await?;
-    h.wait_for_text("#groom-page-info", "showing 11–11 of 11", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(1, fit, fit + 1), TIMEOUT)
         .await?;
     if row_count(&h).await? != 1 {
         return Err(Error::message("page 2 should show exactly 1 row"));
@@ -487,17 +579,18 @@ async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
 
     // Disabling the single row of page 2 drops it out of the `enabled`
     // filter: the UI must land back on page 1 with the refreshed count.
-    h.click("#toggle-disabled-card-t11").await?;
-    h.wait_for_text("#groom-page-info", "showing 1–10 of 10", TIMEOUT)
+    let last_id = format!("card-t{:02}", fit + 1);
+    h.click(&format!("#toggle-disabled-{last_id}")).await?;
+    h.wait_for_text("#groom-page-info", &showing(0, fit, fit), TIMEOUT)
         .await?;
-    if row_count(&h).await? != 10 {
-        return Err(Error::message("should be back on page 1 with 10 rows"));
+    if row_count(&h).await? != fit {
+        return Err(Error::message("should be back on page 1 with a full page"));
     }
     let card = store
-        .get_card(user_id, "card-t11")
+        .get_card(user_id, &last_id)
         .await
         .map_err(store_err)?
-        .ok_or_else(|| Error::message("card-t11 vanished"))?;
+        .ok_or_else(|| Error::message(format!("{last_id} vanished")))?;
     if !card.disabled {
         return Err(Error::message("store row should be disabled=true"));
     }
@@ -505,8 +598,11 @@ async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
     Ok(())
 }
 
-/// Paging: 12 enabled cards spread over two server-side pages; the
-/// prev/next buttons and the "showing X–Y of Z" line stay in sync.
+/// Paging: 12 enabled cards spread over several viewport-fitted pages;
+/// the prev/next buttons and the "showing X–Y of Z" line stay in sync.
+/// Page-size expectations are computed from the calibrated fit (owner
+/// wish 2026-07-31: the page size is the number of rows that fit the
+/// viewport), never hard-coded.
 #[tokio::test]
 #[ignore = "browser"]
 async fn paging_walks_two_pages() -> Result<()> {
@@ -515,10 +611,16 @@ async fn paging_walks_two_pages() -> Result<()> {
     seed_page_cards(&store, user_id, 12, "card-p").await?;
 
     goto_groom(&h).await?;
-    h.wait_for_text("#groom-page-info", "showing 1–10 of 12", TIMEOUT)
+    let fit = wait_for_calibration(&h).await?;
+    if fit >= 12 {
+        return Err(Error::message(format!(
+            "test premise: the calibrated page size {fit} must leave the 12 cards paged"
+        )));
+    }
+    h.wait_for_text("#groom-page-info", &showing(0, fit, 12), TIMEOUT)
         .await?;
-    if row_count(&h).await? != 10 {
-        return Err(Error::message("page 1 should show 10 rows"));
+    if row_count(&h).await? != fit {
+        return Err(Error::message("page 1 should show a full fitted page"));
     }
     if !h
         .eval::<bool>("document.querySelector('#groom-prev').disabled")
@@ -527,18 +629,22 @@ async fn paging_walks_two_pages() -> Result<()> {
         return Err(Error::message("prev should be disabled on page 1"));
     }
     let results = h.text_content("#groom-results").await?;
-    if !results.contains("P01") || !results.contains("P10") || results.contains("P11") {
+    let last = format!("P{fit:02}");
+    let beyond = format!("P{:02}", fit + 1);
+    if !results.contains("P01") || !results.contains(&last) || results.contains(&beyond) {
         return Err(Error::message(format!(
-            "page 1 should show P01..P10, shows: {results:?}"
+            "page 1 should show P01..{last} and not {beyond}, shows: {results:?}"
         )));
     }
     h.screenshot("04_groom/paging-page1").await?;
 
-    h.click("#groom-next").await?;
-    h.wait_for_text("#groom-page-info", "showing 11–12 of 12", TIMEOUT)
-        .await?;
-    if row_count(&h).await? != 2 {
-        return Err(Error::message("page 2 should show 2 rows"));
+    // Walk forward to the last page: the line and the buttons stay in
+    // sync on every step.
+    let last_page = 12_usize.div_ceil(fit) - 1;
+    for p in 1..=last_page {
+        h.click("#groom-next").await?;
+        h.wait_for_text("#groom-page-info", &showing(p, fit, 12), TIMEOUT)
+            .await?;
     }
     if !h
         .eval::<bool>("document.querySelector('#groom-next').disabled")
@@ -546,20 +652,22 @@ async fn paging_walks_two_pages() -> Result<()> {
     {
         return Err(Error::message("next should be disabled on the last page"));
     }
-    let results = h.text_content("#groom-results").await?;
-    if !results.contains("P11") || !results.contains("P12") {
+    let rows = row_count(&h).await?;
+    if rows != 12 - last_page * fit {
         return Err(Error::message(format!(
-            "page 2 should show P11 and P12, shows: {results:?}"
+            "the last page should show {} rows, shows {rows}",
+            12 - last_page * fit
         )));
     }
     h.screenshot("04_groom/paging-page2").await?;
 
     h.click("#groom-prev").await?;
-    h.wait_for_text("#groom-page-info", "showing 1–10 of 12", TIMEOUT)
-        .await?;
-    if row_count(&h).await? != 10 {
-        return Err(Error::message("page 1 should show 10 rows again"));
-    }
+    h.wait_for_text(
+        "#groom-page-info",
+        &showing(last_page - 1, fit, 12),
+        TIMEOUT,
+    )
+    .await?;
     Ok(())
 }
 
@@ -702,39 +810,52 @@ async fn delete_with_confirm_modal() -> Result<()> {
 }
 
 /// Deleting the last row of page 2 lands back on page 1 with the
-/// refreshed count.
+/// refreshed count. The single-row second page is constructed relative
+/// to the calibrated viewport fit (seed plenty, measure, trim to fit+1,
+/// reload).
 #[tokio::test]
 #[ignore = "browser"]
 async fn delete_last_item_on_page_goes_back() -> Result<()> {
     let h = TestHarness::start().await?;
     let (store, user_id) = seed_store(&h).await?;
-    seed_page_cards(&store, user_id, 11, "card-q").await?;
+    seed_page_cards(&store, user_id, 30, "card-q").await?;
 
     goto_groom(&h).await?;
-    h.wait_for_text("#groom-page-info", "showing 1–10 of 11", TIMEOUT)
+    let fit = wait_for_calibration(&h).await?;
+    for i in (fit + 2)..=30 {
+        store
+            .delete_card(user_id, &format!("card-q{i:02}"))
+            .await
+            .map_err(store_err)?;
+    }
+    h.goto("/groom").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
+
+    h.wait_for_text("#groom-page-info", &showing(0, fit, fit + 1), TIMEOUT)
         .await?;
     h.click("#groom-next").await?;
-    h.wait_for_text("#groom-page-info", "showing 11–11 of 11", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(1, fit, fit + 1), TIMEOUT)
         .await?;
     if row_count(&h).await? != 1 {
         return Err(Error::message("page 2 should show exactly 1 row"));
     }
 
-    click_row_menu_item(&h, "card-q11", "#delete-card-q11").await?;
+    let last_id = format!("card-q{:02}", fit + 1);
+    click_row_menu_item(&h, &last_id, &format!("#delete-{last_id}")).await?;
     h.wait_for_selector("#groom-modal", TIMEOUT).await?;
     h.click("#modal-confirm").await?;
-    h.wait_for_text("#groom-page-info", "showing 1–10 of 10", TIMEOUT)
+    h.wait_for_text("#groom-page-info", &showing(0, fit, fit), TIMEOUT)
         .await?;
-    if row_count(&h).await? != 10 {
-        return Err(Error::message("should be back on page 1 with 10 rows"));
+    if row_count(&h).await? != fit {
+        return Err(Error::message("should be back on page 1 with a full page"));
     }
     let (_cards, count) = store
         .search_cards(user_id, None, DisabledFilter::All, 0, 100)
         .await
         .map_err(store_err)?;
-    if count != 10 {
+    if count != i64::try_from(fit).unwrap_or(i64::MAX) {
         return Err(Error::message(format!(
-            "store should hold 10 cards after the delete, holds {count}"
+            "store should hold {fit} cards after the delete, holds {count}"
         )));
     }
     h.screenshot("04_groom/delete-last-item-back").await?;
@@ -938,6 +1059,10 @@ async fn row_menu_opens_and_dismisses() -> Result<()> {
     .await?;
 
     goto_groom(&h).await?;
+    // Wait out the viewport-fit calibration: its corrective refetch
+    // briefly replaces the rows with the Loading state, which would
+    // race the one-shot evals below.
+    let fit = wait_for_calibration(&h).await?;
     // The card is seeded disabled (new + disabled is the widest badge
     // combination); the first-usage default filter `all` lists it.
     h.wait_for_selector("#menu-card-menu", TIMEOUT).await?;
@@ -965,6 +1090,11 @@ async fn row_menu_opens_and_dismisses() -> Result<()> {
         )));
     }
     h.set_viewport(390, 844).await?;
+    // The viewport change makes the groom tab re-fit its page size (a
+    // refetch briefly replaces the rows with the Loading state): wait
+    // for the re-fit to settle before probing the row layout.
+    wait_for_refit(&h, fit).await?;
+    h.wait_for_selector("#groom-row-card-menu", TIMEOUT).await?;
     let probe = h.eval::<String>(META_PROBE).await?;
     if !probe.contains("\"same_line\":true") {
         return Err(Error::message(format!(
@@ -1002,5 +1132,296 @@ async fn row_menu_opens_and_dismisses() -> Result<()> {
     wait_until_gone(&h, ".groom-menu", TIMEOUT).await?;
     h.wait_for_selector("#groom-modal", TIMEOUT).await?;
     h.click("#modal-cancel").await?;
+    Ok(())
+}
+
+/// Viewport fit (owner wish 2026-07-31): the groom page size is the
+/// number of rows that fill the viewport — the page needs no vertical
+/// scrolling AND does not underfill (the leftover below the last row is
+/// less than one row pitch).
+#[tokio::test]
+#[ignore = "browser"]
+async fn viewport_fit_fills_page_without_scroll_or_underfill() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    seed_page_cards(&store, user_id, 30, "card-fit-").await?;
+
+    goto_groom(&h).await?;
+    let fit = wait_for_calibration(&h).await?;
+    if !(2..30).contains(&fit) {
+        return Err(Error::message(format!(
+            "test premise: the calibrated page size should be 2..30, is {fit}"
+        )));
+    }
+    h.wait_for_text("#groom-page-info", &showing(0, fit, 30), TIMEOUT)
+        .await?;
+    if row_count(&h).await? != fit {
+        return Err(Error::message(
+            "the first page should show exactly the fitted rows",
+        ));
+    }
+    // No vertical scrolling needed (1 px of sub-pixel slack allowed).
+    if !h
+        .eval::<bool>("document.scrollingElement.scrollHeight - window.innerHeight <= 1")
+        .await?
+    {
+        return Err(Error::message(
+            "the fitted page should not need vertical scrolling",
+        ));
+    }
+    // No underfill: the slack below the last row (beyond the normal app
+    // gap) cannot hold another row.
+    let pitch = h
+        .eval::<f64>(
+            "(() => { \
+             const rows = document.querySelectorAll('.groom-row'); \
+             return rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top; \
+             })()",
+        )
+        .await?;
+    let slack = h
+        .eval::<f64>(
+            "(() => { \
+             const rows = document.querySelectorAll('.groom-row'); \
+             const last = rows[rows.length - 1].getBoundingClientRect(); \
+             const footer = document.querySelector('.bottom').getBoundingClientRect(); \
+             const gap = parseFloat(getComputedStyle(document.querySelector('.app')).rowGap); \
+             return footer.top - last.bottom - gap; \
+             })()",
+        )
+        .await?;
+    if slack >= pitch {
+        return Err(Error::message(format!(
+            "underfill: another row (pitch {pitch}px) would fit into the slack {slack}px"
+        )));
+    }
+    h.screenshot("04_groom/viewport-fit").await?;
+    Ok(())
+}
+
+/// The fit sums per-row heights (prompts clamp at two lines, so rows
+/// come in two heights): a page mixing one- and two-line prompts still
+/// fills the viewport exactly — no scroll, and the leftover holds no
+/// further row of any height (adversarial review 2026-07-31:
+/// uniform-only seeding could not see the off-by-one).
+#[tokio::test]
+#[ignore = "browser"]
+async fn viewport_fit_handles_mixed_row_heights() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    // Every third prompt carries a newline, so its row is one text line
+    // taller than its neighbors'.
+    let now = now_ms();
+    for i in 1..=30_usize {
+        let offset = i64::try_from(i).unwrap_or(i64::MAX) * 60_000;
+        let prompt = if i % 3 == 0 {
+            format!("Tall {i:02}\nsecond line")
+        } else {
+            format!("Short {i:02}")
+        };
+        seed_card(
+            &store,
+            user_id,
+            &format!("card-m{i:02}"),
+            &prompt,
+            "S",
+            CardState::New,
+            now,
+            now + offset,
+            false,
+        )
+        .await?;
+    }
+
+    goto_groom(&h).await?;
+    let fit = wait_for_calibration(&h).await?;
+    if !(2..30).contains(&fit) {
+        return Err(Error::message(format!(
+            "test premise: the calibrated page size should be 2..30, is {fit}"
+        )));
+    }
+    h.wait_for_text("#groom-page-info", &showing(0, fit, 30), TIMEOUT)
+        .await?;
+    if row_count(&h).await? != fit {
+        return Err(Error::message(
+            "the first page should show exactly the fitted rows",
+        ));
+    }
+    if !h
+        .eval::<bool>("document.scrollingElement.scrollHeight - window.innerHeight <= 1")
+        .await?
+    {
+        return Err(Error::message(
+            "the fitted mixed-height page should not need vertical scrolling",
+        ));
+    }
+    // The leftover holds no further row of any height. (Every third row
+    // is tall, so the tallest rendered pitch is an upper bound on the
+    // next row's height.)
+    let max_pitch = h
+        .eval::<f64>(
+            "(() => { \
+             const rows = [...document.querySelectorAll('.groom-row')] \
+             .map(r => r.getBoundingClientRect().height); \
+             const gap = parseFloat(getComputedStyle(document.getElementById('groom-results')).rowGap); \
+             return Math.max(...rows) + gap; \
+             })()",
+        )
+        .await?;
+    let slack = h
+        .eval::<f64>(
+            "(() => { \
+             const rows = document.querySelectorAll('.groom-row'); \
+             const last = rows[rows.length - 1].getBoundingClientRect(); \
+             const footer = document.querySelector('.bottom').getBoundingClientRect(); \
+             const gap = parseFloat(getComputedStyle(document.querySelector('.app')).rowGap); \
+             return footer.top - last.bottom - gap; \
+             })()",
+        )
+        .await?;
+    if slack >= max_pitch {
+        return Err(Error::message(format!(
+            "underfill: another row (tallest pitch {max_pitch}px) would fit into the slack {slack}px"
+        )));
+    }
+    h.screenshot("04_groom/viewport-fit-mixed").await?;
+    Ok(())
+}
+
+/// Resizing the window re-fits the page size (debounced) — and keeps the
+/// EXACT top card: the list is offset-based, so a re-fit only changes
+/// how many cards show below the top one, never which card is on top
+/// (owner feedback 2026-07-31).
+#[tokio::test]
+#[ignore = "browser"]
+async fn resize_refits_and_keeps_anchor() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    seed_page_cards(&store, user_id, 30, "card-r").await?;
+
+    goto_groom(&h).await?;
+    let fit1 = wait_for_calibration(&h).await?;
+    if fit1 < 3 {
+        return Err(Error::message(format!(
+            "test premise: the initial fit should be at least 3 rows, is {fit1}"
+        )));
+    }
+    // Step one window forward, then shrink the window: the fit shrinks,
+    // the offset stays, so the top card is exactly the same.
+    h.click("#groom-next").await?;
+    h.wait_for_text("#groom-page-info", &showing(1, fit1, 30), TIMEOUT)
+        .await?;
+    let anchor = format!("P{:02}", fit1 + 1);
+
+    h.set_viewport(1280, 500).await?;
+    let fit2 = wait_for_refit(&h, fit1).await?;
+    if fit2 >= fit1 {
+        return Err(Error::message(format!(
+            "shrinking the window should shrink the fit ({fit1} -> {fit2})"
+        )));
+    }
+    h.wait_for_text("#groom-page-info", &showing_at(fit1, fit2, 30), TIMEOUT)
+        .await?;
+    if row_count(&h).await? != fit2 {
+        return Err(Error::message(
+            "the re-fitted page should show exactly fit2 rows",
+        ));
+    }
+    let top = h
+        .eval::<String>("document.querySelector('.groom-row .groom-prompt').textContent ?? ''")
+        .await?;
+    if top != anchor {
+        return Err(Error::message(format!(
+            "the top card must stay {anchor} after the re-fit, is {top:?}"
+        )));
+    }
+    if !h
+        .eval::<bool>("document.scrollingElement.scrollHeight - window.innerHeight <= 1")
+        .await?
+    {
+        return Err(Error::message(
+            "the re-fitted page should not need vertical scrolling",
+        ));
+    }
+    Ok(())
+}
+
+/// Sticky chrome (owner wish 2026-07-31): the header (logo + tabs) is
+/// pinned on every page, and the groom search/filter + paging bar stay
+/// directly below it — so the rare page that still scrolls (here forced
+/// with a tiny viewport) keeps every control reachable.
+#[tokio::test]
+#[ignore = "browser"]
+async fn sticky_chrome_keeps_header_and_controls_pinned() -> Result<()> {
+    let h = TestHarness::start().await?;
+    h.set_viewport(1280, 280).await?;
+    let (store, user_id) = seed_store(&h).await?;
+    seed_page_cards(&store, user_id, 6, "card-s").await?;
+
+    goto_groom(&h).await?;
+    let fit = wait_for_calibration(&h).await?;
+    // Premise: even the fitted page overflows the tiny viewport, so the
+    // page genuinely scrolls.
+    if !h
+        .eval::<bool>("document.scrollingElement.scrollHeight > window.innerHeight + 1")
+        .await?
+    {
+        return Err(Error::message(
+            "test premise: the tiny viewport should overflow even after the fit",
+        ));
+    }
+    h.eval::<bool>("window.scrollTo(0, document.scrollingElement.scrollHeight); true")
+        .await?;
+    wait_scrolled(&h).await?;
+    let probe = h
+        .eval::<Vec<f64>>(
+            "(() => { \
+             const top = document.querySelector('.top').getBoundingClientRect(); \
+             const head = document.querySelector('.groom-head').getBoundingClientRect(); \
+             return [top.top, top.bottom, head.top]; \
+             })()",
+        )
+        .await?;
+    if probe[0].abs() > 1.0 {
+        return Err(Error::message(format!(
+            "the header should stay pinned at the viewport top, is at {}px",
+            probe[0]
+        )));
+    }
+    if (probe[2] - probe[1]).abs() > 1.0 {
+        return Err(Error::message(format!(
+            "the groom chrome should sit directly below the header (header bottom {}px, chrome top {}px)",
+            probe[1], probe[2]
+        )));
+    }
+    // The pinned paging buttons still work while scrolled to the bottom.
+    h.click("#groom-next").await?;
+    h.wait_for_text("#groom-page-info", &showing(1, fit, 6), TIMEOUT)
+        .await?;
+    h.screenshot("04_groom/sticky-scrolled").await?;
+
+    // The header is sticky on the other tabs too: the Add card editor
+    // overflows this viewport as well.
+    h.click("#tab-add-card").await?;
+    h.wait_for_selector("#new-prompt", TIMEOUT).await?;
+    if !h
+        .eval::<bool>("document.scrollingElement.scrollHeight > window.innerHeight + 1")
+        .await?
+    {
+        return Err(Error::message(
+            "test premise: the editor should overflow the tiny viewport",
+        ));
+    }
+    h.eval::<bool>("window.scrollTo(0, document.scrollingElement.scrollHeight); true")
+        .await?;
+    wait_scrolled(&h).await?;
+    let top_top = h
+        .eval::<f64>("document.querySelector('.top').getBoundingClientRect().top")
+        .await?;
+    if top_top.abs() > 1.0 {
+        return Err(Error::message(format!(
+            "the header should stay pinned on the Add tab too, is at {top_top}px"
+        )));
+    }
     Ok(())
 }

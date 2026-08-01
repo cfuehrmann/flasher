@@ -190,6 +190,19 @@ pub fn App() -> impl IntoView {
             }
         });
         let _keep = StoredValue::new(popstate);
+        // Sticky chrome (owner wish 2026-07-31): export the header's
+        // measured height as --top-h so the groom tab's sticky
+        // controls/paging bar parks directly below it. Re-measured once
+        // the authed shell first renders (the header does not exist
+        // before) and on every resize (the header flex-wraps to two rows
+        // on narrow screens).
+        Effect::new(move |_| {
+            if matches!(auth_state.get(), AuthState::Authed { .. }) {
+                export_top_height();
+            }
+        });
+        let resize = window_event_listener_untyped("resize", move |_| export_top_height());
+        let _keep_resize = StoredValue::new(resize);
         // Any mid-session 401 (expired session) bounces back to the auth
         // screen. In dev-bypass mode 401s never occur. The first-load
         // restore state is reset too (F2): without it a stale
@@ -247,6 +260,10 @@ pub fn App() -> impl IntoView {
                     // drop the restore instead of yanking them back —
                     // but always release the `restored` gate below.
                     if tab.get_untracked() == start_route.tab() {
+                        // The wildcard is every Tab route except AddCard —
+                        // spelling the three variants out would only add
+                        // noise (and a newer clippy flags the wildcard).
+                        #[allow(clippy::match_wildcard_for_single_variants)]
                         match start_route {
                             route::Route::GroomEdit(id) => {
                                 if let Some(target) =
@@ -567,6 +584,30 @@ async fn groom_edit_restore(
         }
     };
     Some(target)
+}
+
+/// Exports the sticky header's measured height as the `--top-h` CSS
+/// variable on `<html>`: the groom tab's sticky controls/paging bar
+/// (`.groom-head`) parks directly below the header (owner wish
+/// 2026-07-31). Measured, not a constant — `.top` flex-wraps to two rows
+/// on narrow screens. A missing header (auth screens) just skips the
+/// update; the CSS fallback covers the first frames.
+#[cfg(feature = "csr")]
+fn export_top_height() {
+    use wasm_bindgen::JsCast;
+    let Some(document) = leptos::prelude::window().document() else {
+        return;
+    };
+    let Ok(Some(header)) = document.query_selector(".top") else {
+        return;
+    };
+    let height = header.get_bounding_client_rect().height();
+    if let Some(root) = document.document_element() {
+        let _ = root
+            .unchecked_into::<web_sys::HtmlElement>()
+            .style()
+            .set_property("--top-h", &format!("{height}px"));
+    }
 }
 
 /// Human-friendly draft age: "just now" under a minute, then minutes,

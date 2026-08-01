@@ -121,4 +121,42 @@ exclude_re = [
     # the non-csr stub exists only to keep the ssr view linkable (replacing
     # it with 0 is UNVIABLE — that is its body).
     'replace now_ms -> ',
+
+    # --- Browser-only viewport-fit glue in groom.rs (owner wish 2026-07-31) --
+    # measure_viewport_fit / apply_fit / initial_take wrap window, document,
+    # getComputedStyle and localStorage — none of which exist on the host
+    # target, so host unit tests structurally cannot observe them (initial_take
+    # is feature-gated to csr precisely because storage_get only exists
+    # there). Their behavior IS pinned by the browser e2e suite
+    # (crates/flasher-e2e/tests/04_groom.rs):
+    # viewport_fit_fills_page_without_scroll_or_underfill fails if the
+    # available-space or row-pitch arithmetic is wrong (any of the +/-/*
+    # mutants), resize_refits_and_keeps_anchor pins apply_fit's page
+    # re-anchoring (page * old / fit) and the persisted take, and the
+    # two-phase tests (delete/toggle_last_item) read the persisted take back
+    # through initial_take on reload. The pure core they feed
+    # (rows_that_fit, px) is unit-tested and fully caught.
+    'groom\.rs:\d+:\d+: .* in (measure_viewport_fit|apply_fit|initial_take)$',
+    'replace (measure_viewport_fit|initial_take) -> ',
+    'replace apply_fit with \(\)',
+    # --- Browser-only sticky-header glue in lib.rs ---------------------------
+    # export_top_height measures the .top header via getBoundingClientRect
+    # and sets the --top-h CSS variable — DOM APIs that do not exist on the
+    # host target. Pinned by sticky_chrome_keeps_header_and_controls_pinned
+    # (04_groom.rs): the groom chrome only sits directly below the sticky
+    # header when --top-h carries the measured height.
+    'replace export_top_height with \(\)',
+
+    # --- Documented equivalent -------------------------------------------------
+    # rows_that_fit's growth-loop guard `count < MAX_TAKE_USIZE` -> `<=`:
+    # the trailing `count.clamp(1, MAX_TAKE_USIZE)` dominates — with `<=` the
+    # count can transiently reach MAX+1 and is clamped back, so every input
+    # yields the identical result. Equivalent by construction.
+    'replace < with <= in rows_that_fit',
+    # --- Test helpers, not production code --------------------------------------
+    # csr_tests::approx is a #[cfg(test)] assertion helper; mutating it only
+    # weakens the test suite itself, which no test can or should observe.
+    # (The `all(test, ...)` cfg form evades cargo-mutants' own test-code
+    # detection, hence the explicit exclusion.)
+    'csr_tests::',
 ]
