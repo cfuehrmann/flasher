@@ -272,14 +272,16 @@ are the prime mutation-testing target.</p>
 <p><b>Schema (SQLite):</b></p>
 <pre><code>users(id, username, created_at)
 passkeys(id, user_id → users, credential_id UNIQUE, data /* serialized passkey */, name, created_at, last_used_at)
-sessions(token, user_id → users, expires_at)
+sessions(token, user_id → users, expires_at, verified_at)
 cards(id, user_id → users, prompt, solution,
       state CHECK(state IN ('new','ok','failed')),
-      change_time, next_time, disabled)
+      change_time, next_time)
 autosaves(user_id → users PRIMARY KEY, prompt, solution, updated_at, card_id NULL)
+labels(user_id → users, name UNIQUE)
+card_labels(card_id → cards, label_id → labels)
 </code></pre>
 <ul>
-  <li>Migrations: <code>sqlx::migrate!("./migrations")</code> embedded in the binary — runs on startup, so deployment upgrades are automatic. Roll-forward only; backups before each migration run.</li>
+  <li>Migrations: <code>0005_current_schema_baseline.sql</code> is the current-schema baseline, embedded in the binary and run on startup. The first baseline release accepts only the known current <code>0001</code>–<code>0004</code> history, verifies the schema, and prunes those history rows; future changes append roll-forward migrations after <code>0005</code>. Backups run before each migration.</li>
   <li><b>JSON → SQLite import:</b> <code>flasher migrate --from ../flasher-store [--dry-run]</code>. Idempotent (safe to re-run), prints a per-user verification report (card counts, state histogram) and exits non-zero on mismatch. The old JSON store remains the source of truth until cutover is verified.</li>
   <li>SRS tunables (<code>Cards:*</code>) become config keys with the same defaults.</li>
 </ul>
@@ -403,7 +405,7 @@ flasher-store 89 caught/0 missed, flasher-server 107 caught/0 missed.</div>
 <div class="card">
   <div class="phase-head"><h3>Phase 1 — Storage</h3><span class="badge b-done">done 2026-07-27</span><span class="goal">SQLite + JSON migration</span></div>
   <ul class="checks">
-    <li class="done"><code>flasher-store</code>: sqlx + SQLite (WAL, FK on), embedded migration 0001 (users, passkeys, sessions, cards, autosaves), repository API, 12 tests</li>
+    <li class="done"><code>flasher-store</code>: sqlx + SQLite (WAL, FK on), original embedded migration 0001 (users, passkeys, sessions, cards, autosaves; later squashed into baseline 0005), repository API, 12 tests</li>
     <li class="done"><code>flasher-migrate</code>: <code>--from/--db/--dry-run</code>, idempotent upserts, per-user verification report; golden + idempotence + dry-run + corrupt-input tests (insta)</li>
     <li class="done">Old JSON format pinned down: PascalCase fields, State as PascalCase string, ISO 8601 local DateTime</li>
   </ul>
@@ -436,7 +438,7 @@ browser e2e (clicking) together — never a backend without its user-facing test
   <ul class="checks">
     <li class="done">Markdown (pulldown-cmark → ammonia → one sanctioned inner_html) + KaTeX (vendored 0.16.47, lazy-injected off the critical path); bare-URL autolink pre-pass (GFM parity); 17 pipeline unit tests + e2e incl. XSS probes</li>
     <li class="done">Editor: side-by-side live preview, 5 s autosave with dirty-tracking + indicator, recovery banner (recover/discard, deleted-card fallback); Cancel deletes the draft (reference semantics)</li>
-    <li class="done">Autosave backend: migration 0002 (<code>autosaves.card_id</code>), PUT/GET/DELETE; 5 browser e2e (22→24 total); Lighthouse 89–90 (LCP = wasm boot, accepted)</li>
+    <li class="done">Autosave backend: original migration 0002 (<code>autosaves.card_id</code>), PUT/GET/DELETE; 5 browser e2e (22→24 total); Lighthouse 89–90 (LCP = wasm boot, accepted)</li>
   </ul>
 </div>
 
@@ -562,7 +564,7 @@ browser e2e (clicking) together — never a backend without its user-facing test
     the next resize or remount — self-healing, sticky chrome covers the overflow direction.</li>
     <li class="done"><b>Labels on cards, dissolved enabled/disabled (#129 follow-up, owner
     2026-08-01):</b> the <code>disabled</code> flag became a per-user label model
-    (<code>labels</code> + <code>card_labels</code>; migration 0004 seeds
+    (<code>labels</code> + <code>card_labels</code>; the original migration 0004 seeded
     <code>Enabled</code>/<code>Disabled</code> and converts every card — verified against
     the real database: 163/163 cards labeled). Users created later get seed labels from
     the user create/upsert path. Groom's status dropdown is now a multi-label checkbox
@@ -573,8 +575,8 @@ browser e2e (clicking) together — never a backend without its user-facing test
     label; badges show labels except the default <code>Enabled</code>;
     <code>PATCH /api/cards/{id}</code> replaces a card's label set (existing labels only,
     non-empty, else 422); new cards still start with the <code>Disabled</code> label;
-    <code>GET /api/labels</code> lists them. Label creation UI is #129; old-migration
-    deletion check is #130; README warns migrations are not yet guaranteed stable.
+    <code>GET /api/labels</code> lists them. Label creation UI is #129; the migration-history
+    squash is tracked below as #130.
     (Bug caught by the new e2e during the slice: the filter component froze the empty
     pre-fetch label list in a plain prop — the list is a signal now.)
     Review round 11 (unprimed, browser-verified): PATCH is now client-error-atomic
@@ -611,6 +613,13 @@ browser e2e (clicking) together — never a backend without its user-facing test
     autosave draft). The quiz filter's first-usage default is everything selected (same as
     groom). Labels are created only on use: at card creation (ensure-on-insert) — the groom
     label editor stays strict (existing labels only, 422 otherwise).</li>
+    <li class="done"><b>Migration history squash (#130, 2026-08-01):</b> current production/dev
+    schemas and the importer were verified; old <code>0001</code>–<code>0004</code> files are replaced
+    by a guarded <code>0005</code> baseline that validates, prunes history, and rejects older/unknown
+    databases. Decision documented in <code>AGENTS.md</code>.</li>
+    <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
+    WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
+    separate hardening tasks.</li>
   </ul>
 </div>
 

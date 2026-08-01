@@ -132,6 +132,14 @@ fix real ones, record deferrals in `docs/plan.html`.
 - Single-user production model: registration without a session exists
   only while zero passkeys exist. `FLASHER_USER` (auth-free dev bypass)
   must never be set in production.
+- SQLite migration policy: the embedded `0005_current_schema_baseline.sql`
+  is the current schema baseline. The one-time squash accepts only a complete
+  pre-squash `0001`–`0004` history whose schema is already current, then
+  records baseline `0005` and removes the old history rows. Older or unknown
+  histories fail loudly; future schema changes append migrations after 0005.
+  Before a squash or schema release, verify production and the checked-in
+  development database are on the current schema. Do not edit the baseline
+  after release.
 
 ## Don'ts
 

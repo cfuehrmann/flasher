@@ -1,8 +1,8 @@
 //! `SQLite` persistence for Flasher.
 //!
-//! Uses sqlx with embedded migrations and runtime-checked queries (no
-//! `query!` macros, no `DATABASE_URL` needed at compile time). All
-//! timestamps are unix epoch millis (`i64`).
+//! Uses sqlx with an embedded current-schema baseline and runtime-checked
+//! queries (no `query!` macros, no `DATABASE_URL` needed at compile time).
+//! All timestamps are unix epoch millis (`i64`).
 
 mod types;
 
@@ -35,6 +35,11 @@ pub enum Error {
     /// Creating the database file's parent directories failed.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),
+    /// A database has a migration history older than the supported baseline.
+    #[error(
+        "database migration history is not current; refusing to squash anything older than migrations 0001-0004"
+    )]
+    MigrationHistoryNotCurrent,
     /// A label set referenced a label the user does not have (the API
     /// maps this to 422).
     #[error("unknown label: {0}")]
@@ -76,6 +81,59 @@ pub struct Store {
     pool: SqlitePool,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct AppliedMigration {
+    version: i64,
+    description: String,
+    success: bool,
+    checksum: Vec<u8>,
+}
+
+/// The checksums/descriptions of the only legacy history that may be
+/// squashed. They are the `SQLx` checksums of the deleted 0001–0004 files.
+const LEGACY_MIGRATION_METADATA: [(i64, &str, &[u8]); 4] = [
+    (
+        1,
+        "initial",
+        &[
+            0xE3, 0xEC, 0x56, 0x65, 0x2B, 0xCB, 0x90, 0x2F, 0x75, 0xF3, 0xC0, 0xB7, 0xCB, 0x82,
+            0x8A, 0x20, 0x7C, 0xAA, 0x37, 0x7D, 0xCE, 0x44, 0x0D, 0x11, 0x94, 0xD4, 0x6A, 0x93,
+            0xF4, 0x60, 0x65, 0x06, 0x34, 0x0E, 0x79, 0x9F, 0x38, 0xF2, 0x3F, 0x9D, 0xEE, 0xEA,
+            0xBB, 0x82, 0xA3, 0x96, 0xB5, 0x52,
+        ],
+    ),
+    (
+        2,
+        "autosave card id",
+        &[
+            0xCB, 0xC1, 0x3B, 0xB5, 0x96, 0x73, 0xDB, 0x17, 0xE9, 0x7E, 0xE6, 0x57, 0xCD, 0xB8,
+            0x62, 0x25, 0xC2, 0xFE, 0x1B, 0x48, 0x41, 0x1F, 0x39, 0x91, 0x19, 0x6A, 0x0B, 0x1D,
+            0xD6, 0xFC, 0x3A, 0xC6, 0xFA, 0x02, 0xCE, 0xB0, 0xB9, 0xCE, 0x6B, 0x04, 0xE8, 0x07,
+            0x7B, 0x4F, 0x59, 0x90, 0x79, 0xD8,
+        ],
+    ),
+    (
+        3,
+        "sessions verified at",
+        &[
+            0x01, 0x5B, 0xB9, 0x75, 0x54, 0x81, 0xEC, 0x7A, 0x4D, 0x22, 0x44, 0x85, 0xDC, 0xB2,
+            0xF7, 0xEB, 0x77, 0x80, 0x61, 0xC3, 0x8C, 0x5F, 0x3A, 0xEC, 0x4B, 0xEC, 0xFD, 0xEC,
+            0x3C, 0xBE, 0x9C, 0xB9, 0x88, 0x39, 0x78, 0x82, 0xF1, 0xA3, 0xD1, 0xD6, 0xA8, 0x56,
+            0xD4, 0xCF, 0x6B, 0x70, 0x50, 0x8A,
+        ],
+    ),
+    (
+        4,
+        "labels",
+        &[
+            0x66, 0x96, 0x39, 0xE7, 0x1C, 0x74, 0xF3, 0x33, 0x18, 0xFE, 0x8C, 0x1B, 0x12, 0xDF,
+            0x68, 0x99, 0x4D, 0x72, 0x90, 0x7B, 0x4A, 0x23, 0x46, 0xD8, 0x06, 0x13, 0xA9, 0x93,
+            0x7F, 0x7F, 0x47, 0x2E, 0xED, 0xBE, 0x61, 0xA3, 0x3F, 0x69, 0x3B, 0x55, 0x56, 0x05,
+            0xC0, 0xC8, 0xCC, 0xDF, 0x8C, 0xA4,
+        ],
+    ),
+];
+
 impl Store {
     /// Opens (creating if necessary) the database at `path`, creating
     /// missing parent directories, and runs the embedded migrations.
@@ -114,7 +172,7 @@ impl Store {
             .max_connections(1)
             .connect_with(options)
             .await?;
-        sqlx::migrate!("./migrations").run(&pool).await?;
+        run_migrations(&pool).await?;
         Ok(Self { pool })
     }
 
@@ -127,7 +185,7 @@ impl Store {
 
     async fn finish_connect(options: SqliteConnectOptions) -> Result<Self, Error> {
         let pool = SqlitePoolOptions::new().connect_with(options).await?;
-        sqlx::migrate!("./migrations").run(&pool).await?;
+        run_migrations(&pool).await?;
         Ok(Self { pool })
     }
 
@@ -1098,6 +1156,243 @@ impl Store {
             .await?;
         Ok(result.rows_affected())
     }
+}
+
+/// Runs the embedded migration baseline, handling the one-time history
+/// squash from the original 0001–0004 chain.
+///
+/// `SQLx` normally rejects a database when an applied migration is no longer
+/// present in the embedded directory. That is exactly what we want after
+/// the cut-over, but it would prevent the first baseline release from
+/// opening a current database. The compatibility branch is deliberately
+/// narrow: only the complete old history is accepted, and the schema shape
+/// is checked before missing-history validation is bypassed. The baseline
+/// migration then removes the old history rows and records version 0005.
+async fn run_migrations(pool: &SqlitePool) -> Result<(), Error> {
+    let mut migrator = sqlx::migrate!("./migrations");
+    let applied_migrations = applied_migrations(pool).await?;
+    let applied_versions: Vec<i64> = applied_migrations
+        .iter()
+        .map(|migration| migration.version)
+        .collect();
+    let missing_version = applied_versions
+        .iter()
+        .find(|version| !migrator.version_exists(**version))
+        .copied();
+
+    if missing_version.is_some() {
+        if applied_versions != [1, 2, 3, 4]
+            || !legacy_metadata_is_authentic(&applied_migrations)
+            || !current_schema_is_present(pool).await?
+        {
+            return Err(Error::MigrationHistoryNotCurrent);
+        }
+        migrator.set_ignore_missing(true);
+    }
+
+    migrator.run(pool).await?;
+    Ok(())
+}
+
+/// Returns applied migrations, or an empty list for a new database.
+async fn applied_migrations(pool: &SqlitePool) -> Result<Vec<AppliedMigration>, Error> {
+    let has_history: i64 = sqlx::query_scalar(
+        "SELECT EXISTS(
+             SELECT 1 FROM sqlite_master
+             WHERE type = 'table' AND name = '_sqlx_migrations'
+         )",
+    )
+    .fetch_one(pool)
+    .await?;
+    if has_history == 0 {
+        let has_application_tables: i64 = sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1 FROM sqlite_master
+                 WHERE type = 'table'
+                   AND name NOT LIKE 'sqlite_%'
+                   AND name != '_sqlx_migrations'
+             )",
+        )
+        .fetch_one(pool)
+        .await?;
+        if has_application_tables != 0 {
+            return Err(Error::MigrationHistoryNotCurrent);
+        }
+        return Ok(Vec::new());
+    }
+    Ok(sqlx::query_as::<_, AppliedMigration>(
+        "SELECT version, description, success, checksum
+         FROM _sqlx_migrations ORDER BY version",
+    )
+    .fetch_all(pool)
+    .await?)
+}
+
+/// Confirms that the legacy rows came from the deleted migration files, not
+/// merely that their version numbers happen to be 1 through 4.
+fn legacy_metadata_is_authentic(applied: &[AppliedMigration]) -> bool {
+    applied.len() == LEGACY_MIGRATION_METADATA.len()
+        && applied.iter().zip(LEGACY_MIGRATION_METADATA).all(
+            |(actual, (version, description, checksum))| {
+                actual.version == version
+                    && actual.description == description
+                    && actual.success
+                    && actual.checksum.as_slice() == checksum
+            },
+        )
+}
+
+/// Checks the schema that migration 0004 produced before its history is
+/// discarded. An older database must fail loudly instead of being mistaken
+/// for the current baseline.
+async fn current_schema_is_present(pool: &SqlitePool) -> Result<bool, Error> {
+    const TABLES_AND_COLUMNS: [(&str, &[&str]); 8] = [
+        ("users", &["id", "username", "created_at"]),
+        (
+            "passkeys",
+            &[
+                "id",
+                "user_id",
+                "credential_id",
+                "name",
+                "data",
+                "created_at",
+                "last_used_at",
+            ],
+        ),
+        (
+            "sessions",
+            &["token", "user_id", "expires_at", "verified_at"],
+        ),
+        (
+            "cards",
+            &[
+                "id",
+                "user_id",
+                "prompt",
+                "solution",
+                "state",
+                "change_time",
+                "next_time",
+            ],
+        ),
+        (
+            "autosaves",
+            &["user_id", "prompt", "solution", "updated_at", "card_id"],
+        ),
+        ("labels", &["id", "user_id", "name"]),
+        ("card_labels", &["card_id", "label_id"]),
+        (
+            "_sqlx_migrations",
+            &["version", "description", "installed_on"],
+        ),
+    ];
+    const FOREIGN_KEYS: [(&str, &str, &str, &str); 7] = [
+        ("passkeys", "user_id", "users", "NO ACTION"),
+        ("sessions", "user_id", "users", "NO ACTION"),
+        ("cards", "user_id", "users", "NO ACTION"),
+        ("autosaves", "user_id", "users", "NO ACTION"),
+        ("labels", "user_id", "users", "NO ACTION"),
+        ("card_labels", "card_id", "cards", "CASCADE"),
+        ("card_labels", "label_id", "labels", "CASCADE"),
+    ];
+
+    for (table, expected_columns) in TABLES_AND_COLUMNS {
+        let columns: Vec<String> = sqlx::query_scalar("SELECT name FROM pragma_table_info(?)")
+            .bind(table)
+            .fetch_all(pool)
+            .await?;
+        if !expected_columns
+            .iter()
+            .all(|expected| columns.iter().any(|column| column == expected))
+        {
+            return Ok(false);
+        }
+    }
+
+    if !has_index_with_columns(pool, "labels", &["user_id", "name"], true).await?
+        || !has_index_with_columns(pool, "cards", &["user_id", "next_time"], false).await?
+    {
+        return Ok(false);
+    }
+
+    for (table, from, referenced_table, on_delete) in FOREIGN_KEYS {
+        if !has_foreign_key(pool, table, from, referenced_table, on_delete).await? {
+            return Ok(false);
+        }
+    }
+
+    let cards_columns: Vec<String> = sqlx::query_scalar("SELECT name FROM pragma_table_info(?)")
+        .bind("cards")
+        .fetch_all(pool)
+        .await?;
+    if cards_columns.iter().any(|column| column == "disabled") {
+        return Ok(false);
+    }
+    let unlabeled_cards: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM cards c
+         WHERE NOT EXISTS (
+             SELECT 1 FROM card_labels cl WHERE cl.card_id = c.id
+         )",
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(unlabeled_cards == 0)
+}
+
+/// Checks an index's ordered columns, optionally requiring uniqueness.
+async fn has_index_with_columns(
+    pool: &SqlitePool,
+    table: &str,
+    expected_columns: &[&str],
+    unique: bool,
+) -> Result<bool, Error> {
+    let indexes: Vec<(String, i64)> =
+        sqlx::query_as("SELECT name, \"unique\" FROM pragma_index_list(?)")
+            .bind(table)
+            .fetch_all(pool)
+            .await?;
+    for (name, is_unique) in indexes {
+        if unique && is_unique == 0 {
+            continue;
+        }
+        let columns: Vec<String> = sqlx::query_scalar("SELECT name FROM pragma_index_info(?)")
+            .bind(name)
+            .fetch_all(pool)
+            .await?;
+        if columns.len() == expected_columns.len()
+            && columns
+                .iter()
+                .zip(expected_columns)
+                .all(|(actual, expected)| actual == expected)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Checks one foreign-key relationship and its delete action.
+async fn has_foreign_key(
+    pool: &SqlitePool,
+    table: &str,
+    from: &str,
+    referenced_table: &str,
+    on_delete: &str,
+) -> Result<bool, Error> {
+    let present: i64 = sqlx::query_scalar(
+        "SELECT EXISTS(
+             SELECT 1 FROM pragma_foreign_key_list(?)
+             WHERE \"table\" = ? AND \"from\" = ? AND \"on_delete\" = ?
+         )",
+    )
+    .bind(table)
+    .bind(referenced_table)
+    .bind(from)
+    .bind(on_delete)
+    .fetch_one(pool)
+    .await?;
+    Ok(present != 0)
 }
 
 /// Current time as unix epoch millis, falling back to 0 if the system

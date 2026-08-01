@@ -154,4 +154,9 @@ passkey. Two protections overlap:
   `FLASHER_USER` in production (auth-free dev bypass).
 - The db self-backs-up (rotating, keep-10) before every schema migration
   into `/var/lib/flasher/backups/`.
+- Migration history was squashed at version `0005` after production and the
+  checked-in development database reached the labels schema. The first
+  release containing that baseline accepts exactly the old `0001`–`0004`
+  history, verifies the current schema, and removes those history rows; an
+  older or unknown database refuses to start rather than guessing.
 - Logs: `journalctl -u flasher -f`.

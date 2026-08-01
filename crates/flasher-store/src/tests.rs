@@ -1,7 +1,7 @@
 //! Observable-behavior tests for `Store`, run against real `SQLite`
 //! (in-memory, plus one tempfile-backed test for `connect`).
 
-use super::{Card, CardState, Error, NewCard, SetCardState, Store};
+use super::{Card, CardState, Error, LEGACY_MIGRATION_METADATA, NewCard, SetCardState, Store};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -792,6 +792,315 @@ async fn reconnect_backs_up_existing_database_before_migrations() -> TestResult 
         "unexpected backup name: {name}"
     );
     assert!(backups[0].metadata()?.len() > 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn squashes_the_current_legacy_migration_history() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("flasher.sqlite");
+    let user_id;
+
+    {
+        let store = Store::connect(&path).await?;
+        let user = store.create_user("alice").await?;
+        user_id = user.id;
+        store.insert_card(&new_card(user.id, "c1")).await?;
+
+        // Simulate the production/development database just before the
+        // baseline release: current schema, old SQLx history.
+        sqlx::query("DELETE FROM _sqlx_migrations")
+            .execute(store.pool())
+            .await?;
+        for (version, description, checksum) in LEGACY_MIGRATION_METADATA {
+            sqlx::query(
+                "INSERT INTO _sqlx_migrations
+                 (version, description, installed_on, success, checksum, execution_time)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, 1, ?, 0)",
+            )
+            .bind(version)
+            .bind(description)
+            .bind(checksum)
+            .execute(store.pool())
+            .await?;
+        }
+    }
+
+    let store = Store::connect(&path).await?;
+    let versions: Vec<i64> =
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(store.pool())
+            .await?;
+    assert_eq!(versions, [5]);
+    assert_eq!(
+        store.get_card(user_id, "c1").await?.map(|card| card.id),
+        Some("c1".to_owned())
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn refuses_to_stamp_an_existing_database_without_migration_history() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("flasher.sqlite");
+
+    {
+        let store = Store::connect(&path).await?;
+        sqlx::query("DROP TABLE _sqlx_migrations")
+            .execute(store.pool())
+            .await?;
+    }
+
+    assert!(matches!(
+        Store::connect(&path).await,
+        Err(Error::MigrationHistoryNotCurrent)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn refuses_to_squash_legacy_metadata_with_a_bad_checksum() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("flasher.sqlite");
+
+    {
+        let store = Store::connect(&path).await?;
+        sqlx::query("DELETE FROM _sqlx_migrations")
+            .execute(store.pool())
+            .await?;
+        for (version, description, _) in LEGACY_MIGRATION_METADATA {
+            sqlx::query(
+                "INSERT INTO _sqlx_migrations
+                 (version, description, installed_on, success, checksum, execution_time)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, 1, ?, 0)",
+            )
+            .bind(version)
+            .bind(description)
+            .bind(vec![0_u8; 48])
+            .execute(store.pool())
+            .await?;
+        }
+    }
+
+    assert!(matches!(
+        Store::connect(&path).await,
+        Err(Error::MigrationHistoryNotCurrent)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn refuses_to_squash_an_unsuccessful_legacy_migration() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("flasher.sqlite");
+
+    {
+        let store = Store::connect(&path).await?;
+        sqlx::query("DELETE FROM _sqlx_migrations")
+            .execute(store.pool())
+            .await?;
+        for (version, description, checksum) in LEGACY_MIGRATION_METADATA {
+            sqlx::query(
+                "INSERT INTO _sqlx_migrations
+                 (version, description, installed_on, success, checksum, execution_time)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, 0)",
+            )
+            .bind(version)
+            .bind(description)
+            .bind(i64::from(version != 4))
+            .bind(checksum)
+            .execute(store.pool())
+            .await?;
+        }
+    }
+
+    assert!(matches!(
+        Store::connect(&path).await,
+        Err(Error::MigrationHistoryNotCurrent)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn refuses_to_squash_a_schema_without_the_label_uniqueness_constraint() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("flasher.sqlite");
+
+    {
+        let store = Store::connect(&path).await?;
+        sqlx::query("DROP TABLE card_labels")
+            .execute(store.pool())
+            .await?;
+        sqlx::query("DROP TABLE labels")
+            .execute(store.pool())
+            .await?;
+        sqlx::query(
+            "CREATE TABLE labels (
+                 id INTEGER PRIMARY KEY,
+                 user_id INTEGER NOT NULL REFERENCES users (id),
+                 name TEXT NOT NULL
+             )",
+        )
+        .execute(store.pool())
+        .await?;
+        sqlx::query("CREATE UNIQUE INDEX fake_label_uniqueness ON labels (user_id, name, id)")
+            .execute(store.pool())
+            .await?;
+        sqlx::query(
+            "CREATE TABLE card_labels (
+                 card_id TEXT NOT NULL REFERENCES cards (id) ON DELETE CASCADE,
+                 label_id INTEGER NOT NULL REFERENCES labels (id) ON DELETE CASCADE,
+                 PRIMARY KEY (card_id, label_id)
+             )",
+        )
+        .execute(store.pool())
+        .await?;
+        sqlx::query("DELETE FROM _sqlx_migrations")
+            .execute(store.pool())
+            .await?;
+        for (version, description, checksum) in LEGACY_MIGRATION_METADATA {
+            sqlx::query(
+                "INSERT INTO _sqlx_migrations
+                 (version, description, installed_on, success, checksum, execution_time)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, 1, ?, 0)",
+            )
+            .bind(version)
+            .bind(description)
+            .bind(checksum)
+            .execute(store.pool())
+            .await?;
+        }
+    }
+
+    assert!(matches!(
+        Store::connect(&path).await,
+        Err(Error::MigrationHistoryNotCurrent)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn refuses_to_squash_a_schema_without_the_label_foreign_key() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("flasher.sqlite");
+
+    {
+        let store = Store::connect(&path).await?;
+        sqlx::query("DROP TABLE card_labels")
+            .execute(store.pool())
+            .await?;
+        sqlx::query("DROP TABLE labels")
+            .execute(store.pool())
+            .await?;
+        sqlx::query(
+            "CREATE TABLE labels (
+                 id INTEGER PRIMARY KEY,
+                 user_id INTEGER NOT NULL,
+                 name TEXT NOT NULL,
+                 UNIQUE (user_id, name)
+             )",
+        )
+        .execute(store.pool())
+        .await?;
+        sqlx::query(
+            "CREATE TABLE card_labels (
+                 card_id TEXT NOT NULL REFERENCES cards (id) ON DELETE CASCADE,
+                 label_id INTEGER NOT NULL REFERENCES labels (id) ON DELETE CASCADE,
+                 PRIMARY KEY (card_id, label_id)
+             )",
+        )
+        .execute(store.pool())
+        .await?;
+        sqlx::query("DELETE FROM _sqlx_migrations")
+            .execute(store.pool())
+            .await?;
+        for (version, description, checksum) in LEGACY_MIGRATION_METADATA {
+            sqlx::query(
+                "INSERT INTO _sqlx_migrations
+                 (version, description, installed_on, success, checksum, execution_time)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, 1, ?, 0)",
+            )
+            .bind(version)
+            .bind(description)
+            .bind(checksum)
+            .execute(store.pool())
+            .await?;
+        }
+    }
+
+    assert!(matches!(
+        Store::connect(&path).await,
+        Err(Error::MigrationHistoryNotCurrent)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn refuses_to_squash_an_older_migration_history() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("flasher.sqlite");
+
+    {
+        let store = Store::connect(&path).await?;
+        sqlx::query("DELETE FROM _sqlx_migrations")
+            .execute(store.pool())
+            .await?;
+        for version in 1..=3 {
+            sqlx::query(
+                "INSERT INTO _sqlx_migrations
+                 (version, description, installed_on, success, checksum, execution_time)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, 1, ?, 0)",
+            )
+            .bind(version)
+            .bind(format!("legacy {version}"))
+            .bind(vec![0_u8; 48])
+            .execute(store.pool())
+            .await?;
+        }
+    }
+
+    assert!(matches!(
+        Store::connect(&path).await,
+        Err(Error::MigrationHistoryNotCurrent)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn refuses_to_squash_legacy_history_with_an_outdated_schema() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("flasher.sqlite");
+
+    {
+        let store = Store::connect(&path).await?;
+        // Keep the table present but remove one required current-schema
+        // column that is not covered by an index. This distinguishes a real
+        // shape check from a table-only check and catches an inverted column
+        // comparison.
+        sqlx::query("ALTER TABLE passkeys RENAME COLUMN last_used_at TO obsolete_column")
+            .execute(store.pool())
+            .await?;
+        sqlx::query("DELETE FROM _sqlx_migrations")
+            .execute(store.pool())
+            .await?;
+        for (version, description, checksum) in LEGACY_MIGRATION_METADATA {
+            sqlx::query(
+                "INSERT INTO _sqlx_migrations
+                 (version, description, installed_on, success, checksum, execution_time)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, 1, ?, 0)",
+            )
+            .bind(version)
+            .bind(description)
+            .bind(checksum)
+            .execute(store.pool())
+            .await?;
+        }
+    }
+
+    assert!(matches!(
+        Store::connect(&path).await,
+        Err(Error::MigrationHistoryNotCurrent)
+    ));
     Ok(())
 }
 
