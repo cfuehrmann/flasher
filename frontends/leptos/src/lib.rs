@@ -101,6 +101,28 @@ pub enum AuthState {
 /// Root application component.
 // Nav, recovery banner, the auth gate and the tab/editor switch make
 // this long; splitting them further would only add indirection.
+#[cfg(feature = "csr")]
+fn focus_nav_toggle() {
+    use wasm_bindgen::JsCast;
+
+    let Some(element) = leptos::prelude::document().get_element_by_id("nav-toggle") else {
+        return;
+    };
+    if let Ok(button) = element.dyn_into::<web_sys::HtmlElement>() {
+        let _ = button.focus();
+    }
+}
+
+fn close_navigation(nav_open: RwSignal<bool>, nav_narrow: RwSignal<bool>) {
+    nav_open.set(false);
+    #[cfg(not(feature = "csr"))]
+    let _ = nav_narrow;
+    #[cfg(feature = "csr")]
+    if nav_narrow.get_untracked() {
+        focus_nav_toggle();
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 #[component]
 pub fn App() -> impl IntoView {
@@ -124,6 +146,14 @@ pub fn App() -> impl IntoView {
     // recovery banner.
     let draft = RwSignal::new(None::<Option<AutoSaveResponse>>);
     let health = RwSignal::new(None::<Result<HealthResponse, String>>);
+    // The responsive navigation is a persistent labeled sidebar on wide
+    // screens and the same closed-by-default labeled drawer below that
+    // breakpoint. The signal only controls the drawer; desktop presentation
+    // is CSS-driven so resizing does not mutate application state.
+    let nav_open = RwSignal::new(false);
+    // Mirrors the drawer breakpoint so the closed drawer can be removed
+    // from the accessibility tree without hiding the wide sidebar.
+    let nav_narrow = RwSignal::new(false);
     // Phase 6.6: `false` until the fresh-load session restore (draft
     // check + `/groom/edit/{id}` editor re-open) has settled, so the
     // Add card tab's editor never mounts blank only to be prefilled a
@@ -191,6 +221,15 @@ pub fn App() -> impl IntoView {
             }
         });
         let _keep = StoredValue::new(popstate);
+        let update_nav_narrow = move || {
+            let narrow = leptos::prelude::window()
+                .inner_width()
+                .ok()
+                .and_then(|width| width.as_f64())
+                .is_some_and(|width| width <= 1_024.0);
+            nav_narrow.set(narrow);
+        };
+        update_nav_narrow();
         // Sticky chrome (owner wish 2026-07-31): export the header's
         // measured height as --top-h so the groom tab's sticky
         // controls/paging bar parks directly below it. Re-measured once
@@ -202,7 +241,10 @@ pub fn App() -> impl IntoView {
                 export_top_height();
             }
         });
-        let resize = window_event_listener_untyped("resize", move |_| export_top_height());
+        let resize = window_event_listener_untyped("resize", move |_| {
+            export_top_height();
+            update_nav_narrow();
+        });
         let _keep_resize = StoredValue::new(resize);
         // Any mid-session 401 (expired session) bounces back to the auth
         // screen. In dev-bypass mode 401s never occur. The first-load
@@ -312,8 +354,10 @@ pub fn App() -> impl IntoView {
         // entry). With an overlay open the click IS meaningful: it
         // closes the overlay back to the tab underneath.
         if next == tab.get_untracked() && editing.get_untracked().is_none() {
+            close_navigation(nav_open, nav_narrow);
             return;
         }
+        close_navigation(nav_open, nav_narrow);
         let abandoned = editing.get_untracked().is_some() || tab.get_untracked() == Tab::AddCard;
         editing.set(None);
         tab.set(next);
@@ -426,44 +470,122 @@ pub fn App() -> impl IntoView {
             }
             AuthState::Authed { username, dev_mode } => {
                 view! {
-        <main class="app">
-            <header class="top">
-                <img src="/favicon.svg" alt="Flasher" class="brand-logo"/>
-                <nav class="tabs">
+        <main
+            class="app-shell"
+            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                if ev.key() == "Escape" && nav_open.get_untracked() {
+                    ev.prevent_default();
+                    close_navigation(nav_open, nav_narrow);
+                }
+            }
+        >
+            <aside
+                class:open=move || nav_open.get()
+                class="side-nav"
+                id="primary-nav"
+                aria-hidden=move || (nav_narrow.get() && !nav_open.get()).to_string()
+                inert=move || nav_narrow.get() && !nav_open.get()
+            >
+                <div class="side-nav-brand">
+                    <img src="/favicon.svg" alt="" class="side-nav-logo"/>
+                    <span class="side-nav-name">"Flasher"</span>
+                    <button
+                        type="button"
+                        class="nav-close"
+                        id="nav-close"
+                        aria-label="Close navigation"
+                        on:click=move |_| close_navigation(nav_open, nav_narrow)
+                    >
+                        <span aria-hidden="true">"×"</span>
+                    </button>
+                </div>
+                <nav class="side-nav-links" aria-label="Primary navigation">
                     <button
                         type="button"
                         id="tab-quiz"
+                        class="nav-item"
+                        aria-label="Quiz"
+                        aria-current=move || if tab.get() == Tab::Quiz { "page" } else { "false" }
                         class:active=move || tab.get() == Tab::Quiz
                         on:click=move |_| navigate.run(Tab::Quiz)
                     >
-                        "Quiz"
+                        <span class="nav-label">"Quiz"</span>
                     </button>
                     <button
                         type="button"
                         id="tab-add-card"
+                        class="nav-item"
+                        aria-label="Add card"
+                        aria-current=move || if tab.get() == Tab::AddCard { "page" } else { "false" }
                         class:active=move || tab.get() == Tab::AddCard
                         on:click=move |_| navigate.run(Tab::AddCard)
                     >
-                        "Add card"
+                        <span class="nav-label">"Add card"</span>
                     </button>
                     <button
                         type="button"
                         id="tab-groom"
+                        class="nav-item"
+                        aria-label="Groom"
+                        aria-current=move || if tab.get() == Tab::Groom { "page" } else { "false" }
                         class:active=move || tab.get() == Tab::Groom
                         on:click=move |_| navigate.run(Tab::Groom)
                     >
-                        "Groom"
+                        <span class="nav-label">"Groom"</span>
                     </button>
                     <button
                         type="button"
                         id="tab-account"
+                        class="nav-item"
+                        aria-label="Account"
+                        aria-current=move || if tab.get() == Tab::Account { "page" } else { "false" }
                         class:active=move || tab.get() == Tab::Account
                         on:click=move |_| navigate.run(Tab::Account)
                     >
-                        "Account"
+                        <span class="nav-label">"Account"</span>
                     </button>
                 </nav>
-            </header>
+                <div class="side-nav-footer">
+                    <span class="side-nav-user">{username.clone()}</span>
+                </div>
+            </aside>
+            {move || nav_open.get().then(|| view! {
+                <button
+                    type="button"
+                    class="nav-backdrop"
+                    id="nav-backdrop"
+                    aria-label="Close navigation"
+                    on:click=move |_| close_navigation(nav_open, nav_narrow)
+                ></button>
+            })}
+            <div class="app">
+                <header class="top">
+                    <button
+                        type="button"
+                        class="nav-toggle"
+                        id="nav-toggle"
+                        aria-controls="primary-nav"
+                        aria-expanded=move || nav_open.get().to_string()
+                        aria-label=move || if nav_open.get() {
+                            "Close navigation"
+                        } else {
+                            "Open navigation"
+                        }
+                        on:click=move |_| {
+                            if nav_open.get_untracked() {
+                                close_navigation(nav_open, nav_narrow);
+                            } else {
+                                nav_open.set(true);
+                            }
+                        }
+                    >
+                        <span aria-hidden="true">{move || if nav_open.get() { "×" } else { "☰" }}</span>
+                    </button>
+                    <div class="mobile-brand">
+                        <img src="/favicon.svg" alt="Flasher" class="brand-logo"/>
+                        <span>"Flasher"</span>
+                    </div>
+                </header>
             {move || draft.get().flatten().map(|found| {
                 let age = relative_age(now_ms(), found.updated_at);
                 view! {
@@ -541,6 +663,7 @@ pub fn App() -> impl IntoView {
                     }}
                 </p>
             </footer>
+            </div>
         </main>
                 }
                     .into_any()
@@ -654,10 +777,13 @@ mod tests {
     #[test]
     fn relative_age_buckets() {
         assert_eq!(relative_age(10_000, 9_000), "just now");
+        assert_eq!(relative_age(60_000, 0), "1 minute ago");
         assert_eq!(relative_age(70_000, 10_000), "1 minute ago");
         assert_eq!(relative_age(600_000, 0), "10 minutes ago");
+        assert_eq!(relative_age(3_600_000, 0), "1 hour ago");
         assert_eq!(relative_age(3_700_000, 0), "1 hour ago");
         assert_eq!(relative_age(7_300_000, 0), "2 hours ago");
+        assert_eq!(relative_age(86_400_000, 0), "1 day ago");
         assert_eq!(relative_age(90_000_000, 0), "1 day ago");
         assert_eq!(relative_age(200_000_000, 0), "2 days ago");
     }

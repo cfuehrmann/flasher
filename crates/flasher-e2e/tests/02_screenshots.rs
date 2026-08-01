@@ -342,11 +342,120 @@ async fn wait_until_gone(h: &TestHarness, sel: &str, timeout: Duration) -> Resul
 /// `02_screenshots/<name>-desktop.png` and `-mobile.png`.
 async fn shoot_both(h: &TestHarness, name: &str) -> Result<()> {
     h.set_viewport(DESKTOP.0, DESKTOP.1).await?;
+    wait_for_js(
+        h,
+        "(() => { const nav = document.querySelector('#primary-nav'); return !nav || nav.getBoundingClientRect().left >= -0.5; })()",
+        TIMEOUT,
+    )
+    .await?;
     h.screenshot(&format!("02_screenshots/{name}-desktop"))
         .await?;
     h.set_viewport(MOBILE.0, MOBILE.1).await?;
+    wait_for_js(
+        h,
+        "(() => { const nav = document.querySelector('#primary-nav'); return !nav || nav.getBoundingClientRect().right <= 0.5; })()",
+        TIMEOUT,
+    )
+    .await?;
     h.screenshot(&format!("02_screenshots/{name}-mobile"))
         .await?;
+    Ok(())
+}
+
+/// Captures the two responsive navigation states added by the menu
+/// prototype: an open phone drawer and the same drawer at tablet width.
+async fn capture_navigation_review(h: &TestHarness) -> Result<()> {
+    wait_for_js(
+        h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().right <= 0.5",
+        TIMEOUT,
+    )
+    .await?;
+    wait_for_js(
+        h,
+        "document.querySelector('#nav-toggle')?.getBoundingClientRect().width > 0",
+        TIMEOUT,
+    )
+    .await?;
+    h.click("#nav-toggle").await?;
+    wait_for_js(
+        h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().left >= -0.5",
+        TIMEOUT,
+    )
+    .await?;
+    h.screenshot("02_screenshots/navigation-drawer-mobile")
+        .await?;
+    h.page
+        .find_element("body")
+        .await
+        .map_err(Error::Cdp)?
+        .press_key("Escape")
+        .await
+        .map_err(Error::Cdp)?;
+    wait_for_js(
+        h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().right <= 0.5",
+        TIMEOUT,
+    )
+    .await?;
+    let closed_nav_is_inert: bool = h
+        .eval(
+            "(() => { const nav = document.querySelector('#primary-nav'); \
+             return nav?.getAttribute('aria-hidden') === 'true' && \
+             nav?.hasAttribute('inert') && document.activeElement?.id === 'nav-toggle'; })()",
+        )
+        .await?;
+    if !closed_nav_is_inert {
+        return Err(Error::message(
+            "closing the drawer with Escape should inert it and restore focus to the toggle",
+        ));
+    }
+    h.click("#nav-toggle").await?;
+    wait_for_js(
+        h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().left >= -0.5",
+        TIMEOUT,
+    )
+    .await?;
+    h.click("#nav-backdrop").await?;
+    wait_for_js(
+        h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().right <= 0.5",
+        TIMEOUT,
+    )
+    .await?;
+    let backdrop_restored_focus: bool = h
+        .eval("document.activeElement?.id === 'nav-toggle'")
+        .await?;
+    if !backdrop_restored_focus {
+        return Err(Error::message(
+            "closing the drawer with the backdrop should restore focus to the toggle",
+        ));
+    }
+    h.set_viewport(900, 800).await?;
+    wait_for_js(
+        h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().right <= 0.5",
+        TIMEOUT,
+    )
+    .await?;
+    h.click("#nav-toggle").await?;
+    wait_for_js(
+        h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().left >= -0.5",
+        TIMEOUT,
+    )
+    .await?;
+    h.screenshot("02_screenshots/navigation-drawer-tablet")
+        .await?;
+    h.click("#nav-close").await?;
+    wait_for_js(
+        h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().right <= 0.5",
+        TIMEOUT,
+    )
+    .await?;
     Ok(())
 }
 
@@ -382,6 +491,7 @@ async fn capture_app_screenshots() -> Result<()> {
     )
     .await?;
     shoot_both(&h, "quiz-prompt").await?;
+    capture_navigation_review(&h).await?;
 
     // --- Quiz: solution revealed (display math + GFM table) ---
     h.click("#show-solution").await?;
@@ -402,6 +512,14 @@ async fn capture_app_screenshots() -> Result<()> {
     // --- Groom: full list (two pages of realistic cards). The
     // first-usage default filter is `all` (issue #127), so all 17 cards
     // — enabled and disabled — show.
+    h.click("#nav-toggle").await?;
+    h.wait_for_selector("#nav-backdrop", TIMEOUT).await?;
+    wait_for_js(
+        &h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().left >= -0.5",
+        TIMEOUT,
+    )
+    .await?;
     h.click("#tab-groom").await?;
     h.wait_for_text("#groom-page-info", "of 17", TIMEOUT)
         .await?;
@@ -431,6 +549,14 @@ async fn capture_app_screenshots() -> Result<()> {
     h.wait_for_selector("#groom-search", TIMEOUT).await?;
 
     // --- Account: identity + passkey management ---
+    h.click("#nav-toggle").await?;
+    h.wait_for_selector("#nav-backdrop", TIMEOUT).await?;
+    wait_for_js(
+        &h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().left >= -0.5",
+        TIMEOUT,
+    )
+    .await?;
     h.click("#tab-account").await?;
     h.wait_for_text("#passkeys-list", "YubiKey", TIMEOUT)
         .await?;

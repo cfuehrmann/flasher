@@ -617,6 +617,10 @@ browser e2e (clicking) together — never a backend without its user-facing test
     schemas and the importer were verified; old <code>0001</code>–<code>0004</code> files are replaced
     by a guarded <code>0005</code> baseline that validates, prunes history, and rejects older/unknown
     databases. Decision documented in <code>AGENTS.md</code>.</li>
+    <li class="done"><b>Responsive navigation (#133, owner approved 2026-08-01):</b> wide screens use
+    an expanded labeled left sidebar; narrower screens use the same closed-by-default labeled
+    drawer, with no icon-only navigation. Existing routes and IDs remain unchanged; Escape,
+    focus restoration, and closed-drawer accessibility state are covered in the browser suite.</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>

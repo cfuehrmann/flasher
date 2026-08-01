@@ -171,6 +171,31 @@ async fn wait_for_refit(h: &TestHarness, previous: usize) -> Result<usize> {
     }
 }
 
+/// Waits until the row has entered the narrow layout. A one-card page can
+/// legitimately keep the same fitted page size after a resize, so the
+/// page-size localStorage value is not a valid resize-completion signal.
+async fn wait_for_mobile_row_layout(h: &TestHarness) -> Result<()> {
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        let narrow: bool = h
+            .eval(
+                "(() => { const row = document.querySelector('.groom-row'); \
+                 return window.innerWidth <= 390 && row && \
+                 row.getBoundingClientRect().width < 400; })()",
+            )
+            .await?;
+        if narrow {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(Error::message(
+                "the groom row did not enter its narrow responsive layout",
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
 /// The "showing first–last of count" line for page `page` (0-based) of
 /// `count` cards at page size `fit`.
 fn showing(page: usize, fit: usize, count: usize) -> String {
@@ -1127,7 +1152,7 @@ async fn row_menu_opens_and_dismisses() -> Result<()> {
     // Wait out the viewport-fit calibration: its corrective refetch
     // briefly replaces the rows with the Loading state, which would
     // race the one-shot evals below.
-    let fit = wait_for_calibration(&h).await?;
+    wait_for_calibration(&h).await?;
     // The card is seeded disabled (new + disabled is the widest badge
     // combination); the first-usage default filter `all` lists it.
     h.wait_for_selector("#menu-card-menu", TIMEOUT).await?;
@@ -1158,7 +1183,7 @@ async fn row_menu_opens_and_dismisses() -> Result<()> {
     // The viewport change makes the groom tab re-fit its page size (a
     // refetch briefly replaces the rows with the Loading state): wait
     // for the re-fit to settle before probing the row layout.
-    wait_for_refit(&h, fit).await?;
+    wait_for_mobile_row_layout(&h).await?;
     h.wait_for_selector("#groom-row-card-menu", TIMEOUT).await?;
     let probe = h.eval::<String>(META_PROBE).await?;
     if !probe.contains("\"same_line\":true") {

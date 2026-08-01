@@ -249,6 +249,13 @@ impl TestHarness {
             .new_page(format!("{base_url}/"))
             .await
             .map_err(Error::Cdp)?;
+        // Chromium's headless default CSS viewport is narrower than the
+        // window size above. Keep the harness's baseline on the desktop
+        // layout; tests that cover responsive layouts set their viewport
+        // explicitly.
+        page.execute(SetDeviceMetricsOverrideParams::new(1280, 800, 1.0, false))
+            .await
+            .map_err(Error::Cdp)?;
         page.wait_for_navigation().await.map_err(Error::Cdp)?;
 
         Ok(Self {
