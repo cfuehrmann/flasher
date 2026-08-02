@@ -337,7 +337,7 @@ Minors fixed: m5–m12 (search ordering, shallow verify, no pre-migration backup
 user-resolution footgun, hook restaging, user-scoped set-state, plan drift, m14 docs). <b>Standing practice (owner, 2026-07-27): keep running
 unprimed adversarial reviews after further phases, where/when appropriate.</b></div>
 <div class="note"><b>Review round 2 (after Phase 3, 2026-07-27):</b> 0 critical, 2 major, 9 minor.
-Majors (fixed): <code>FLASHER_PAGE_SIZE</code> knob vs hard-coded UI page size → <code>page_size</code> now in
+Majors (fixed): server page-size knob vs hard-coded UI page size → viewport-fit <code>take</code> now in
 the find contract; PATCH lacked the reference's autosave-invalidation side effect → ported (content
 edits only, not disabled-toggles). Minors fixed: /api/* SPA-fallback leak, groom ordering/race/double-fetch,
 utc_date moved to flasher-core (mutation-reachable), verify doc overclaim, backup rotation (keep 10).
@@ -427,7 +427,7 @@ browser e2e (clicking) together — never a backend without its user-facing test
 <div class="card">
   <div class="phase-head"><h3>Phase 3 — Groom slice</h3><span class="badge b-done">done 2026-07-27</span><span class="goal">Manage cards</span></div>
   <ul class="checks">
-    <li class="done">Endpoints: find (Unicode-fold search, ordering <code>next_time</code> asc + <code>id</code> tie-break — deviates from the reference's disabled-last so toggles don't re-sort, owner 2026-07-31; page size 10 via <code>FLASHER_PAGE_SIZE</code>), PATCH (prompt/solution/disabled), DELETE card, DELETE history (state=new, +30 min)</li>
+    <li class="done">Endpoints: find (Unicode-fold search, ordering <code>next_time</code> asc + <code>id</code> tie-break — deviates from the reference's disabled-last so toggles don't re-sort, owner 2026-07-31; required viewport-fit <code>take</code>, clamped at <code>MAX_TAKE</code>), PATCH (prompt/solution/disabled), DELETE card, DELETE history (state=new, +30 min)</li>
     <li class="done">Groom tab: 300 ms-debounced search, paged list (badges, due dates), enable/disable, delete + reset-progress behind confirm modal</li>
     <li class="done">7 browser e2e journeys incl. cross-feature "disabled → enable → quizzable"; Lighthouse still 100/100/100/100; debug wasm stripped (name-section bloat), budget check holds</li>
   </ul>
@@ -546,7 +546,7 @@ browser e2e (clicking) together — never a backend without its user-facing test
     <li class="done"><b>Groom page fits the viewport + sticky chrome (owner, 2026-07-31):</b>
     cards-per-page is no longer a fixed 10 — the groom tab measures the rendered rows and
     the free vertical space at runtime and requests exactly the rows that fill the page
-    (per-row heights summed, so mixed one/two-line prompts fit exactly; new optional
+    (per-row heights summed, so mixed one/two-line prompts fit exactly; new required
     <code>take</code> on <code>GET /api/cards</code>, clamped at <code>MAX_TAKE</code> = 100
     in flasher-types, echoed as <code>page_size</code>). The calibrated size persists in
     localStorage, so remounts start right; resize re-fits (debounced). The list is

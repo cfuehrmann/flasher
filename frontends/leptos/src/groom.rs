@@ -70,12 +70,12 @@ use crate::labels::{
 
 /// Page size of the very first fetch, before the viewport-fit calibration
 /// has measured the real row heights (or when localStorage is
-/// unavailable); matches the server default, so behavior without
-/// calibration is unchanged.
+/// unavailable). This is only a client-side bootstrap: the server requires
+/// every request to provide `take`.
 const FALLBACK_PAGE_SIZE: usize = 10;
 
-/// The server's `MAX_TAKE` clamp as the client's `usize` (mirrored so the
-/// echoed `page_size` always equals the requested `take`).
+/// The server's `MAX_TAKE` clamp as the client's `usize` (mirrored so
+/// browser requests remain within the server's bound).
 const MAX_TAKE_USIZE: usize = MAX_TAKE as usize;
 
 /// Search-as-you-type debounce delay.

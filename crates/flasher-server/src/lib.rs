@@ -22,10 +22,10 @@
 //! | `GET /api/autosave`              | 200 `AutoSaveResponse` or 200 `null` | 500 |
 //! | `DELETE /api/autosave`           | 204                    | 500         |
 //!
-//! `GET /api/cards` takes optional query params `search_text` (substring
-//! match over prompt and solution) and `skip` (default 0); the page size
-//! is the server's configured `page_size` (`FLASHER_PAGE_SIZE`, default
-//! [`DEFAULT_PAGE_SIZE`]).
+//! `GET /api/cards` takes the required positive query param `take` (the
+//! groom tab sizes it to its viewport; values above [`MAX_TAKE`] are
+//! clamped), plus optional `search_text` (substring match over prompt and
+//! solution) and `skip` (default 0).
 //!
 //! `DELETE /api/history/{id}` ports `HistoryHandler.Delete`: it resets the
 //! card to state `new` with `change_time = now` and
@@ -122,10 +122,6 @@ use tokio::net::TcpListener;
 use tower_http::compression::CompressionLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
-/// Default page size of `GET /api/cards`, matching the old
-/// `CardsOptions.PageSize`. Used when the request carries no `take`.
-pub const DEFAULT_PAGE_SIZE: u32 = 10;
-
 /// Name of the session cookie (`__Host-` prefix: `Secure`, `Path=/`, no
 /// `Domain`). The value is an opaque 244-bit hex token.
 pub const SESSION_COOKIE: &str = "__Host-session";
@@ -161,13 +157,11 @@ pub struct AppState {
     /// the open (session-less, zero-passkey) register/start must carry it.
     bootstrap_token: Option<String>,
     srs: SrsConfig,
-    /// Page size of `GET /api/cards` (the old `CardsOptions.PageSize`).
-    page_size: u32,
 }
 
 impl AppState {
     /// Auth-mode state: requests resolve their user from the session
-    /// cookie. Default SRS scheduling parameters and default page size.
+    /// cookie. Default SRS scheduling parameters.
     #[must_use]
     pub fn new(store: Store, auth: Auth) -> Self {
         Self {
@@ -176,7 +170,6 @@ impl AppState {
             dev_user: None,
             bootstrap_token: None,
             srs: SrsConfig::default(),
-            page_size: DEFAULT_PAGE_SIZE,
         }
     }
 
@@ -209,14 +202,6 @@ impl AppState {
     #[must_use]
     pub fn with_srs_config(mut self, srs: SrsConfig) -> Self {
         self.srs = srs;
-        self
-    }
-
-    /// Overrides the page size of `GET /api/cards` (from
-    /// `FLASHER_PAGE_SIZE` in `main`).
-    #[must_use]
-    pub fn with_page_size(mut self, page_size: u32) -> Self {
-        self.page_size = page_size;
         self
     }
 }
@@ -373,6 +358,9 @@ pub enum ApiError {
     /// A label name failed validation (1–64 chars after trimming).
     #[error("label name must be 1-64 characters")]
     InvalidLabelName,
+    /// The required page-size query parameter was zero.
+    #[error("take must be greater than zero")]
+    InvalidTake,
     /// The user already owns a label with this exact name.
     #[error("a label with that name already exists")]
     LabelAlreadyExists,
@@ -449,6 +437,7 @@ impl IntoResponse for ApiError {
             | Self::InvalidPasskeyName => {
                 (StatusCode::UNPROCESSABLE_ENTITY, self.to_string()).into_response()
             }
+            Self::InvalidTake => (StatusCode::BAD_REQUEST, self.to_string()).into_response(),
             Self::LabelAlreadyExists => (StatusCode::CONFLICT, self.to_string()).into_response(),
             Self::LabelInUse(affected_cards) => (
                 StatusCode::CONFLICT,
@@ -1297,14 +1286,15 @@ fn split_labels(raw: &str) -> Vec<String> {
 
 /// Query parameters of `GET /api/cards` (`snake_case`; the old route used
 /// `searchText`, but this API is internal with no compat constraints).
-/// An absent `labels` disables filtering, matching the groom UI's
-/// first-usage default of showing everything.
+/// `take` is required and must be positive; an absent `labels` disables
+/// filtering, matching the groom UI's first-usage default of showing
+/// everything.
 #[derive(Debug, Deserialize)]
 struct FindCardsQuery {
     search_text: Option<String>,
     labels: Option<String>,
     skip: Option<u32>,
-    take: Option<u32>,
+    take: u32,
 }
 
 /// `GET /api/cards` — port of `CardsHandler.Find`: full-Unicode
@@ -1312,17 +1302,17 @@ struct FindCardsQuery {
 /// cards carrying ANY of the `labels` (comma-joined; absent = no
 /// filtering, empty = nothing), then `next_time` ascending
 /// (`id` tie-break); the page size is the requested `take` (1..=[`MAX_TAKE`],
-/// the groom tab sizes it to its viewport) or the configured default when
-/// absent. Returns the page plus the total match count.
+/// the groom tab sizes it to its viewport). Returns the page plus the total
+/// match count.
 async fn find_cards(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
     Query(query): Query<FindCardsQuery>,
 ) -> Result<Json<FindCardsResponse>, ApiError> {
-    let take = query
-        .take
-        .filter(|&take| take > 0)
-        .map_or(state.page_size, |take| take.min(MAX_TAKE));
+    if query.take == 0 {
+        return Err(ApiError::InvalidTake);
+    }
+    let take = query.take.min(MAX_TAKE);
     let labels = query.labels.as_deref().map(split_labels);
     let (cards, count) = state
         .store

@@ -11,7 +11,7 @@ use std::{net::SocketAddr, path::PathBuf};
 
 use flasher_auth::Auth;
 use flasher_core::SrsConfig;
-use flasher_server::{AppState, DEFAULT_PAGE_SIZE};
+use flasher_server::AppState;
 use flasher_store::Store;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
@@ -42,12 +42,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_path =
         std::env::var("FLASHER_DB").map_or_else(|_| PathBuf::from(DEFAULT_DB), PathBuf::from);
     let srs = srs_config_from(|name| std::env::var(name).ok());
-    let page_size = std::env::var("FLASHER_PAGE_SIZE").map_or(DEFAULT_PAGE_SIZE, |raw| {
-        parse_positive_u32(&raw).unwrap_or_else(|| {
-            tracing::warn!(%raw, default = DEFAULT_PAGE_SIZE, "invalid FLASHER_PAGE_SIZE, using default");
-            DEFAULT_PAGE_SIZE
-        })
-    });
 
     let store = Store::connect(&db_path).await?;
     let swept = store.delete_expired_sessions(now_millis()).await?;
@@ -87,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!(%rp_id, %origin, "auth: passkey mode — session required for /api/*");
         AppState::new(store, auth).with_bootstrap_token(bootstrap_token)
     };
-    let state = state.with_srs_config(srs).with_page_size(page_size);
+    let state = state.with_srs_config(srs);
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = TcpListener::bind(addr).await?;
     tracing::info!(%addr, dist = %dist_dir.display(), db = %db_path.display(), "flasher listening");
@@ -128,15 +122,6 @@ fn lookup_env<T: std::str::FromStr>(
     }
 }
 
-/// Parses a strictly positive `u32` config value (`FLASHER_PAGE_SIZE`);
-/// zero, negative and non-numeric values are rejected.
-fn parse_positive_u32(raw: &str) -> Option<u32> {
-    match raw.parse::<u32>() {
-        Ok(value) if value > 0 => Some(value),
-        _ => None,
-    }
-}
-
 /// The placeholder shipped in deploy/flasher.service is public knowledge:
 /// honoring it would protect nothing while looking protected, so `main`
 /// treats it as unset (with a loud warning).
@@ -158,16 +143,6 @@ mod tests {
     //! wiring, covered by the e2e boot).
 
     use super::*;
-
-    #[test]
-    fn parse_positive_u32_accepts_only_positive_values() {
-        assert_eq!(parse_positive_u32("1"), Some(1));
-        assert_eq!(parse_positive_u32("42"), Some(42));
-        assert_eq!(parse_positive_u32("0"), None);
-        assert_eq!(parse_positive_u32("-1"), None);
-        assert_eq!(parse_positive_u32("abc"), None);
-        assert_eq!(parse_positive_u32(""), None);
-    }
 
     #[test]
     fn placeholder_bootstrap_token_is_detected() {

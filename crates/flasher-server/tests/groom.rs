@@ -2,7 +2,7 @@
 //! history-reset). Behavior is covered end-to-end in `flasher-e2e`, not
 //! here.
 
-use flasher_server::{AppState, DEFAULT_PAGE_SIZE, serve};
+use flasher_server::{AppState, serve};
 use flasher_store::Store;
 use flasher_types::{CardResponse, CardState, CardUpdateRequest, FindCardsResponse};
 use tokio::net::TcpListener;
@@ -71,23 +71,23 @@ async fn find_returns_seeded_card_and_count() -> TestResult {
     // explicitly empty filter matches nothing.
     let id = create_card(&base, "Capital of France?", "Paris").await?;
 
-    let default_filtered: FindCardsResponse = reqwest::get(format!("{base}/api/cards"))
+    let default_filtered: FindCardsResponse = reqwest::get(format!("{base}/api/cards?take=10"))
         .await?
         .json()
         .await?;
     assert_eq!(default_filtered.count, 1);
-    let only_b: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=B"))
+    let only_b: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=B&take=10"))
         .await?
         .json()
         .await?;
     assert_eq!(only_b.count, 0);
-    let empty: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels="))
+    let empty: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=&take=10"))
         .await?
         .json()
         .await?;
     assert_eq!(empty.count, 0);
 
-    let found: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=A"))
+    let found: FindCardsResponse = reqwest::get(format!("{base}/api/cards?labels=A&take=10"))
         .await?
         .json()
         .await?;
@@ -95,23 +95,25 @@ async fn find_returns_seeded_card_and_count() -> TestResult {
     assert_eq!(found.cards.len(), 1);
     assert_eq!(found.cards[0].id, id);
     assert_eq!(found.cards[0].labels, ["A".to_owned()]);
-    // The response echoes the server's configured page size.
-    assert_eq!(found.page_size, i64::from(DEFAULT_PAGE_SIZE));
+    // The response echoes the requested page size.
+    assert_eq!(found.page_size, 10);
 
     // `search_text` filters, `skip` pages past the only card.
-    let hit: FindCardsResponse =
-        reqwest::get(format!("{base}/api/cards?search_text=france&skip=0"))
+    let hit: FindCardsResponse = reqwest::get(format!(
+        "{base}/api/cards?search_text=france&skip=0&take=10"
+    ))
+    .await?
+    .json()
+    .await?;
+    assert_eq!(hit.count, 1);
+    let miss: FindCardsResponse =
+        reqwest::get(format!("{base}/api/cards?search_text=berlin&take=10"))
             .await?
             .json()
             .await?;
-    assert_eq!(hit.count, 1);
-    let miss: FindCardsResponse = reqwest::get(format!("{base}/api/cards?search_text=berlin"))
-        .await?
-        .json()
-        .await?;
     assert_eq!(miss.count, 0);
     assert!(miss.cards.is_empty());
-    let paged_out: FindCardsResponse = reqwest::get(format!("{base}/api/cards?skip=1"))
+    let paged_out: FindCardsResponse = reqwest::get(format!("{base}/api/cards?skip=1&take=10"))
         .await?
         .json()
         .await?;
@@ -146,11 +148,11 @@ async fn labels_are_minted_by_card_creation() -> TestResult {
     Ok(())
 }
 
-/// The optional `take` sizes the page per request (the groom tab fits the
-/// list to its viewport): a valid value is honored and echoed as
-/// `page_size`, an absent or `0` value falls back to the server default.
+/// `take` is required and sizes the page per request (the groom tab fits
+/// the list to its viewport): a positive value is honored and echoed as
+/// `page_size`, zero is rejected, and oversized values are clamped.
 #[tokio::test]
-async fn find_honors_take_and_falls_back_to_default() -> TestResult {
+async fn find_requires_positive_take_and_clamps_to_max() -> TestResult {
     let TestServer { base, server, .. } = start_test_server().await?;
     for index in 0..5 {
         create_card(&base, &format!("Q{index}?"), "A.").await?;
@@ -164,12 +166,18 @@ async fn find_honors_take_and_falls_back_to_default() -> TestResult {
     assert_eq!(taken.count, 5);
     assert_eq!(taken.page_size, 3);
 
-    let zero: FindCardsResponse = reqwest::get(format!("{base}/api/cards?take=0"))
+    let missing = reqwest::get(format!("{base}/api/cards")).await?;
+    assert_eq!(missing.status(), reqwest::StatusCode::BAD_REQUEST);
+
+    let zero = reqwest::get(format!("{base}/api/cards?take=0")).await?;
+    assert_eq!(zero.status(), reqwest::StatusCode::BAD_REQUEST);
+
+    let oversized: FindCardsResponse = reqwest::get(format!("{base}/api/cards?take=101"))
         .await?
         .json()
         .await?;
-    assert_eq!(zero.page_size, i64::from(DEFAULT_PAGE_SIZE));
-    assert_eq!(zero.cards.len(), 5);
+    assert_eq!(oversized.page_size, 100);
+    assert_eq!(oversized.cards.len(), 5);
 
     server.abort();
     Ok(())

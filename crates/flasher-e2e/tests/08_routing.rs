@@ -111,6 +111,9 @@ async fn wait_for_path(h: &TestHarness, path: &str) -> Result<()> {
 
 /// Asserts the tab button `sel` carries the `active` class.
 async fn assert_tab_active(h: &TestHarness, sel: &str) -> Result<()> {
+    // Content can be restored before the nav buttons are patched after a
+    // reload; wait for the element before reading its class list.
+    h.wait_for_selector(sel, TIMEOUT).await?;
     let active: bool = h
         .eval(&format!(
             "document.querySelector({sel:?}).classList.contains('active')"

@@ -161,19 +161,17 @@ pub struct LabelDeleteConflict {
     pub affected_cards: i64,
 }
 
-/// Upper bound for the optional per-request `take` of `GET /api/cards`
+/// Upper bound for the required per-request `take` of `GET /api/cards`
 /// (the groom tab requests exactly as many rows as fit its viewport):
-/// the server clamps to this, and the client mirrors the cap so the
-/// echoed `page_size` always equals the requested `take`.
+/// the server clamps to this, and the client mirrors the cap so normal
+/// browser requests are already within the bound.
 pub const MAX_TAKE: u32 = 100;
 
 /// Response of `GET /api/cards`, matching the shape of the old
 /// `FindResponse`: one page of cards plus the total number of cards
 /// matching the search (before paging), so the UI can render pagination.
-/// `page_size` echoes the effective page size — the request's `take`
-/// when present (the groom tab sizes it to its viewport), otherwise the
-/// server's configured `FLASHER_PAGE_SIZE` — so clients never have to
-/// hard-code it.
+/// `page_size` echoes the effective page size — the request's `take` after
+/// the server applies the [`MAX_TAKE`] clamp.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct FindCardsResponse {
     pub cards: Vec<CardResponse>,

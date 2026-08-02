@@ -150,7 +150,7 @@ passkey. Two protections overlap:
 - Env config: `FLASHER_PORT`, `FLASHER_DIST`, `FLASHER_DB`,
   `FLASHER_RP_ID`, `FLASHER_ORIGIN`, `FLASHER_BOOTSTRAP_TOKEN`, SRS
   tunables (`FLASHER_OK_MULTIPLIER`, `FLASHER_FAILED_MULTIPLIER`,
-  `FLASHER_NEW_CARD_WAITING_MS`, `FLASHER_PAGE_SIZE`). Never set
+  `FLASHER_NEW_CARD_WAITING_MS`). Never set
   `FLASHER_USER` in production (auth-free dev bypass).
 - The db self-backs-up (rotating, keep-10) before every schema migration
   into `/var/lib/flasher/backups/`.

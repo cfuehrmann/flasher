@@ -45,7 +45,7 @@ async fn auth_mode_requires_session_for_api_but_not_for_auth_routes() -> TestRes
     let (base, server) = start_auth_mode(store).await?;
 
     // Everything /api/* outside /api/health and /api/auth/* needs a session.
-    for path in ["/api/cards", "/api/cards/next", "/api/autosave"] {
+    for path in ["/api/cards?take=10", "/api/cards/next", "/api/autosave"] {
         let resp = reqwest::get(format!("{base}{path}")).await?;
         assert_eq!(resp.status(), 401, "{path} must require a session");
     }
@@ -83,7 +83,7 @@ async fn valid_session_unlocks_api_expired_does_not() -> TestResult {
 
     let client = reqwest::Client::new();
     let resp = client
-        .get(format!("{base}/api/cards"))
+        .get(format!("{base}/api/cards?take=10"))
         .header(reqwest::header::COOKIE, session_cookie("good-token"))
         .send()
         .await?;
@@ -101,7 +101,7 @@ async fn valid_session_unlocks_api_expired_does_not() -> TestResult {
     // Expired sessions (checked against the wall clock) are rejected.
     for token in ["dead-token", "never-existed"] {
         let resp = client
-            .get(format!("{base}/api/cards"))
+            .get(format!("{base}/api/cards?take=10"))
             .header(reqwest::header::COOKIE, session_cookie(token))
             .send()
             .await?;
@@ -316,7 +316,7 @@ async fn dev_bypass_answers_session_and_needs_no_cookie() -> TestResult {
     let state = AppState::dev_bypass(store, test_auth()?, user.id);
     let (base, server) = start(state).await?;
 
-    let resp = reqwest::get(format!("{base}/api/cards")).await?;
+    let resp = reqwest::get(format!("{base}/api/cards?take=10")).await?;
     assert_eq!(resp.status(), 200, "dev bypass needs no session");
     let session: serde_json::Value = reqwest::get(format!("{base}/api/auth/session"))
         .await?

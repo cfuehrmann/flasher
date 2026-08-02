@@ -464,7 +464,7 @@ async fn expired_session_is_rejected() -> TestResult {
 
     // The same dead token is still rejected where it matters.
     let resp = reqwest::Client::new()
-        .get(format!("{base}/api/cards"))
+        .get(format!("{base}/api/cards?take=10"))
         .header(reqwest::header::COOKIE, session_cookie("dead-token"))
         .send()
         .await?;
@@ -592,21 +592,21 @@ async fn passkey_delete_revokes_other_sessions_but_keeps_the_current() -> TestRe
 
     // The lost device's session is dead...
     let resp = client
-        .get(format!("{base}/api/cards"))
+        .get(format!("{base}/api/cards?take=10"))
         .header(reqwest::header::COOKIE, session_cookie("sess-phone"))
         .send()
         .await?;
     assert_eq!(resp.status(), 401, "other session must be revoked");
     // ...the session doing the deletion is not logged out mid-action...
     let resp = client
-        .get(format!("{base}/api/cards"))
+        .get(format!("{base}/api/cards?take=10"))
         .header(reqwest::header::COOKIE, session_cookie("sess-current"))
         .send()
         .await?;
     assert_eq!(resp.status(), 200, "current session must survive");
     // ...and another user's session is untouched.
     let resp = client
-        .get(format!("{base}/api/cards"))
+        .get(format!("{base}/api/cards?take=10"))
         .header(reqwest::header::COOKIE, session_cookie("sess-bob"))
         .send()
         .await?;
