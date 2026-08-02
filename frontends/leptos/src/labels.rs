@@ -514,7 +514,6 @@ pub fn LabelManager() -> impl IntoView {
         <section class="labels-page" id="labels-page">
             <header class="page-header">
                 <div>
-                    <p class="page-kicker">"Collection"</p>
                     <h1>"Labels"</h1>
                     <p class="page-description">
                         "Create names to organize cards. Labels have no built-in meaning."
