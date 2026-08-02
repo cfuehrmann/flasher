@@ -59,6 +59,19 @@ pub enum Tab {
     Labels,
 }
 
+impl Tab {
+    /// The visible heading for the top-level page represented by this tab.
+    pub const fn title(self) -> &'static str {
+        match self {
+            Self::Quiz => "Quiz",
+            Self::AddCard => "Add card",
+            Self::Groom => "Groom",
+            Self::Account => "Account",
+            Self::Labels => "Labels",
+        }
+    }
+}
+
 /// A URL the app can restore its full UI state from (Phase 6.6): beyond
 /// the bare tabs, the groom editor is a real route that survives a
 /// browser refresh. The quiz's reveal state is deliberately not part of
@@ -329,6 +342,15 @@ mod tests {
         ] {
             assert_eq!(path_to_tab(tab_to_path(tab)), tab);
         }
+    }
+
+    #[test]
+    fn tabs_have_visible_page_titles() {
+        assert_eq!(Tab::Quiz.title(), "Quiz");
+        assert_eq!(Tab::AddCard.title(), "Add card");
+        assert_eq!(Tab::Groom.title(), "Groom");
+        assert_eq!(Tab::Labels.title(), "Labels");
+        assert_eq!(Tab::Account.title(), "Account");
     }
 
     #[test]

@@ -125,6 +125,20 @@ async fn assert_tab_active(h: &TestHarness, sel: &str) -> Result<()> {
     Ok(())
 }
 
+/// The shared shell keeps the current top-level page title beside the logo.
+async fn assert_page_heading(h: &TestHarness, title: &str) -> Result<()> {
+    h.wait_for_text("header.top h1", title, TIMEOUT).await?;
+    let rendered: String = h
+        .eval("document.querySelector('header.top h1')?.textContent?.trim() ?? ''")
+        .await?;
+    if rendered != title {
+        return Err(Error::message(format!(
+            "page heading is {rendered:?}, expected {title:?}"
+        )));
+    }
+    Ok(())
+}
+
 /// Reloads the app at `path` (a real navigation, equivalent to F5) and
 /// waits until the tab content marker and the active tab button prove
 /// the reload kept the tab.
@@ -137,7 +151,15 @@ async fn reload_and_expect_tab(
     h.goto(path).await?;
     wait_for_path(h, path).await?;
     h.wait_for_selector(content_sel, TIMEOUT).await?;
-    assert_tab_active(h, tab_sel).await
+    assert_tab_active(h, tab_sel).await?;
+    let title = match path {
+        "/add" => "Add card",
+        "/groom" => "Groom",
+        "/labels" => "Labels",
+        "/account" => "Account",
+        _ => "Quiz",
+    };
+    assert_page_heading(h, title).await
 }
 
 /// F5 keeps the current tab: switch to each tab, reload at its URL, and
@@ -164,6 +186,20 @@ async fn reload_keeps_tab() -> Result<()> {
     h.wait_for_selector("#account-username", TIMEOUT).await?;
     wait_for_path(&h, "/account").await?;
     reload_and_expect_tab(&h, "/account", "#account-username", "#tab-account").await?;
+
+    // Labels uses the same shared heading, with no duplicate in-page h1.
+    h.click("#tab-labels").await?;
+    h.wait_for_selector("#labels-page", TIMEOUT).await?;
+    wait_for_path(&h, "/labels").await?;
+    reload_and_expect_tab(&h, "/labels", "#labels-page", "#tab-labels").await?;
+    let duplicate_heading: bool = h
+        .eval("!!document.querySelector('#labels-page h1')")
+        .await?;
+    if duplicate_heading {
+        return Err(Error::message(
+            "Labels should use the shared top heading instead of a duplicate in-page h1",
+        ));
+    }
 
     // And `/` still canonicalizes to the quiz.
     h.goto("/").await?;

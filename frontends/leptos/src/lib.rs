@@ -488,19 +488,15 @@ pub fn App() -> impl IntoView {
                 aria-hidden=move || (nav_narrow.get() && !nav_open.get()).to_string()
                 inert=move || nav_narrow.get() && !nav_open.get()
             >
-                <div class="side-nav-brand">
-                    <img src="/favicon.svg" alt="" class="side-nav-logo"/>
-                    <span class="side-nav-name">"Flasher"</span>
-                    <button
-                        type="button"
-                        class="nav-close"
-                        id="nav-close"
-                        aria-label="Close navigation"
-                        on:click=move |_| close_navigation(nav_open, nav_narrow)
-                    >
-                        <span aria-hidden="true">"×"</span>
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    class="nav-close"
+                    id="nav-close"
+                    aria-label="Close navigation"
+                    on:click=move |_| close_navigation(nav_open, nav_narrow)
+                >
+                    <span aria-hidden="true">"×"</span>
+                </button>
                 <nav class="side-nav-links" aria-label="Primary navigation">
                     <button
                         type="button"
@@ -594,9 +590,9 @@ pub fn App() -> impl IntoView {
                     >
                         <span aria-hidden="true">{move || if nav_open.get() { "×" } else { "☰" }}</span>
                     </button>
-                    <div class="mobile-brand">
+                    <div class="page-heading">
                         <img src="/favicon.svg" alt="Flasher" class="brand-logo"/>
-                        <span>"Flasher"</span>
+                        <h1>{move || tab.get().title()}</h1>
                     </div>
                 </header>
             {move || draft.get().flatten().map(|found| {

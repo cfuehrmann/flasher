@@ -98,17 +98,6 @@ body {
   border-right: 1px solid var(--border);
 }
 
-.side-nav-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-height: 2.5rem;
-  padding: 0 0.625rem;
-  color: var(--text);
-  font-size: 1.05rem;
-  font-weight: 650;
-}
-
 .nav-close {
   display: none;
   margin-left: auto;
@@ -125,12 +114,6 @@ body {
 .nav-close:not(:disabled):hover {
   background: var(--surface-2);
   color: var(--text);
-}
-
-.side-nav-logo {
-  width: 2rem;
-  height: 2rem;
-  flex: 0 0 2rem;
 }
 
 .side-nav-links {
@@ -198,13 +181,12 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
-/* Mobile header + navigation drawer                                    */
+/* Shared page header + navigation drawer                               */
 /* ------------------------------------------------------------------ */
 
-/* The header is only a mobile affordance in this prototype. On larger
-   screens the persistent sidebar supplies the brand and navigation. The
-   measured height is still exported to .groom-head so the drawer mode
-   keeps the existing sticky search/filter behavior. */
+/* The header is the single page-heading surface at every viewport. The
+   measured height is exported to .groom-head so its controls stay directly
+   below the header while the list scrolls. */
 .top {
   display: flex;
   align-items: center;
@@ -229,24 +211,29 @@ body {
   line-height: 1;
 }
 
-.mobile-brand {
-  display: none;
+.page-heading {
+  display: flex;
   align-items: center;
   gap: 0.625rem;
+  min-width: 0;
   color: var(--text);
+}
+
+.page-heading h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 1.35rem;
   font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-logo {
   width: 2rem;
   height: 2rem;
   flex-shrink: 0;
-}
-
-@media (min-width: 64.01rem) {
-  .top {
-    display: none;
-  }
 }
 
 /* Keep the compact header spacing on the narrowest phones. */
@@ -283,7 +270,7 @@ body {
   }
 
   .nav-toggle,
-  .mobile-brand {
+  .page-heading {
     display: flex;
   }
 
@@ -296,6 +283,8 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    align-self: flex-end;
+    margin-left: 0;
   }
 
   .nav-backdrop {
@@ -618,19 +607,6 @@ textarea:focus-visible {
   gap: 1rem;
 }
 
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.page-header h1 {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 650;
-}
-
 .page-kicker {
   margin: 0 0 0.2rem;
   color: var(--accent-text);
@@ -642,7 +618,7 @@ textarea:focus-visible {
 
 .page-description {
   max-width: 32rem;
-  margin: 0.35rem 0 0;
+  margin: 0;
   color: var(--text-muted);
 }
 

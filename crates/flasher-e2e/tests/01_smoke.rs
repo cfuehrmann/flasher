@@ -19,6 +19,8 @@ async fn home_boots_and_shows_server_health() -> Result<()> {
         .await?;
     h.wait_for_text("p.health", "version:", Duration::from_secs(5))
         .await?;
+    h.wait_for_text("header.top h1", "Quiz", Duration::from_secs(5))
+        .await?;
 
     let title = h.title().await?;
     if title.as_deref() != Some("Flasher") {
@@ -26,9 +28,8 @@ async fn home_boots_and_shows_server_health() -> Result<()> {
             "expected page title \"Flasher\", got {title:?}"
         )));
     }
-    // The header brand is an icon-only <img>; its alt text is the
-    // "Flasher" equivalent, but it isn't part of body.textContent like
-    // the old <h1> was, so check it directly instead of scanning text.
+    // The logo remains the accessible Flasher brand while the adjacent h1
+    // carries the current page title.
     let logo_alt: Option<String> = h
         .eval("document.querySelector('header.top img.brand-logo')?.getAttribute('alt')")
         .await?;

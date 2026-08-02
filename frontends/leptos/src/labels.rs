@@ -512,14 +512,9 @@ pub fn LabelManager() -> impl IntoView {
 
     view! {
         <section class="labels-page" id="labels-page">
-            <header class="page-header">
-                <div>
-                    <h1>"Labels"</h1>
-                    <p class="page-description">
-                        "Create names to organize cards. Labels have no built-in meaning."
-                    </p>
-                </div>
-            </header>
+            <p class="page-description">
+                "Create names to organize cards. Labels have no built-in meaning."
+            </p>
             <section class="labels-card" aria-labelledby="labels-heading">
                 <div class="labels-card-heading">
                     <h2 id="labels-heading">"Your labels"</h2>
