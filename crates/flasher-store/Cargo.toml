@@ -15,6 +15,7 @@ workspace = true
 flasher-types = { path = "../flasher-types", features = ["sqlx"] }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
+serde_json.workspace = true
 # default-features = false: sqlx pulls in a lot by default (multiple
 # databases, TLS stacks, ...); we only need SQLite on the tokio/rustls
 # runtime plus the macros for FromRow and the embedded `migrate!`.

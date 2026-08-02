@@ -45,7 +45,11 @@ async fn auth_mode_requires_session_for_api_but_not_for_auth_routes() -> TestRes
     let (base, server) = start_auth_mode(store).await?;
 
     // Everything /api/* outside /api/health and /api/auth/* needs a session.
-    for path in ["/api/cards?take=10", "/api/cards/next", "/api/autosave"] {
+    for path in [
+        "/api/cards?take=10",
+        "/api/cards/next",
+        "/api/new-card-draft",
+    ] {
         let resp = reqwest::get(format!("{base}{path}")).await?;
         assert_eq!(resp.status(), 401, "{path} must require a session");
     }

@@ -75,6 +75,8 @@ pub struct CardResponse {
     pub change_time: i64,
     /// Unix epoch millis.
     pub next_time: i64,
+    /// Monotonic card revision used to reject stale edits.
+    pub revision: i64,
     /// The card's labels (opaque names; the app attaches no semantics
     /// to any of them).
     pub labels: Vec<String>,
@@ -184,31 +186,59 @@ pub struct FindCardsResponse {
 /// `Option<CardResponse>`.
 pub type NextCardResponse = Option<CardResponse>;
 
-/// The autosaved draft of a card edit session, as returned by
-/// `GET`/`PUT /api/autosave`.
+/// The user's pending Add card draft.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct AutoSaveResponse {
-    /// The card being edited (the old `AutoSave.Id`); `null` for a draft
-    /// of a brand-new card.
-    pub card_id: Option<String>,
+pub struct NewCardDraftResponse {
     pub prompt: String,
     pub solution: String,
     /// Unix epoch millis.
     pub updated_at: i64,
 }
 
-/// Body of `PUT /api/autosave`: upserts the current user's draft.
+/// Body of `PUT /api/new-card-draft`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct PutAutoSaveRequest {
-    #[serde(default)]
-    pub card_id: Option<String>,
+pub struct PutNewCardDraftRequest {
     pub prompt: String,
     pub solution: String,
 }
 
-/// Response of `GET /api/autosave`: the current user's draft, or `null`
-/// when there is none. Serialized as plain `Option<AutoSaveResponse>`.
-pub type GetAutoSaveResponse = Option<AutoSaveResponse>;
+/// A pending edit for one existing card.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct CardEditDraftResponse {
+    pub card_id: String,
+    pub prompt: String,
+    pub solution: String,
+    pub labels: Vec<String>,
+    pub base_revision: i64,
+    /// Unix epoch millis.
+    pub updated_at: i64,
+}
+
+/// Body of `PUT /api/cards/{id}/draft`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct PutCardEditDraftRequest {
+    pub base_revision: i64,
+    pub prompt: String,
+    pub solution: String,
+    pub labels: Vec<String>,
+}
+
+/// A small summary used by Groom to mark cards with pending edits.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct CardDraftSummary {
+    pub card_id: String,
+    /// Unix epoch millis.
+    pub updated_at: i64,
+}
+
+/// Body of `PUT /api/cards/{id}`: commit a complete edit session.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct SaveCardEditRequest {
+    pub expected_revision: i64,
+    pub prompt: String,
+    pub solution: String,
+    pub labels: Vec<String>,
+}
 
 // ---------------------------------------------------------------------- auth
 //
@@ -366,12 +396,13 @@ mod tests {
             state: CardState::Ok,
             change_time: 1,
             next_time: 2,
+            revision: 3,
             labels: vec!["Enabled".to_owned()],
         };
         let json = serde_json::to_string(&card)?;
         assert_eq!(
             json,
-            r#"{"id":"c1","prompt":"p","solution":"s","state":"ok","change_time":1,"next_time":2,"labels":["Enabled"]}"#
+            r#"{"id":"c1","prompt":"p","solution":"s","state":"ok","change_time":1,"next_time":2,"revision":3,"labels":["Enabled"]}"#
         );
         let parsed: CardResponse = serde_json::from_str(&json)?;
         assert_eq!(parsed, card);
@@ -427,56 +458,33 @@ mod tests {
     }
 
     #[test]
-    fn autosave_response_uses_snake_case_fields() -> TestResult {
-        let response = AutoSaveResponse {
-            card_id: Some("c1".to_owned()),
+    fn new_card_draft_uses_snake_case_fields() -> TestResult {
+        let response = NewCardDraftResponse {
             prompt: "p".to_owned(),
             solution: "s".to_owned(),
             updated_at: 42,
         };
         let json = serde_json::to_string(&response)?;
-        assert_eq!(
-            json,
-            r#"{"card_id":"c1","prompt":"p","solution":"s","updated_at":42}"#
-        );
-        let parsed: AutoSaveResponse = serde_json::from_str(&json)?;
+        assert_eq!(json, r#"{"prompt":"p","solution":"s","updated_at":42}"#);
+        let parsed: NewCardDraftResponse = serde_json::from_str(&json)?;
         assert_eq!(parsed, response);
-
-        let new_card_draft = AutoSaveResponse {
-            card_id: None,
-            ..response
-        };
-        let json = serde_json::to_string(&new_card_draft)?;
-        assert_eq!(
-            json,
-            r#"{"card_id":null,"prompt":"p","solution":"s","updated_at":42}"#
-        );
         Ok(())
     }
 
     #[test]
-    fn put_auto_save_request_card_id_defaults_to_none() -> TestResult {
-        let request: PutAutoSaveRequest = serde_json::from_str(r#"{"prompt":"p","solution":"s"}"#)?;
+    fn edit_draft_contract_is_target_scoped() -> TestResult {
+        let request: PutCardEditDraftRequest = serde_json::from_str(
+            r#"{"base_revision":7,"prompt":"p","solution":"s","labels":["A"]}"#,
+        )?;
         assert_eq!(
             request,
-            PutAutoSaveRequest {
-                card_id: None,
+            PutCardEditDraftRequest {
+                base_revision: 7,
                 prompt: "p".to_owned(),
                 solution: "s".to_owned(),
+                labels: vec!["A".to_owned()],
             }
         );
-        let with_card: PutAutoSaveRequest =
-            serde_json::from_str(r#"{"card_id":"c1","prompt":"p","solution":"s"}"#)?;
-        assert_eq!(with_card.card_id.as_deref(), Some("c1"));
-        Ok(())
-    }
-
-    #[test]
-    fn get_auto_save_response_is_plain_option() -> TestResult {
-        let none: GetAutoSaveResponse = None;
-        assert_eq!(serde_json::to_string(&none)?, "null");
-        let parsed: GetAutoSaveResponse = serde_json::from_str("null")?;
-        assert_eq!(parsed, None);
         Ok(())
     }
 
@@ -539,6 +547,7 @@ mod tests {
                 state: CardState::New,
                 change_time: 1,
                 next_time: 2,
+                revision: 0,
                 labels: vec!["Disabled".to_owned()],
             }],
             count: 7,
@@ -547,7 +556,7 @@ mod tests {
         let json = serde_json::to_string(&response)?;
         assert_eq!(
             json,
-            r#"{"cards":[{"id":"c1","prompt":"p","solution":"s","state":"new","change_time":1,"next_time":2,"labels":["Disabled"]}],"count":7,"page_size":10}"#
+            r#"{"cards":[{"id":"c1","prompt":"p","solution":"s","state":"new","change_time":1,"next_time":2,"revision":0,"labels":["Disabled"]}],"count":7,"page_size":10}"#
         );
         let parsed: FindCardsResponse = serde_json::from_str(&json)?;
         assert_eq!(parsed, response);

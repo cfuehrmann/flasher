@@ -13,14 +13,19 @@
 //! | `GET /api/cards`                 | 200 `FindCardsResponse` | 400, 500   |
 //! | `POST /api/cards`                | 201 `CardResponse`     | 422, 500    |
 //! | `GET /api/cards/{id}`            | 200 `CardResponse`     | 404, 500    |
+//! | `PUT /api/cards/{id}`            | 200 `CardResponse`     | 404, 409, 422, 500 |
 //! | `PATCH /api/cards/{id}`          | 200 `CardResponse`     | 404, 422, 500 |
 //! | `DELETE /api/cards/{id}`         | 204                    | 404, 500    |
 //! | `DELETE /api/history/{id}`       | 200 `CardResponse`     | 404, 500    |
 //! | `POST /api/cards/{id}/set-ok`    | 200 `CardResponse`     | 404, 409, 500 |
 //! | `POST /api/cards/{id}/set-failed`| 200 `CardResponse`     | 404, 409, 500 |
-//! | `PUT /api/autosave`              | 200 `AutoSaveResponse` | 500         |
-//! | `GET /api/autosave`              | 200 `AutoSaveResponse` or 200 `null` | 500 |
-//! | `DELETE /api/autosave`           | 204                    | 500         |
+//! | `PUT /api/new-card-draft`        | 200 `NewCardDraftResponse` | 500    |
+//! | `GET /api/new-card-draft`        | 200 `NewCardDraftResponse` or 200 `null` | 500 |
+//! | `DELETE /api/new-card-draft`     | 204                    | 500         |
+//! | `GET /api/card-drafts`           | 200 `[CardDraftSummary]` | 500       |
+//! | `PUT /api/cards/{id}/draft`      | 200 `CardEditDraftResponse` | 404, 500 |
+//! | `GET /api/cards/{id}/draft`      | 200 `CardEditDraftResponse` or 200 `null` | 404, 500 |
+//! | `DELETE /api/cards/{id}/draft`   | 204                    | 404, 500    |
 //!
 //! `GET /api/cards` takes the required positive query param `take` (the
 //! groom tab sizes it to its viewport; values above [`MAX_TAKE`] are
@@ -72,11 +77,11 @@
 //! token is stored **plain** — acceptable for this personal app: anyone
 //! with read access to the database file already owns all its content.
 //!
-//! The `/api/autosave` routes port `AutoSaveHandler`: one draft per user,
-//! upserted by `PUT` (the store keeps `updated_at` when the content is
-//! unchanged), returned by `GET` (`null` when absent) and cleared by
-//! `DELETE`. The draft's `card_id` is the card being edited (the old
-//! `AutoSave.Id`); `null` means a draft for a brand-new card.
+//! Draft routes are target-scoped: each user has one new-card draft and one
+//! edit draft per card. They are upserted by `PUT`, returned by `GET` and
+//! cleared only by an explicit `DELETE` or a successful create/save. A card
+//! edit carries the card revision it was based on; saving against a newer
+//! revision returns 409 rather than silently overwriting a concurrent change.
 //!
 //! All payloads are `snake_case` JSON; timestamps are unix epoch millis.
 //! `POST /api/cards` ports `CardsHandler.Create`: the card is created in
@@ -109,13 +114,17 @@ use axum::{
 };
 use flasher_auth::{Auth, Passkey, PublicKeyCredential, RegisterPublicKeyCredential};
 use flasher_core::SrsConfig;
-use flasher_store::{AutoSave, Card, CardState, DeleteLabel, NewCard, SetCardState, Store, User};
+use flasher_store::{
+    Card, CardEditDraft, CardState, DeleteLabel, NewCard, NewCardDraft, SaveCardEdit, SetCardState,
+    Store, User,
+};
 use flasher_types::{
-    AutoSaveResponse, BootstrapResponse, CardResponse, CardUpdateRequest, CreateCardRequest,
-    CreateLabelRequest, DeleteLabelRequest, FindCardsResponse, GetAutoSaveResponse, HealthResponse,
-    LabelDeleteConflict, LabelResponse, MAX_TAKE, NextCardResponse, PasskeyResponse,
-    PutAutoSaveRequest, RegisterStartRequest, RenameLabelRequest, RenamePasskeyRequest,
-    SessionResponse, SetCardStateRequest,
+    BootstrapResponse, CardDraftSummary, CardEditDraftResponse, CardResponse, CardUpdateRequest,
+    CreateCardRequest, CreateLabelRequest, DeleteLabelRequest, FindCardsResponse, HealthResponse,
+    LabelDeleteConflict, LabelResponse, MAX_TAKE, NewCardDraftResponse, NextCardResponse,
+    PasskeyResponse, PutCardEditDraftRequest, PutNewCardDraftRequest, RegisterStartRequest,
+    RenameLabelRequest, RenamePasskeyRequest, SaveCardEditRequest, SessionResponse,
+    SetCardStateRequest,
 };
 use serde::Deserialize;
 use tokio::net::TcpListener;
@@ -371,10 +380,6 @@ pub enum ApiError {
     /// count so the UI can ask for an informed explicit confirmation.
     #[error("label is still used by {0} card(s)")]
     LabelInUse(i64),
-    /// The autosave written by `PUT /api/autosave` could not be read
-    /// back (can only happen on a concurrent delete in between).
-    #[error("autosave disappeared after write")]
-    AutosaveGone,
     /// No session (or an expired one) where one is required.
     #[error("authentication required")]
     Unauthorized,
@@ -444,10 +449,6 @@ impl IntoResponse for ApiError {
                 Json(LabelDeleteConflict { affected_cards }),
             )
                 .into_response(),
-            Self::AutosaveGone => {
-                tracing::error!("autosave read-back after upsert failed");
-                StatusCode::INTERNAL_SERVER_ERROR.into_response()
-            }
             Self::Unauthorized => StatusCode::UNAUTHORIZED.into_response(),
             Self::StepUpRequired => (StatusCode::FORBIDDEN, self.to_string()).into_response(),
             Self::InvalidBootstrapToken => {
@@ -503,15 +504,27 @@ pub fn app(dist_dir: PathBuf, state: AppState) -> Router {
         .route("/cards", post(create_card).get(find_cards))
         .route(
             "/cards/{id}",
-            get(get_card).patch(patch_card).delete(delete_card),
+            get(get_card)
+                .put(save_card_edit)
+                .patch(patch_card)
+                .delete(delete_card),
+        )
+        .route(
+            "/cards/{id}/draft",
+            put(put_card_edit_draft)
+                .get(get_card_edit_draft)
+                .delete(delete_card_edit_draft),
+        )
+        .route("/card-drafts", get(list_card_edit_drafts))
+        .route(
+            "/new-card-draft",
+            put(put_new_card_draft)
+                .get(get_new_card_draft)
+                .delete(delete_new_card_draft),
         )
         .route("/history/{id}", delete(delete_history))
         .route("/cards/{id}/set-ok", post(set_ok))
         .route("/cards/{id}/set-failed", post(set_failed))
-        .route(
-            "/autosave",
-            put(put_autosave).get(get_autosave).delete(delete_autosave),
-        )
         // Unknown /api/* paths must be a 404, never the SPA's index.html.
         .fallback(api_fallback);
     Router::new()
@@ -1261,7 +1274,10 @@ async fn create_card(
         next_time: flasher_core::next_time_for_new_card(now, &state.srs),
         labels: request.labels,
     };
-    state.store.insert_card(&card).await?;
+    state
+        .store
+        .insert_card_and_delete_new_card_draft(&card)
+        .await?;
     let response = CardResponse {
         id: card.id,
         prompt: card.prompt,
@@ -1269,6 +1285,7 @@ async fn create_card(
         state: card.state,
         change_time: card.change_time,
         next_time: card.next_time,
+        revision: 0,
         labels: card.labels,
     };
     Ok((StatusCode::CREATED, Json(response)))
@@ -1348,25 +1365,45 @@ async fn get_card(
     Ok(Json(card_response(card)))
 }
 
-/// `PATCH /api/cards/{id}` — port of `CardsHandler.Update`: an
-/// all-optional partial update of prompt/solution/labels (the old
-/// request had no `disabled`, it was toggled via Enable/Disable — here
-/// one endpoint covers all three). `labels` REPLACES the card's whole
-/// set and must name existing labels only (unknown names and an empty
-/// set are 422 — no backdoor creation, no invisible cards). Like the old
-/// handler, there is no prompt-emptiness guard on update; an all-absent
-/// body is a 422.
-/// Side effect ported from `CardsHandler.Update`: when the request
-/// changes content (prompt and/or solution), the user's autosave draft is
-/// deleted; a pure label toggle keeps it (the old Enable/Disable
-/// endpoints never touched the autosave). Returns the updated card, 404
-/// for unknown/other-user ids.
-///
-/// Deliberate deviation from `CardsHandler.Update`: the C# handler
-/// deleted the draft before checking whether the card exists. Here the
-/// draft is deleted only AFTER the card was found and the update applied
-/// — deleting it in the failure case would destroy the crash-recovery
-/// net exactly when the edit did not land.
+/// `PUT /api/cards/{id}` — commits the complete existing-card editor.
+/// The revision check and draft deletion happen atomically in the store.
+async fn save_card_edit(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+    Path(id): Path<String>,
+    Json(request): Json<SaveCardEditRequest>,
+) -> Result<Json<CardResponse>, ApiError> {
+    if request.prompt.trim().is_empty() {
+        return Err(ApiError::EmptyPrompt);
+    }
+    let saved = match state
+        .store
+        .save_card_edit(
+            user_id,
+            &id,
+            request.expected_revision,
+            &request.prompt,
+            &request.solution,
+            &request.labels,
+        )
+        .await
+    {
+        Ok(saved) => saved,
+        Err(
+            err @ (flasher_store::Error::UnknownLabel(_) | flasher_store::Error::EmptyLabelSet),
+        ) => return Err(ApiError::InvalidLabels(err.to_string())),
+        Err(err) => return Err(err.into()),
+    };
+    match saved {
+        SaveCardEdit::Applied(card) => Ok(Json(card_response(card))),
+        SaveCardEdit::Stale(_) => Err(ApiError::StaleCard),
+        SaveCardEdit::NotFound => Err(ApiError::CardNotFound),
+    }
+}
+
+/// `PATCH /api/cards/{id}` — a legacy partial update retained for internal
+/// maintenance paths. The card editor uses `PUT` above so its complete
+/// update, revision check and draft deletion are one transaction.
 async fn patch_card(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
@@ -1376,7 +1413,13 @@ async fn patch_card(
     if request.prompt.is_none() && request.solution.is_none() && request.labels.is_none() {
         return Err(ApiError::EmptyUpdate);
     }
-    let content_changed = request.prompt.is_some() || request.solution.is_some();
+    if request
+        .prompt
+        .as_deref()
+        .is_some_and(|prompt| prompt.trim().is_empty())
+    {
+        return Err(ApiError::EmptyPrompt);
+    }
     // The label step goes FIRST (adversarial review 2026-08-01): its
     // validation (unknown names, empty set) is the only client-error
     // that can still fail, and it must fail BEFORE any write — a 422
@@ -1410,9 +1453,6 @@ async fn patch_card(
             )
             .await?
             .ok_or(ApiError::CardNotFound)?;
-    }
-    if content_changed {
-        state.store.delete_autosave(user_id).await?;
     }
     Ok(Json(card_response(updated)))
 }
@@ -1514,59 +1554,144 @@ async fn set_state(
     }
 }
 
-/// `PUT /api/autosave` — port of `AutoSaveHandler.Write`: upserts the
-/// user's draft. The store keeps `updated_at` when the content is
-/// unchanged, so the response is read back after the write.
-async fn put_autosave(
+/// `PUT /api/new-card-draft` — autosaves the Add card workflow.
+async fn put_new_card_draft(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
-    Json(request): Json<PutAutoSaveRequest>,
-) -> Result<Json<AutoSaveResponse>, ApiError> {
+    Json(request): Json<PutNewCardDraftRequest>,
+) -> Result<Json<NewCardDraftResponse>, ApiError> {
     state
         .store
-        .put_autosave(
-            user_id,
-            request.card_id.as_deref(),
-            &request.prompt,
-            &request.solution,
-            now_millis(),
-        )
+        .put_new_card_draft(user_id, &request.prompt, &request.solution, now_millis())
         .await?;
-    // The upsert cannot fail to leave a row behind, so this read always
-    // finds the draft just written.
-    let autosave = state
+    let draft = state
         .store
-        .get_autosave(user_id)
+        .get_new_card_draft(user_id)
         .await?
-        .ok_or(ApiError::AutosaveGone)?;
-    Ok(Json(autosave_response(autosave)))
+        .ok_or(ApiError::Internal(
+            "new-card draft disappeared after write".to_owned(),
+        ))?;
+    Ok(Json(new_card_draft_response(draft)))
 }
 
-/// `GET /api/autosave` — the user's draft, or `null` when there is none.
-async fn get_autosave(
+/// `GET /api/new-card-draft` — the user's pending Add card draft.
+async fn get_new_card_draft(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
-) -> Result<Json<GetAutoSaveResponse>, ApiError> {
-    let autosave = state.store.get_autosave(user_id).await?;
-    Ok(Json(autosave.map(autosave_response)))
+) -> Result<Json<Option<NewCardDraftResponse>>, ApiError> {
+    Ok(Json(
+        state
+            .store
+            .get_new_card_draft(user_id)
+            .await?
+            .map(new_card_draft_response),
+    ))
 }
 
-/// `DELETE /api/autosave` — port of `AutoSaveHandler.Delete`: always 204
-/// (the old handler also did not distinguish "no draft existed").
-async fn delete_autosave(
+/// `DELETE /api/new-card-draft` — explicitly discards the Add card draft.
+async fn delete_new_card_draft(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
 ) -> Result<StatusCode, ApiError> {
-    state.store.delete_autosave(user_id).await?;
+    state.store.delete_new_card_draft(user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn autosave_response(autosave: AutoSave) -> AutoSaveResponse {
-    AutoSaveResponse {
-        card_id: autosave.card_id,
-        prompt: autosave.prompt,
-        solution: autosave.solution,
-        updated_at: autosave.updated_at,
+/// `PUT /api/cards/{id}/draft` — autosaves one existing card's editor.
+async fn put_card_edit_draft(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+    Path(id): Path<String>,
+    Json(request): Json<PutCardEditDraftRequest>,
+) -> Result<Json<CardEditDraftResponse>, ApiError> {
+    if !state
+        .store
+        .put_card_edit_draft(
+            user_id,
+            &id,
+            request.base_revision,
+            &request.prompt,
+            &request.solution,
+            &request.labels,
+            now_millis(),
+        )
+        .await?
+    {
+        return Err(ApiError::CardNotFound);
+    }
+    let draft = state
+        .store
+        .get_card_edit_draft(user_id, &id)
+        .await?
+        .ok_or(ApiError::Internal(
+            "card edit draft disappeared after write".to_owned(),
+        ))?;
+    Ok(Json(card_edit_draft_response(draft)))
+}
+
+/// `GET /api/cards/{id}/draft` — one card's pending editor.
+async fn get_card_edit_draft(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+    Path(id): Path<String>,
+) -> Result<Json<Option<CardEditDraftResponse>>, ApiError> {
+    if state.store.get_card(user_id, &id).await?.is_none() {
+        return Err(ApiError::CardNotFound);
+    }
+    Ok(Json(
+        state
+            .store
+            .get_card_edit_draft(user_id, &id)
+            .await?
+            .map(card_edit_draft_response),
+    ))
+}
+
+/// `DELETE /api/cards/{id}/draft` — explicitly discards one edit draft.
+async fn delete_card_edit_draft(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    state.store.delete_card_edit_draft(user_id, &id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `GET /api/card-drafts` — summaries for Groom's Draft badges.
+async fn list_card_edit_drafts(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+) -> Result<Json<Vec<CardDraftSummary>>, ApiError> {
+    Ok(Json(
+        state
+            .store
+            .list_card_edit_drafts(user_id)
+            .await?
+            .into_iter()
+            .map(|(card_id, updated_at)| CardDraftSummary {
+                card_id,
+                updated_at,
+            })
+            .collect(),
+    ))
+}
+
+fn new_card_draft_response(draft: NewCardDraft) -> NewCardDraftResponse {
+    NewCardDraftResponse {
+        prompt: draft.prompt,
+        solution: draft.solution,
+        updated_at: draft.updated_at,
+    }
+}
+
+fn card_edit_draft_response(draft: CardEditDraft) -> CardEditDraftResponse {
+    CardEditDraftResponse {
+        card_id: draft.card_id,
+        prompt: draft.prompt,
+        solution: draft.solution,
+        labels: draft.labels,
+        base_revision: draft.base_revision,
+        updated_at: draft.updated_at,
     }
 }
 
@@ -1578,6 +1703,7 @@ fn card_response(card: Card) -> CardResponse {
         state: card.state,
         change_time: card.change_time,
         next_time: card.next_time,
+        revision: card.revision,
         labels: card.labels,
     }
 }

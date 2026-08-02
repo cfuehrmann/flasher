@@ -2,7 +2,8 @@
 //! (in-memory, plus one tempfile-backed test for `connect`).
 
 use super::{
-    Card, CardState, DeleteLabel, Error, LEGACY_MIGRATION_METADATA, NewCard, SetCardState, Store,
+    AppliedMigration, Card, CardState, DeleteLabel, Error, LEGACY_MIGRATION_METADATA, NewCard,
+    SetCardState, Store,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -28,8 +29,14 @@ fn card(id: &str, prompt: &str, solution: &str, state: CardState, change: i64, n
         state,
         change_time: change,
         next_time: next,
+        revision: 0,
         labels: names(&["A"]),
     }
+}
+
+fn with_revision(mut card: Card, revision: i64) -> Card {
+    card.revision = revision;
+    card
 }
 
 fn new_card(user_id: i64, id: &str) -> NewCard {
@@ -51,6 +58,30 @@ fn new_card(user_id: i64, id: &str) -> NewCard {
         next_time: c.next_time,
         labels: c.labels,
     }
+}
+
+async fn restore_pre_issue_137_schema(store: &Store) -> TestResult {
+    sqlx::query("DROP TABLE card_edit_drafts")
+        .execute(store.pool())
+        .await?;
+    sqlx::query("DROP TABLE new_card_drafts")
+        .execute(store.pool())
+        .await?;
+    sqlx::query("ALTER TABLE cards DROP COLUMN revision")
+        .execute(store.pool())
+        .await?;
+    sqlx::query(
+        "CREATE TABLE autosaves (
+             user_id INTEGER PRIMARY KEY REFERENCES users (id),
+             prompt TEXT NOT NULL,
+             solution TEXT NOT NULL,
+             updated_at INTEGER NOT NULL,
+             card_id TEXT
+         )",
+    )
+    .execute(store.pool())
+    .await?;
+    Ok(())
 }
 
 #[tokio::test]
@@ -222,6 +253,10 @@ async fn label_crud_is_scoped_and_delete_requires_confirmation_when_used() -> Te
     assert_eq!(created.card_count, 0);
     assert_eq!(store.labels(other.id).await?, Vec::new());
 
+    let mut card = new_card(user.id, "c-label");
+    card.labels = names(&["Topics"]);
+    store.insert_card(&card).await?;
+
     let unused = store.create_label(user.id, "Unused").await?;
     assert_eq!(
         store.delete_label(user.id, unused.id, false).await?,
@@ -237,10 +272,6 @@ async fn label_crud_is_scoped_and_delete_requires_confirmation_when_used() -> Te
         store.rename_label(other.id, created.id, "Nope").await?,
         None
     );
-
-    let mut card = new_card(user.id, "c-label");
-    card.labels = names(&["Subjects"]);
-    store.insert_card(&card).await?;
 
     let labels = store.labels(user.id).await?;
     assert_eq!(labels.len(), 1);
@@ -267,6 +298,54 @@ async fn label_crud_is_scoped_and_delete_requires_confirmation_when_used() -> Te
     assert_eq!(
         store.delete_label(user.id, created.id, true).await?,
         DeleteLabel::NotFound
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn label_rename_and_delete_rewrite_drafts() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let user = store.create_user("alice").await?;
+    let label = store.create_label(user.id, "Topics").await?;
+    let mut card = new_card(user.id, "c-label-draft");
+    card.labels = names(&["Topics", "Other"]);
+    store.insert_card(&card).await?;
+    store
+        .put_card_edit_draft(
+            user.id,
+            &card.id,
+            0,
+            "edit prompt",
+            "edit solution",
+            &names(&["Topics", "Other"]),
+            2_000,
+        )
+        .await?;
+
+    store
+        .rename_label(user.id, label.id, "Subjects")
+        .await?
+        .ok_or("label vanished during rename")?;
+    assert_eq!(
+        store
+            .get_card_edit_draft(user.id, &card.id)
+            .await?
+            .ok_or("edit draft vanished")?
+            .labels,
+        names(&["Subjects", "Other"])
+    );
+
+    assert_eq!(
+        store.delete_label(user.id, label.id, true).await?,
+        DeleteLabel::Deleted(1)
+    );
+    assert_eq!(
+        store
+            .get_card_edit_draft(user.id, &card.id)
+            .await?
+            .ok_or("edit draft vanished")?
+            .labels,
+        names(&["Other"])
     );
     Ok(())
 }
@@ -358,13 +437,16 @@ async fn set_card_state_updates_state_and_times() -> TestResult {
         .await?;
     assert_eq!(
         updated,
-        Some(card(
-            "c1",
-            "prompt c1",
-            "solution c1",
-            CardState::Failed,
-            5_000,
-            9_000
+        Some(with_revision(
+            card(
+                "c1",
+                "prompt c1",
+                "solution c1",
+                CardState::Failed,
+                5_000,
+                9_000
+            ),
+            1
         ))
     );
 
@@ -397,13 +479,16 @@ async fn set_card_state_if_unchanged_is_a_compare_and_set() -> TestResult {
         .await?;
     assert_eq!(
         applied,
-        SetCardState::Applied(card(
-            "c1",
-            "prompt c1",
-            "solution c1",
-            CardState::Ok,
-            5_000,
-            9_000
+        SetCardState::Applied(with_revision(
+            card(
+                "c1",
+                "prompt c1",
+                "solution c1",
+                CardState::Ok,
+                5_000,
+                9_000
+            ),
+            1
         ))
     );
 
@@ -413,24 +498,30 @@ async fn set_card_state_if_unchanged_is_a_compare_and_set() -> TestResult {
         .await?;
     assert_eq!(
         stale,
-        SetCardState::Stale(card(
-            "c1",
-            "prompt c1",
-            "solution c1",
-            CardState::Ok,
-            5_000,
-            9_000
+        SetCardState::Stale(with_revision(
+            card(
+                "c1",
+                "prompt c1",
+                "solution c1",
+                CardState::Ok,
+                5_000,
+                9_000
+            ),
+            1
         ))
     );
     assert_eq!(
         store.get_card(user.id, "c1").await?,
-        Some(card(
-            "c1",
-            "prompt c1",
-            "solution c1",
-            CardState::Ok,
-            5_000,
-            9_000
+        Some(with_revision(
+            card(
+                "c1",
+                "prompt c1",
+                "solution c1",
+                CardState::Ok,
+                5_000,
+                9_000
+            ),
+            1
         ))
     );
 
@@ -720,90 +811,110 @@ async fn next_card_picks_earliest_due_card_with_any_label() -> TestResult {
 }
 
 #[tokio::test]
-async fn autosave_roundtrip() -> TestResult {
+async fn new_card_draft_roundtrip() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let user = store.create_user("alice").await?;
 
-    assert_eq!(store.get_autosave(user.id).await?, None);
-    assert!(!store.delete_autosave(user.id).await?);
+    assert_eq!(store.get_new_card_draft(user.id).await?, None);
+    assert!(!store.delete_new_card_draft(user.id).await?);
 
-    store.put_autosave(user.id, None, "p", "s", 1_000).await?;
-    let autosave = store.get_autosave(user.id).await?;
+    store.put_new_card_draft(user.id, "p", "s", 1_000).await?;
+    let draft = store.get_new_card_draft(user.id).await?;
     assert_eq!(
-        autosave.as_ref().map(|a| {
-            (
-                a.card_id.as_deref(),
-                a.prompt.as_str(),
-                a.solution.as_str(),
-                a.updated_at,
-            )
-        }),
-        Some((None, "p", "s", 1_000))
+        draft
+            .as_ref()
+            .map(|a| { (a.prompt.as_str(), a.solution.as_str(), a.updated_at) }),
+        Some(("p", "s", 1_000))
     );
 
     // Same content again: updated_at is kept (idempotent re-apply).
-    store.put_autosave(user.id, None, "p", "s", 2_000).await?;
-    let autosave = store.get_autosave(user.id).await?;
-    assert_eq!(autosave.as_ref().map(|a| a.updated_at), Some(1_000));
+    store.put_new_card_draft(user.id, "p", "s", 2_000).await?;
+    let draft = store.get_new_card_draft(user.id).await?;
+    assert_eq!(draft.as_ref().map(|a| a.updated_at), Some(1_000));
 
     // Changed content: updated_at is bumped.
-    store.put_autosave(user.id, None, "p2", "s", 3_000).await?;
-    let autosave = store.get_autosave(user.id).await?;
+    store.put_new_card_draft(user.id, "p2", "s", 3_000).await?;
+    let draft = store.get_new_card_draft(user.id).await?;
     assert_eq!(
-        autosave.as_ref().map(|a| (a.prompt.as_str(), a.updated_at)),
+        draft.as_ref().map(|a| (a.prompt.as_str(), a.updated_at)),
         Some(("p2", 3_000))
     );
 
-    assert!(store.delete_autosave(user.id).await?);
-    assert_eq!(store.get_autosave(user.id).await?, None);
+    assert!(store.delete_new_card_draft(user.id).await?);
+    assert_eq!(store.get_new_card_draft(user.id).await?, None);
     Ok(())
 }
 
 #[tokio::test]
-async fn autosave_card_id_roundtrip_and_change_detection() -> TestResult {
+async fn creating_a_card_consumes_its_new_card_draft_atomically() -> TestResult {
     let store = Store::connect_in_memory().await?;
     let user = store.create_user("alice").await?;
-
-    // A draft tied to an existing card (the old AutoSave.Id semantics).
     store
-        .put_autosave(user.id, Some("card-1"), "p", "s", 1_000)
+        .put_new_card_draft(user.id, "draft prompt", "draft solution", 1_000)
         .await?;
-    let autosave = store.get_autosave(user.id).await?;
-    assert_eq!(
-        autosave
-            .as_ref()
-            .map(|a| (a.card_id.as_deref(), a.updated_at)),
-        Some((Some("card-1"), 1_000))
-    );
+    let card = new_card(user.id, "created");
 
-    // Identical re-apply keeps updated_at, card_id included.
+    store.insert_card_and_delete_new_card_draft(&card).await?;
+    assert!(store.get_new_card_draft(user.id).await?.is_none());
+    assert_eq!(
+        store
+            .get_card(user.id, "created")
+            .await?
+            .map(|card| card.labels),
+        Some(names(&["A"]))
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn edit_drafts_are_per_card_and_commit_atomically() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let user = store.create_user("alice").await?;
+    store.insert_card(&new_card(user.id, "card-1")).await?;
+    store.insert_card(&new_card(user.id, "card-2")).await?;
+
     store
-        .put_autosave(user.id, Some("card-1"), "p", "s", 2_000)
+        .put_card_edit_draft(user.id, "card-1", 0, "p1", "s1", &names(&["A"]), 1_000)
         .await?;
-    let autosave = store.get_autosave(user.id).await?;
-    assert_eq!(autosave.as_ref().map(|a| a.updated_at), Some(1_000));
-
-    // Switching only the card is a content change: updated_at bumps.
     store
-        .put_autosave(user.id, Some("card-2"), "p", "s", 3_000)
+        .put_card_edit_draft(user.id, "card-2", 0, "p2", "s2", &names(&["A"]), 2_000)
         .await?;
-    let autosave = store.get_autosave(user.id).await?;
+    let draft = store.get_card_edit_draft(user.id, "card-1").await?;
     assert_eq!(
-        autosave
+        draft
             .as_ref()
-            .map(|a| (a.card_id.as_deref(), a.updated_at)),
-        Some((Some("card-2"), 3_000))
+            .map(|a| (a.card_id.as_str(), a.prompt.as_str())),
+        Some(("card-1", "p1"))
     );
+    assert_eq!(store.list_card_edit_drafts(user.id).await?.len(), 2);
+    assert!(store.get_new_card_draft(user.id).await?.is_none());
 
-    // Some -> None is a change as well.
-    store.put_autosave(user.id, None, "p", "s", 4_000).await?;
-    let autosave = store.get_autosave(user.id).await?;
-    assert_eq!(
-        autosave
-            .as_ref()
-            .map(|a| (a.card_id.as_deref(), a.updated_at)),
-        Some((None, 4_000))
+    let saved = store
+        .save_card_edit(
+            user.id,
+            "card-1",
+            0,
+            "committed",
+            "answer",
+            &names(&["A", "A"]),
+        )
+        .await?;
+    let super::SaveCardEdit::Applied(saved_card) = saved else {
+        return Err("edit should be applied".into());
+    };
+    assert_eq!(saved_card.labels, names(&["A"]));
+    assert!(
+        store
+            .get_card_edit_draft(user.id, "card-1")
+            .await?
+            .is_none()
     );
+    assert_eq!(
+        store.get_card(user.id, "card-1").await?.map(|c| c.prompt),
+        Some("committed".to_owned())
+    );
+    assert!(store.delete_card_edit_draft(user.id, "card-2").await?);
+    assert!(!store.delete_card_edit_draft(user.id, "card-2").await?);
     Ok(())
 }
 
@@ -871,6 +982,20 @@ async fn squashes_the_current_legacy_migration_history() -> TestResult {
 
         // Simulate the production/development database just before the
         // baseline release: current schema, old SQLx history.
+        // The real connection has also applied issue #137's migration, so
+        // restore the exact 0005 schema shape before changing its history.
+        restore_pre_issue_137_schema(&store).await?;
+        sqlx::query(
+            "INSERT INTO autosaves (user_id, prompt, solution, updated_at, card_id)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(user_id)
+        .bind("recovered prompt")
+        .bind("recovered solution")
+        .bind(3_000_i64)
+        .bind("c1")
+        .execute(store.pool())
+        .await?;
         sqlx::query("DELETE FROM _sqlx_migrations")
             .execute(store.pool())
             .await?;
@@ -893,11 +1018,81 @@ async fn squashes_the_current_legacy_migration_history() -> TestResult {
         sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
             .fetch_all(store.pool())
             .await?;
-    assert_eq!(versions, [5]);
+    assert_eq!(versions, [5, 6]);
     assert_eq!(
         store.get_card(user_id, "c1").await?.map(|card| card.id),
         Some("c1".to_owned())
     );
+    assert_eq!(
+        store
+            .get_card_edit_draft(user_id, "c1")
+            .await?
+            .ok_or("legacy edit draft was not migrated")?
+            .labels,
+        names(&["A"])
+    );
+    Ok(())
+}
+
+#[test]
+fn legacy_migration_metadata_requires_every_authentic_field() {
+    let valid = LEGACY_MIGRATION_METADATA
+        .into_iter()
+        .map(|(version, description, checksum)| AppliedMigration {
+            version,
+            description: description.to_owned(),
+            success: true,
+            checksum: checksum.to_vec(),
+        })
+        .collect::<Vec<_>>();
+    assert!(super::legacy_metadata_is_authentic(&valid));
+    assert!(!super::legacy_metadata_is_authentic(&[]));
+
+    let mutations: [fn(&mut AppliedMigration); 4] = [
+        |row: &mut AppliedMigration| row.version += 1,
+        |row: &mut AppliedMigration| row.description.push('x'),
+        |row: &mut AppliedMigration| row.success = false,
+        |row: &mut AppliedMigration| row.checksum[0] ^= 1,
+    ];
+    for mutate in mutations {
+        let mut invalid = valid.clone();
+        mutate(&mut invalid[0]);
+        assert!(!super::legacy_metadata_is_authentic(&invalid));
+    }
+}
+
+#[tokio::test]
+async fn legacy_schema_validation_checks_columns_indexes_and_foreign_keys() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    restore_pre_issue_137_schema(&store).await?;
+    assert!(super::current_schema_is_present(store.pool()).await?);
+    assert!(
+        super::has_index_with_columns(store.pool(), "labels", &["user_id", "name"], true,).await?
+    );
+    assert!(!super::has_index_with_columns(store.pool(), "cards", &["user_id"], false,).await?);
+    assert!(
+        !super::has_index_with_columns(store.pool(), "cards", &["next_time", "user_id"], false,)
+            .await?
+    );
+    assert!(
+        super::has_foreign_key(store.pool(), "card_labels", "card_id", "cards", "CASCADE",).await?
+    );
+    assert!(
+        !super::has_foreign_key(store.pool(), "card_labels", "card_id", "cards", "NO ACTION",)
+            .await?
+    );
+
+    sqlx::query("DROP INDEX idx_cards_user_next_time")
+        .execute(store.pool())
+        .await?;
+    assert!(!super::current_schema_is_present(store.pool()).await?);
+
+    let store = Store::connect_in_memory().await?;
+    restore_pre_issue_137_schema(&store).await?;
+    sqlx::query("ALTER TABLE passkeys RENAME COLUMN last_used_at TO obsolete_column")
+        .execute(store.pool())
+        .await?;
+    assert!(!super::current_schema_is_present(store.pool()).await?);
     Ok(())
 }
 
@@ -927,6 +1122,7 @@ async fn refuses_to_squash_legacy_metadata_with_a_bad_checksum() -> TestResult {
 
     {
         let store = Store::connect(&path).await?;
+        restore_pre_issue_137_schema(&store).await?;
         sqlx::query("DELETE FROM _sqlx_migrations")
             .execute(store.pool())
             .await?;
@@ -958,6 +1154,7 @@ async fn refuses_to_squash_an_unsuccessful_legacy_migration() -> TestResult {
 
     {
         let store = Store::connect(&path).await?;
+        restore_pre_issue_137_schema(&store).await?;
         sqlx::query("DELETE FROM _sqlx_migrations")
             .execute(store.pool())
             .await?;
@@ -1135,6 +1332,7 @@ async fn refuses_to_squash_legacy_history_with_an_outdated_schema() -> TestResul
 
     {
         let store = Store::connect(&path).await?;
+        restore_pre_issue_137_schema(&store).await?;
         // Keep the table present but remove one required current-schema
         // column that is not covered by an index. This distinguishes a real
         // shape check from a table-only check and catches an inverted column

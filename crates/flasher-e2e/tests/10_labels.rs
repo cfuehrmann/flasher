@@ -194,13 +194,13 @@ async fn label_card_counts_refresh_after_relabeling() -> Result<()> {
     h.goto("/groom").await?;
     h.wait_for_selector("#groom-row-card-counts", TIMEOUT)
         .await?;
-    h.click("#labels-card-counts").await?;
-    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
-    h.wait_for_selector("#label-modal-label-Used", TIMEOUT)
-        .await?;
-    h.click("#label-modal-label-Used").await?;
-    h.click("#label-modal-label-Unused").await?;
-    h.click("#label-modal-save").await?;
+    h.click("#edit-card-counts").await?;
+    h.wait_for_selector("#editor-prompt", TIMEOUT).await?;
+    h.wait_for_selector("#editor-label-Used", TIMEOUT).await?;
+    h.click("#editor-label-Used").await?;
+    h.click("#editor-label-Unused").await?;
+    h.click("#editor-save").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
     h.wait_for_text("#groom-row-card-counts", "Unused", TIMEOUT)
         .await?;
 

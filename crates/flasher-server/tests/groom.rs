@@ -12,8 +12,6 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 struct TestServer {
     base: String,
     server: tokio::task::JoinHandle<std::io::Result<()>>,
-    store: Store,
-    user_id: i64,
 }
 
 async fn start_test_server() -> Result<TestServer, Box<dyn std::error::Error>> {
@@ -32,8 +30,6 @@ async fn start_test_server() -> Result<TestServer, Box<dyn std::error::Error>> {
     Ok(TestServer {
         base: format!("http://{addr}"),
         server,
-        store,
-        user_id: user.id,
     })
 }
 
@@ -332,24 +328,15 @@ async fn get_card_by_id_smoke() -> TestResult {
     Ok(())
 }
 
-/// Ported `CardsHandler.Update` side effect: a PATCH that changes content
-/// (prompt and/or solution) deletes the user's autosave; a pure
-/// label toggle keeps it.
+/// The legacy PATCH route remains a thin maintenance surface; content
+/// updates no longer have draft side effects because drafts are saved
+/// explicitly through the editor endpoint.
 #[tokio::test]
-async fn patch_with_content_invalidates_autosave() -> TestResult {
-    let TestServer {
-        base,
-        server,
-        store,
-        user_id,
-    } = start_test_server().await?;
+async fn patch_updates_content_without_draft_side_effects() -> TestResult {
+    let TestServer { base, server, .. } = start_test_server().await?;
     let client = reqwest::Client::new();
     let id = create_card(&base, "Q?", "A.").await?;
 
-    // A pure label toggle leaves the autosave alone.
-    store
-        .put_autosave(user_id, Some(&id), "draft p", "draft s", 1)
-        .await?;
     let resp = client
         .patch(format!("{base}/api/cards/{id}"))
         .json(&CardUpdateRequest {
@@ -360,12 +347,7 @@ async fn patch_with_content_invalidates_autosave() -> TestResult {
         .send()
         .await?;
     assert_eq!(resp.status(), 200);
-    assert!(store.get_autosave(user_id).await?.is_some());
 
-    // A content change (prompt and/or solution) invalidates it.
-    store
-        .put_autosave(user_id, Some(&id), "draft p", "draft s", 2)
-        .await?;
     let resp = client
         .patch(format!("{base}/api/cards/{id}"))
         .json(&CardUpdateRequest {
@@ -376,7 +358,6 @@ async fn patch_with_content_invalidates_autosave() -> TestResult {
         .send()
         .await?;
     assert_eq!(resp.status(), 200);
-    assert_eq!(store.get_autosave(user_id).await?, None);
     // The content update itself must have landed (a guard mutation
     // skipping it would otherwise pass unnoticed above).
     let updated: CardResponse = reqwest::get(format!("{base}/api/cards/{id}"))

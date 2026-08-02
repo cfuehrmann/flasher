@@ -14,11 +14,11 @@ use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use time::OffsetDateTime;
 
-pub use types::{AutoSave, Card, CardState, Label, NewCard, PasskeyRow, User};
+pub use types::{Card, CardEditDraft, CardState, Label, NewCard, NewCardDraft, PasskeyRow, User};
 
 /// Columns selected for every `Card` read, in `FromRow` order (labels are
 /// loaded separately, from `card_labels` joined with `labels`).
-const CARD_COLUMNS: &str = "id, prompt, solution, state, change_time, next_time";
+const CARD_COLUMNS: &str = "id, prompt, solution, state, change_time, next_time, revision";
 
 /// Columns selected for every `PasskeyRow` read, in `FromRow` order.
 const PASSKEY_COLUMNS: &str = "id, user_id, credential_id, name, data, created_at, last_used_at";
@@ -48,6 +48,9 @@ pub enum Error {
     /// card with no labels would be invisible to every union filter.
     #[error("label set must not be empty")]
     EmptyLabelSet,
+    /// A stored draft's labels were not valid JSON.
+    #[error("invalid draft labels: {0}")]
+    DraftLabels(#[from] serde_json::Error),
 }
 
 impl Error {
@@ -75,6 +78,17 @@ pub enum SetCardState {
     NotFound,
 }
 
+/// Outcome of committing an edit draft.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SaveCardEdit {
+    /// The card and its draft were updated atomically.
+    Applied(Card),
+    /// The card exists but has changed since the draft was started.
+    Stale(Card),
+    /// No card with this id belongs to the user.
+    NotFound,
+}
+
 /// Outcome of [`Store::delete_label`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeleteLabel {
@@ -93,12 +107,35 @@ pub struct Store {
     pool: SqlitePool,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow)]
 struct AppliedMigration {
     version: i64,
     description: String,
     success: bool,
     checksum: Vec<u8>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct NewCardDraftRow {
+    prompt: String,
+    solution: String,
+    updated_at: i64,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CardEditDraftRow {
+    card_id: String,
+    prompt: String,
+    solution: String,
+    labels: String,
+    base_revision: i64,
+    updated_at: i64,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct DraftSummaryRow {
+    card_id: String,
+    updated_at: i64,
 }
 
 /// The checksums/descriptions of the only legacy history that may be
@@ -145,6 +182,50 @@ const LEGACY_MIGRATION_METADATA: [(i64, &str, &[u8]); 4] = [
         ],
     ),
 ];
+
+/// Keeps target-scoped drafts valid when a label is renamed or deleted.
+/// Drafts store names (the same representation used by the editor API), so
+/// changing the label table alone would strand a draft with an unknown name.
+async fn rewrite_draft_label(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    user_id: i64,
+    old_name: &str,
+    replacement: Option<&str>,
+) -> Result<(), Error> {
+    let edit_drafts = sqlx::query_as::<_, (String, String)>(
+        "SELECT card_id, labels FROM card_edit_drafts WHERE user_id = ?",
+    )
+    .bind(user_id)
+    .fetch_all(&mut **transaction)
+    .await?;
+    for (card_id, labels_json) in edit_drafts {
+        let labels = rewrite_label_names(&labels_json, old_name, replacement)?;
+        let labels = serde_json::to_string(&labels)?;
+        sqlx::query("UPDATE card_edit_drafts SET labels = ? WHERE user_id = ? AND card_id = ?")
+            .bind(labels)
+            .bind(user_id)
+            .bind(card_id)
+            .execute(&mut **transaction)
+            .await?;
+    }
+    Ok(())
+}
+
+fn rewrite_label_names(
+    labels_json: &str,
+    old_name: &str,
+    replacement: Option<&str>,
+) -> Result<Vec<String>, Error> {
+    let labels: Vec<String> = serde_json::from_str(labels_json)?;
+    Ok(labels
+        .into_iter()
+        .filter_map(|label| match replacement {
+            Some(replacement) if label == old_name => Some(replacement.to_owned()),
+            None if label == old_name => None,
+            Some(_) | None => Some(label),
+        })
+        .collect())
+}
 
 impl Store {
     /// Opens (creating if necessary) the database at `path`, creating
@@ -424,19 +505,25 @@ impl Store {
         id: i64,
         name: &str,
     ) -> Result<Option<Label>, Error> {
-        let id = sqlx::query_scalar::<_, i64>(
-            "UPDATE labels SET name = ? WHERE user_id = ? AND id = ? \
-             RETURNING id",
-        )
-        .bind(name)
-        .bind(user_id)
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?;
-        match id {
-            Some(id) => self.label_with_count(user_id, id).await,
-            None => Ok(None),
-        }
+        let mut transaction = self.pool.begin().await?;
+        let old_name =
+            sqlx::query_scalar::<_, String>("SELECT name FROM labels WHERE user_id = ? AND id = ?")
+                .bind(user_id)
+                .bind(id)
+                .fetch_optional(&mut *transaction)
+                .await?;
+        let Some(old_name) = old_name else {
+            return Ok(None);
+        };
+        sqlx::query("UPDATE labels SET name = ? WHERE user_id = ? AND id = ?")
+            .bind(name)
+            .bind(user_id)
+            .bind(id)
+            .execute(&mut *transaction)
+            .await?;
+        rewrite_draft_label(&mut transaction, user_id, &old_name, Some(name)).await?;
+        transaction.commit().await?;
+        self.label_with_count(user_id, id).await
     }
 
     /// Checks a label's card usage and deletes it only when `confirm` is
@@ -453,8 +540,8 @@ impl Store {
         confirm: bool,
     ) -> Result<DeleteLabel, Error> {
         let mut transaction = self.pool.begin().await?;
-        let usage = sqlx::query_as::<_, (i64, i64)>(
-            "SELECT l.id, COUNT(cl.card_id) FROM labels l \
+        let usage = sqlx::query_as::<_, (String, i64)>(
+            "SELECT l.name, COUNT(cl.card_id) FROM labels l \
              LEFT JOIN card_labels cl ON cl.label_id = l.id \
              WHERE l.user_id = ? AND l.id = ? GROUP BY l.id",
         )
@@ -462,7 +549,7 @@ impl Store {
         .bind(id)
         .fetch_optional(&mut *transaction)
         .await?;
-        let Some((_, affected_cards)) = usage else {
+        let Some((name, affected_cards)) = usage else {
             return Ok(DeleteLabel::NotFound);
         };
         if affected_cards > 0 && !confirm {
@@ -473,6 +560,7 @@ impl Store {
             .bind(id)
             .execute(&mut *transaction)
             .await?;
+        rewrite_draft_label(&mut transaction, user_id, &name, None).await?;
         transaction.commit().await?;
         Ok(DeleteLabel::Deleted(affected_cards))
     }
@@ -550,6 +638,63 @@ impl Store {
         self.attach_labels(card.user_id, card).await
     }
 
+    /// Inserts a new card, attaches its labels, and consumes the user's
+    /// new-card draft in one transaction.
+    ///
+    /// # Errors
+    /// Returns a database error, including a uniqueness violation if the
+    /// card id already exists.
+    pub async fn insert_card_and_delete_new_card_draft(&self, card: &NewCard) -> Result<(), Error> {
+        let mut transaction = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT INTO cards (id, user_id, prompt, solution, state, change_time, next_time) \
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&card.id)
+        .bind(card.user_id)
+        .bind(&card.prompt)
+        .bind(&card.solution)
+        .bind(card.state)
+        .bind(card.change_time)
+        .bind(card.next_time)
+        .execute(&mut *transaction)
+        .await?;
+        for name in &card.labels {
+            let inserted = sqlx::query_scalar::<_, i64>(
+                "INSERT INTO labels (user_id, name) VALUES (?, ?) \
+                 ON CONFLICT (user_id, name) DO NOTHING \
+                 RETURNING id",
+            )
+            .bind(card.user_id)
+            .bind(name)
+            .fetch_optional(&mut *transaction)
+            .await?;
+            let label_id = match inserted {
+                Some(id) => id,
+                None => {
+                    sqlx::query_scalar::<_, i64>(
+                        "SELECT id FROM labels WHERE user_id = ? AND name = ?",
+                    )
+                    .bind(card.user_id)
+                    .bind(name)
+                    .fetch_one(&mut *transaction)
+                    .await?
+                }
+            };
+            sqlx::query("INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)")
+                .bind(&card.id)
+                .bind(label_id)
+                .execute(&mut *transaction)
+                .await?;
+        }
+        sqlx::query("DELETE FROM new_card_drafts WHERE user_id = ?")
+            .bind(card.user_id)
+            .execute(&mut *transaction)
+            .await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
     /// Inserts the card, or replaces all of its fields and labels if the
     /// id already exists. Used by the importer for idempotence.
     ///
@@ -557,15 +702,16 @@ impl Store {
     /// Returns an error on database failure.
     pub async fn upsert_card(&self, user_id: i64, card: &Card) -> Result<(), Error> {
         sqlx::query(
-            "INSERT INTO cards (id, user_id, prompt, solution, state, change_time, next_time) \
-             VALUES (?, ?, ?, ?, ?, ?, ?) \
+            "INSERT INTO cards (id, user_id, prompt, solution, state, change_time, next_time, revision) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
              ON CONFLICT (id) DO UPDATE SET \
              user_id = excluded.user_id, \
              prompt = excluded.prompt, \
              solution = excluded.solution, \
              state = excluded.state, \
              change_time = excluded.change_time, \
-             next_time = excluded.next_time",
+             next_time = excluded.next_time, \
+             revision = excluded.revision",
         )
         .bind(&card.id)
         .bind(user_id)
@@ -574,6 +720,7 @@ impl Store {
         .bind(card.state)
         .bind(card.change_time)
         .bind(card.next_time)
+        .bind(card.revision)
         .execute(&self.pool)
         .await?;
         let as_new = NewCard {
@@ -627,7 +774,8 @@ impl Store {
         let card = sqlx::query_as::<_, Card>(&format!(
             "UPDATE cards SET \
              prompt = COALESCE(?, prompt), \
-             solution = COALESCE(?, solution) \
+             solution = COALESCE(?, solution), \
+             revision = revision + 1 \
              WHERE user_id = ? AND id = ? \
              RETURNING {CARD_COLUMNS}"
         ))
@@ -708,6 +856,11 @@ impl Store {
                 .execute(&self.pool)
                 .await?;
         }
+        sqlx::query("UPDATE cards SET revision = revision + 1 WHERE user_id = ? AND id = ?")
+            .bind(user_id)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         self.get_card(user_id, id).await
     }
 
@@ -726,7 +879,7 @@ impl Store {
         next_time: i64,
     ) -> Result<Option<Card>, Error> {
         let card = sqlx::query_as::<_, Card>(&format!(
-            "UPDATE cards SET state = ?, change_time = ?, next_time = ? \
+            "UPDATE cards SET state = ?, change_time = ?, next_time = ?, revision = revision + 1 \
              WHERE user_id = ? AND id = ? \
              RETURNING {CARD_COLUMNS}"
         ))
@@ -766,7 +919,7 @@ impl Store {
         expected_change_time: i64,
     ) -> Result<SetCardState, Error> {
         let updated = sqlx::query_as::<_, Card>(&format!(
-            "UPDATE cards SET state = ?, change_time = ?, next_time = ? \
+            "UPDATE cards SET state = ?, change_time = ?, next_time = ?, revision = revision + 1 \
              WHERE user_id = ? AND id = ? AND change_time = ? \
              RETURNING {CARD_COLUMNS}"
         ))
@@ -923,38 +1076,30 @@ impl Store {
         }
     }
 
-    // ------------------------------------------------------------- autosave
+    // -------------------------------------------------------------- drafts
 
-    /// Stores the autosave for a user (one per user). If an autosave
-    /// already exists with identical content (`card_id`, `prompt`,
-    /// `solution`), `updated_at` is kept, so re-applying the same
-    /// autosave is a no-op.
+    /// Stores the user's one new-card draft. Identical content does not
+    /// advance its timestamp, which keeps the UI's saved status stable.
     ///
     /// # Errors
-    /// Returns an error on database failure.
-    pub async fn put_autosave(
+    /// Returns a database or draft-serialization error.
+    pub async fn put_new_card_draft(
         &self,
         user_id: i64,
-        card_id: Option<&str>,
         prompt: &str,
         solution: &str,
         now: i64,
     ) -> Result<(), Error> {
         sqlx::query(
-            "INSERT INTO autosaves (user_id, card_id, prompt, solution, updated_at) \
-             VALUES (?, ?, ?, ?, ?) \
+            "INSERT INTO new_card_drafts (user_id, prompt, solution, updated_at) \
+             VALUES (?, ?, ?, ?) \
              ON CONFLICT (user_id) DO UPDATE SET \
-             card_id = excluded.card_id, \
-             prompt = excluded.prompt, \
-             solution = excluded.solution, \
-             updated_at = CASE \
-             WHEN autosaves.card_id IS excluded.card_id \
-             AND autosaves.prompt = excluded.prompt \
-             AND autosaves.solution = excluded.solution \
-             THEN autosaves.updated_at ELSE excluded.updated_at END",
+             prompt = excluded.prompt, solution = excluded.solution, \
+             updated_at = CASE WHEN new_card_drafts.prompt = excluded.prompt \
+             AND new_card_drafts.solution = excluded.solution \
+             THEN new_card_drafts.updated_at ELSE excluded.updated_at END",
         )
         .bind(user_id)
-        .bind(card_id)
         .bind(prompt)
         .bind(solution)
         .bind(now)
@@ -963,30 +1108,234 @@ impl Store {
         Ok(())
     }
 
-    /// The user's autosave, if any.
+    /// Loads the user's new-card draft, if any.
     ///
     /// # Errors
-    /// Returns an error on database failure.
-    pub async fn get_autosave(&self, user_id: i64) -> Result<Option<AutoSave>, Error> {
-        let autosave = sqlx::query_as::<_, AutoSave>(
-            "SELECT card_id, prompt, solution, updated_at FROM autosaves WHERE user_id = ?",
+    /// Returns a database or draft-deserialization error.
+    pub async fn get_new_card_draft(&self, user_id: i64) -> Result<Option<NewCardDraft>, Error> {
+        let row = sqlx::query_as::<_, NewCardDraftRow>(
+            "SELECT prompt, solution, updated_at FROM new_card_drafts WHERE user_id = ?",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
         .await?;
-        Ok(autosave)
+        row.map(|row| {
+            Ok(NewCardDraft {
+                prompt: row.prompt,
+                solution: row.solution,
+                updated_at: row.updated_at,
+            })
+        })
+        .transpose()
     }
 
-    /// Deletes the user's autosave. Returns whether one existed.
+    /// Deletes the user's new-card draft. Returns whether one existed.
     ///
     /// # Errors
-    /// Returns an error on database failure.
-    pub async fn delete_autosave(&self, user_id: i64) -> Result<bool, Error> {
-        let result = sqlx::query("DELETE FROM autosaves WHERE user_id = ?")
+    /// Returns a database error.
+    pub async fn delete_new_card_draft(&self, user_id: i64) -> Result<bool, Error> {
+        let result = sqlx::query("DELETE FROM new_card_drafts WHERE user_id = ?")
             .bind(user_id)
             .execute(&self.pool)
             .await?;
         Ok(result.rows_affected() > 0)
+    }
+
+    /// Stores one card's edit draft. The original card revision is kept
+    /// once the draft exists, so later autosaves cannot move its conflict
+    /// boundary.
+    ///
+    /// # Errors
+    /// Returns a database or draft-serialization error.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn put_card_edit_draft(
+        &self,
+        user_id: i64,
+        card_id: &str,
+        base_revision: i64,
+        prompt: &str,
+        solution: &str,
+        labels: &[String],
+        now: i64,
+    ) -> Result<bool, Error> {
+        if self.get_card(user_id, card_id).await?.is_none() {
+            return Ok(false);
+        }
+        let labels = serde_json::to_string(labels)?;
+        sqlx::query(
+            "INSERT INTO card_edit_drafts \
+             (user_id, card_id, prompt, solution, labels, base_revision, updated_at) \
+             VALUES (?, ?, ?, ?, ?, ?, ?) \
+             ON CONFLICT (user_id, card_id) DO UPDATE SET \
+             prompt = excluded.prompt, solution = excluded.solution, labels = excluded.labels, \
+             updated_at = CASE WHEN card_edit_drafts.prompt = excluded.prompt \
+             AND card_edit_drafts.solution = excluded.solution \
+             AND card_edit_drafts.labels = excluded.labels \
+             THEN card_edit_drafts.updated_at ELSE excluded.updated_at END",
+        )
+        .bind(user_id)
+        .bind(card_id)
+        .bind(prompt)
+        .bind(solution)
+        .bind(labels)
+        .bind(base_revision)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+        Ok(true)
+    }
+
+    /// Loads one card's edit draft, if it belongs to the user.
+    ///
+    /// # Errors
+    /// Returns a database or draft-deserialization error.
+    pub async fn get_card_edit_draft(
+        &self,
+        user_id: i64,
+        card_id: &str,
+    ) -> Result<Option<CardEditDraft>, Error> {
+        let row = sqlx::query_as::<_, CardEditDraftRow>(
+            "SELECT card_id, prompt, solution, labels, base_revision, updated_at \
+             FROM card_edit_drafts WHERE user_id = ? AND card_id = ?",
+        )
+        .bind(user_id)
+        .bind(card_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(|row| {
+            Ok(CardEditDraft {
+                card_id: row.card_id,
+                prompt: row.prompt,
+                solution: row.solution,
+                labels: serde_json::from_str(&row.labels)?,
+                base_revision: row.base_revision,
+                updated_at: row.updated_at,
+            })
+        })
+        .transpose()
+    }
+
+    /// Lists the card ids with pending edit drafts for the Groom badge.
+    ///
+    /// # Errors
+    /// Returns a database error.
+    pub async fn list_card_edit_drafts(&self, user_id: i64) -> Result<Vec<(String, i64)>, Error> {
+        let rows = sqlx::query_as::<_, DraftSummaryRow>(
+            "SELECT card_id, updated_at FROM card_edit_drafts \
+             WHERE user_id = ? ORDER BY card_id",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.card_id, row.updated_at))
+            .collect())
+    }
+
+    /// Deletes one card's edit draft. Returns whether one existed.
+    ///
+    /// # Errors
+    /// Returns a database error.
+    pub async fn delete_card_edit_draft(&self, user_id: i64, card_id: &str) -> Result<bool, Error> {
+        let result = sqlx::query("DELETE FROM card_edit_drafts WHERE user_id = ? AND card_id = ?")
+            .bind(user_id)
+            .bind(card_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Commits an edit draft atomically, checking the card revision and
+    /// deleting the corresponding draft in the same transaction.
+    ///
+    /// # Errors
+    /// Returns a database error, or an error when the labels are empty,
+    /// unknown, or cannot be serialized.
+    pub async fn save_card_edit(
+        &self,
+        user_id: i64,
+        card_id: &str,
+        expected_revision: i64,
+        prompt: &str,
+        solution: &str,
+        labels: &[String],
+    ) -> Result<SaveCardEdit, Error> {
+        let mut tx = self.pool.begin().await?;
+        let current = sqlx::query_as::<_, Card>(&format!(
+            "SELECT {CARD_COLUMNS} FROM cards WHERE user_id = ? AND id = ?"
+        ))
+        .bind(user_id)
+        .bind(card_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(current) = current else {
+            tx.rollback().await?;
+            return Ok(SaveCardEdit::NotFound);
+        };
+        if current.revision != expected_revision {
+            tx.rollback().await?;
+            let Some(mut current) = self.get_card(user_id, card_id).await? else {
+                return Ok(SaveCardEdit::NotFound);
+            };
+            current.labels = self.labels_of(card_id).await?;
+            return Ok(SaveCardEdit::Stale(current));
+        }
+        if labels.is_empty() {
+            return Err(Error::EmptyLabelSet);
+        }
+        let known = sqlx::query_as::<_, Label>(
+            "SELECT id, name, 0 AS card_count FROM labels WHERE user_id = ?",
+        )
+        .bind(user_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        let mut label_ids = Vec::with_capacity(labels.len());
+        for name in labels {
+            let Some(label) = known.iter().find(|label| label.name == *name) else {
+                return Err(Error::UnknownLabel(name.clone()));
+            };
+            if !label_ids.contains(&label.id) {
+                label_ids.push(label.id);
+            }
+        }
+        sqlx::query(
+            "UPDATE cards SET prompt = ?, solution = ?, revision = revision + 1 \
+             WHERE user_id = ? AND id = ? AND revision = ?",
+        )
+        .bind(prompt)
+        .bind(solution)
+        .bind(user_id)
+        .bind(card_id)
+        .bind(expected_revision)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("DELETE FROM card_labels WHERE card_id = ?")
+            .bind(card_id)
+            .execute(&mut *tx)
+            .await?;
+        for label_id in label_ids {
+            sqlx::query("INSERT INTO card_labels (card_id, label_id) VALUES (?, ?)")
+                .bind(card_id)
+                .bind(label_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+        sqlx::query("DELETE FROM card_edit_drafts WHERE user_id = ? AND card_id = ?")
+            .bind(user_id)
+            .bind(card_id)
+            .execute(&mut *tx)
+            .await?;
+        let mut saved = sqlx::query_as::<_, Card>(&format!(
+            "SELECT {CARD_COLUMNS} FROM cards WHERE user_id = ? AND id = ?"
+        ))
+        .bind(user_id)
+        .bind(card_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        saved.labels = self.labels_of(card_id).await?;
+        Ok(SaveCardEdit::Applied(saved))
     }
 
     // ------------------------------------------------------------ passkeys

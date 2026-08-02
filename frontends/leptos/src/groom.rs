@@ -53,6 +53,7 @@
 //!
 //! Loading, error (with retry) and empty states mirror the quiz tab.
 
+use std::collections::HashSet;
 use std::time::Duration;
 
 use flasher_types::{CardResponse, CardState, LabelResponse, MAX_TAKE};
@@ -61,7 +62,6 @@ use leptos::prelude::*;
 use crate::api;
 use crate::labels::{
     LabelFilter, StoredLabelSelection, join_labels, resolve_stored_labels, selected_label_names,
-    toggle_label_name,
 };
 #[cfg(feature = "csr")]
 use crate::labels::{
@@ -383,6 +383,9 @@ pub fn Groom(
     let selected = RwSignal::new(Vec::<i64>::new());
     // The user's labels (for the filter's checkbox panel).
     let all_labels = RwSignal::new(Vec::<LabelResponse>::new());
+    // One request supplies all pending edit ids, so each row can show its
+    // Draft badge without an N+1 request pattern.
+    let draft_ids = RwSignal::new(HashSet::<String>::new());
     // The list is OFFSET-based, not page-number-based (owner feedback
     // 2026-07-31): the offset is the anchor, so a viewport re-fit changes
     // how many cards show below the top one — never WHICH card is on
@@ -397,6 +400,16 @@ pub fn Groom(
     // Bumped by every fetch; a response that lands after a newer fetch was
     // armed is stale and must not touch the state (rapid paging).
     let fetch_generation = RwSignal::new(0_u64);
+
+    let load_drafts = Callback::new(move |(): ()| {
+        leptos::task::spawn_local(async move {
+            if let Ok(drafts) = api::card_drafts().await {
+                draft_ids.set(drafts.into_iter().map(|draft| draft.card_id).collect());
+            }
+        });
+    });
+    #[cfg(feature = "csr")]
+    load_drafts.run(());
 
     // Loads the labels list; the default selection (ALL labels) applies
     // where the IDs are known. Shared by the mount load and the error
@@ -625,42 +638,6 @@ pub fn Groom(
         });
     });
 
-    // Shared post-label-change handling (the per-card label editor —
-    // the row Enable/Disable toggle was removed once the editor covered
-    // it, owner feedback 2026-08-01): labels are not part of the
-    // server-side ordering, so the row cannot jump; the refetch
-    // refreshes the badges in place — or drops the row when the new
-    // label set no longer intersects the active filter selection, which
-    // is exactly what the filter promises. A row that drops out as the
-    // last one of a later window steps back one window (same fallback as
-    // delete), so the user never lands on a false "No cards match."
-    // without a way back.
-    let after_label_change = Callback::new(move |new_labels: Vec<String>| {
-        let selection = selected.get_untracked();
-        let selected_names = selected_label_names(&all_labels.get_untracked(), &selection);
-        let drops_out = !selected_names.iter().any(|name| new_labels.contains(name));
-        let was_single = matches!(
-            state.get_untracked(),
-            LoadState::Loaded { ref cards, .. } if cards.len() == 1
-        );
-        if drops_out && was_single && skip.get_untracked() > 0 {
-            skip.update(|s| *s = s.saturating_sub(take.get_untracked()));
-        } else {
-            fetch.run((
-                query.get_untracked(),
-                join_labels(&selected_names),
-                skip.get_untracked(),
-                take.get_untracked(),
-            ));
-        }
-    });
-
-    // The per-card label editor (owner feedback 2026-08-01): the card
-    // being edited plus the working selection (checkboxes pre-checked
-    // from the card's labels; Save stays disabled while empty — the
-    // server rejects a label-less card too).
-    let label_edit = RwSignal::new(None::<(CardResponse, Vec<String>)>);
-
     // Confirmed delete: step back one window when the last row of a later
     // window vanished (the effect refetches), otherwise refetch in place so
     // the next card slides in and the count stays exact.
@@ -815,6 +792,7 @@ pub fn Groom(
                             id="groom-retry"
                             on:click=move |_| {
                                 load_labels.run(());
+                                load_drafts.run(());
                                 if selection_ready.get_untracked() {
                                     fetch.run((
                                         query.get_untracked(),
@@ -845,14 +823,12 @@ pub fn Groom(
                                 {cards
                                     .into_iter()
                                     .map(|card| {
+                                        let has_draft = draft_ids.get().contains(&card.id);
                                         view! {
                                             <GroomRow
                                                 card=card
                                                 on_edit=on_edit
-                                                ask_labels=Callback::new(move |card: CardResponse| {
-                                                    let labels = card.labels.clone();
-                                                    label_edit.set(Some((card, labels)));
-                                                })
+                                                has_draft=has_draft
                                                 ask_delete=Callback::new(move |card| {
                                                     confirm.set(Some(ConfirmAction::Delete(card)));
                                                 })
@@ -922,103 +898,24 @@ pub fn Groom(
                     </div>
                 }
             })}
-            {move || label_edit.get().map(|(card, working)| {
-                view! {
-                    <div class="modal-backdrop" id="groom-labels-modal">
-                        <div class="modal" role="dialog" aria-modal="true">
-                            <p class="modal-text" id="groom-labels-modal-text">
-                                "Labels for "
-                                <span class="modal-prompt">{card.prompt.clone()}</span>
-                            </p>
-                            <div class="modal-labels">
-                                {all_labels
-                                    .get()
-                                    .into_iter()
-                                    .map(|label| {
-                                        let name = label.name.clone();
-                                        let box_id = format!("label-modal-label-{name}");
-                                        let on_toggle = {
-                                            let name = name.clone();
-                                            move |ev: leptos::ev::Event| {
-                                                label_edit.update(|slot| {
-                                                    if let Some((_, working)) = slot {
-                                                        *working = toggle_label_name(
-                                                            working,
-                                                            &name,
-                                                            event_target_checked(&ev),
-                                                        );
-                                                    }
-                                                });
-                                            }
-                                        };
-                                        let for_id = box_id.clone();
-                                        view! {
-                                            <label class="label-filter-item" for=for_id>
-                                                {label.name.clone()}
-                                                <input
-                                                    type="checkbox"
-                                                    id=box_id
-                                                    prop:checked=working.contains(&name)
-                                                    on:change=on_toggle
-                                                />
-                                            </label>
-                                        }
-                                    })
-                                    .collect_view()}
-                            </div>
-                            <div class="modal-buttons">
-                                <button
-                                    type="button"
-                                    id="label-modal-save"
-                                    disabled=working.is_empty()
-                                    on:click=move |_| {
-                                        let card = card.clone();
-                                        let labels = working.clone();
-                                        label_edit.set(None);
-                                        leptos::task::spawn_local(async move {
-                                            match api::set_card_labels(&card.id, &labels).await {
-                                                Ok(_updated) => after_label_change.run(labels),
-                                                Err(err) => state.set(LoadState::Error(err)),
-                                            }
-                                        });
-                                    }
-                                >
-                                    "Save"
-                                </button>
-                                <button
-                                    type="button"
-                                    id="label-modal-cancel"
-                                    on:click=move |_| label_edit.set(None)
-                                >
-                                    "Cancel"
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                }
-            })}
         </section>
     }
 }
 
 /// One card row of the groom list: truncated prompt on the first line,
 /// and a single meta line below it — state badge, ALL of the card's
-/// label badges (owner feedback 2026-08-01: no special treatment for
-/// Enabled; flex-wrap is the documented valve when several badges meet a
-/// narrow screen) and due date on the left, the row actions
-/// right-aligned on the SAME line (owner decision: one visual row less
-/// per card than the old three-line layout). The everyday, reversible
-/// actions (edit, the per-card label editor) are first-class row
-/// buttons — the old Enable/Disable toggle is gone, subsumed by the
-/// label editor; the rare destructive ones (reset progress, delete)
-/// live in a "⋯" overflow menu and still arm the same confirm modal.
+/// label badges plus a distinct pending Draft badge and due date on the
+/// left, the row actions right-aligned on the SAME line (owner decision:
+/// one visual row less per card than the old three-line layout). Edit is
+/// the only card-modification path; the rare destructive ones (reset
+/// progress, delete) live in a "⋯" overflow menu.
 /// The menu closes via a transparent full-viewport backdrop — the
 /// same pattern the modal uses, so no window listeners are needed.
 #[component]
 fn GroomRow(
     card: CardResponse,
     on_edit: Callback<CardResponse>,
-    ask_labels: Callback<CardResponse>,
+    has_draft: bool,
     ask_delete: Callback<CardResponse>,
     ask_reset: Callback<CardResponse>,
 ) -> impl IntoView {
@@ -1028,7 +925,6 @@ fn GroomRow(
     let due_id = format!("due-{id}");
     let edit_id = format!("edit-{id}");
     let menu_id = format!("menu-{id}");
-    let labels_id = format!("labels-{id}");
     let reset_id = format!("reset-{id}");
     let delete_id = format!("delete-{id}");
     let state = card.state.as_str();
@@ -1042,7 +938,6 @@ fn GroomRow(
     let menu_open = RwSignal::new(false);
     // One owned clone per click handler (each handler moves its capture).
     let card_edit = card.clone();
-    let card_labels = card.clone();
     let card_reset = card.clone();
     let card_delete = card.clone();
 
@@ -1063,6 +958,9 @@ fn GroomRow(
                         }
                     })
                     .collect_view()}
+                {has_draft.then(|| view! {
+                    <span class="badge draft" id=format!("draft-{id}")>"Draft"</span>
+                })}
                 <span class="groom-due" id=due_id>{due}</span>
                 <div class="groom-actions">
                     <button
@@ -1071,16 +969,6 @@ fn GroomRow(
                         on:click=move |_| on_edit.run(card_edit.clone())
                     >
                         "Edit"
-                    </button>
-                    // Label editing is a first-class row action (owner
-                    // feedback 2026-08-01 — it replaced both the
-                    // Enable/Disable toggle and the ⋯-menu item).
-                    <button
-                        type="button"
-                        id=labels_id
-                        on:click=move |_| ask_labels.run(card_labels.clone())
-                    >
-                        "Labels"
                     </button>
                     <button
                         type="button"

@@ -126,6 +126,28 @@ async fn row_count(h: &TestHarness) -> Result<usize> {
         .await
 }
 
+/// Waits for the value property of an input or textarea; text-content waits
+/// do not observe values bound through the DOM property.
+async fn wait_for_field_value(h: &TestHarness, selector: &str, expected: &str) -> Result<()> {
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        let value = h
+            .eval::<String>(&format!(
+                "document.querySelector({selector:?})?.value ?? ''"
+            ))
+            .await?;
+        if value == expected {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(Error::message(format!(
+                "field {selector} is {value:?}, expected {expected:?}"
+            )));
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
 /// Waits until the viewport-fit calibration has run and persisted the
 /// fitted page size, and returns it (owner wish 2026-07-31: the groom
 /// page size is the number of rows that fit the viewport, so paging
@@ -229,6 +251,7 @@ async fn wait_scrolled(h: &TestHarness) -> Result<()> {
 /// checkbox into the wanted state, close via the backdrop. `id_prefix`
 /// distinguishes the groom and quiz filters.
 async fn set_label_filter(h: &TestHarness, id_prefix: &str, only: &[&str]) -> Result<()> {
+    wait_for_groom_settled(h).await?;
     h.click(&format!("#{id_prefix}-label-filter-button"))
         .await?;
     h.wait_for_selector(&format!("#{id_prefix}-label-filter-panel"), TIMEOUT)
@@ -261,6 +284,30 @@ async fn set_label_filter(h: &TestHarness, id_prefix: &str, only: &[&str]) -> Re
     }
     h.click(".label-filter-backdrop").await?;
     wait_until_gone(h, ".label-filter-panel", TIMEOUT).await
+}
+
+/// Waits for the card fetch to reach any terminal UI state. A filtered list
+/// may be either a page with a count or the empty state, so waiting only for
+/// `#groom-page-info` would reject a valid zero-result starting point.
+async fn wait_for_groom_settled(h: &TestHarness) -> Result<()> {
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        let settled = h
+            .eval::<bool>(
+                "!!document.querySelector('#groom-page-info, #groom-empty, #groom-error')",
+            )
+            .await?;
+        if settled {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            let body = h.eval::<String>("document.body.innerText").await?;
+            return Err(Error::message(format!(
+                "Groom did not reach a loaded state: {body:?}"
+            )));
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 }
 
 /// The persisted label selection of a filter (`localStorage`).
@@ -588,6 +635,7 @@ async fn filter_and_search_survive_tab_switch_and_reload() -> Result<()> {
     // A full browser refresh (real navigation): same restore.
     h.goto("/groom").await?;
     h.wait_for_selector("#groom-search", TIMEOUT).await?;
+    wait_for_calibration(&h).await?;
     expect_restored(&h).await?;
     h.screenshot("04_groom/filter-search-restored").await?;
     Ok(())
@@ -608,7 +656,7 @@ async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
 
     goto_groom(&h).await?;
     let fit = wait_for_calibration(&h).await?;
-    // Labels exist only once used: mint "Disabled" so the editor modal
+    // Labels exist only once used: mint "Disabled" so the shared editor
     // can offer it.
     store
         .ensure_label(user_id, "Disabled")
@@ -623,6 +671,9 @@ async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
     }
     h.goto("/groom").await?;
     h.wait_for_selector("#groom-search", TIMEOUT).await?;
+    wait_for_calibration(&h).await?;
+    h.wait_for_text("#groom-page-info", &showing(0, fit, fit + 1), TIMEOUT)
+        .await?;
 
     // The first-usage default selects everything; the fallback this
     // test pins needs the Enabled-only filter so the toggle drops the
@@ -637,15 +688,15 @@ async fn toggle_last_item_out_of_filter_goes_back() -> Result<()> {
         return Err(Error::message("page 2 should show exactly 1 row"));
     }
 
-    // Disabling the single row of page 2 (via the label editor) drops
+    // Disabling the single row of page 2 (via Edit) drops
     // it out of the Enabled-only filter: the UI must land back on
     // page 1 with the refreshed count.
     let last_id = format!("card-t{:02}", fit + 1);
-    h.click(&format!("#labels-{last_id}")).await?;
-    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
-    h.click("#label-modal-label-Enabled").await?;
-    h.click("#label-modal-label-Disabled").await?;
-    h.click("#label-modal-save").await?;
+    h.click(&format!("#edit-{last_id}")).await?;
+    h.wait_for_selector("#editor-prompt", TIMEOUT).await?;
+    h.click("#editor-label-Enabled").await?;
+    h.click("#editor-label-Disabled").await?;
+    h.click("#editor-save").await?;
     h.wait_for_text("#groom-page-info", &showing(0, fit, fit), TIMEOUT)
         .await?;
     if row_count(&h).await? != fit {
@@ -759,7 +810,7 @@ async fn disable_enable_toggle() -> Result<()> {
         false,
     )
     .await?;
-    // Labels exist only once used: mint "Disabled" so the editor modal
+    // Labels exist only once used: mint "Disabled" so the shared editor
     // can offer it.
     store
         .ensure_label(user_id, "Disabled")
@@ -767,18 +818,26 @@ async fn disable_enable_toggle() -> Result<()> {
         .map_err(store_err)?;
 
     goto_groom(&h).await?;
+    wait_for_calibration(&h).await?;
+    h.wait_for_selector("#groom-row-card-toggle", TIMEOUT)
+        .await?;
+    h.wait_for_text("#groom-page-info", "showing 1–1 of 1", TIMEOUT)
+        .await?;
+    h.wait_for_selector("#groom-selected-Enabled", TIMEOUT)
+        .await?;
     // The first-usage default selects everything; this test is about
     // the filter interplay, so it starts from Enabled-only.
     set_label_filter(&h, "groom", &["Enabled"]).await?;
-    h.wait_for_selector("#labels-card-toggle", TIMEOUT).await?;
+    h.wait_for_selector("#edit-card-toggle", TIMEOUT).await?;
 
-    // Disable via the label editor: the row leaves the Enabled-only
+    // Disable via Edit: the row leaves the Enabled-only
     // filter, and the store row gains the Disabled label.
-    h.click("#labels-card-toggle").await?;
-    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
-    h.click("#label-modal-label-Enabled").await?;
-    h.click("#label-modal-label-Disabled").await?;
-    h.click("#label-modal-save").await?;
+    h.click("#edit-card-toggle").await?;
+    h.wait_for_selector("#editor-prompt", TIMEOUT).await?;
+    h.click("#editor-label-Enabled").await?;
+    h.click("#editor-label-Disabled").await?;
+    h.click("#editor-save").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
     wait_until_gone(&h, "#groom-row-card-toggle", TIMEOUT).await?;
     let card = store
         .get_card(user_id, "card-toggle")
@@ -795,14 +854,15 @@ async fn disable_enable_toggle() -> Result<()> {
         .await?;
     h.screenshot("04_groom/disabled-badge").await?;
 
-    // Enable again via the editor: the row leaves the Disabled-only
+    // Enable again via Edit: the row leaves the Disabled-only
     // filter, the store row follows, and Enabled-only shows the card
     // with the Enabled badge instead.
-    h.click("#labels-card-toggle").await?;
-    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
-    h.click("#label-modal-label-Disabled").await?;
-    h.click("#label-modal-label-Enabled").await?;
-    h.click("#label-modal-save").await?;
+    h.click("#edit-card-toggle").await?;
+    h.wait_for_selector("#editor-prompt", TIMEOUT).await?;
+    h.click("#editor-label-Disabled").await?;
+    h.click("#editor-label-Enabled").await?;
+    h.click("#editor-save").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
     wait_until_gone(&h, "#groom-row-card-toggle", TIMEOUT).await?;
     let card = store
         .get_card(user_id, "card-toggle")
@@ -910,6 +970,8 @@ async fn delete_last_item_on_page_goes_back() -> Result<()> {
 
     h.wait_for_text("#groom-page-info", &showing(0, fit, fit + 1), TIMEOUT)
         .await?;
+    h.wait_for_selector("#groom-selected-Enabled", TIMEOUT)
+        .await?;
     h.click("#groom-next").await?;
     h.wait_for_text("#groom-page-info", &showing(1, fit, fit + 1), TIMEOUT)
         .await?;
@@ -1003,29 +1065,32 @@ async fn reset_progress_with_confirm_modal() -> Result<()> {
     Ok(())
 }
 
-/// Cross-feature: a label minted at card creation flows into the quiz
+/// Cross-feature: a label created on the Labels page flows into the quiz
 /// filter, and the card is quizzable (quiz default = everything
 /// selected) until that label is deselected.
 #[tokio::test]
 #[ignore = "browser"]
 async fn created_card_is_quizzable_until_filtered_out() -> Result<()> {
     let h = TestHarness::start().await?;
-    // Create via the Add tab with a freshly minted label.
+    let (store, user_id) = seed_store(&h).await?;
+    store
+        .ensure_label(user_id, "grammar")
+        .await
+        .map_err(store_err)?;
+
+    // Create via the Add tab with the existing label.
     h.goto("/").await?;
     h.click("#tab-add-card").await?;
     h.wait_for_selector("#new-prompt", TIMEOUT).await?;
     h.type_into("#new-prompt", "Cross feature prompt").await?;
     h.type_into("#new-solution", "Cross feature solution")
         .await?;
-    h.type_into("#new-label-input", "grammar").await?;
-    h.click("#new-label-add").await?;
-    h.wait_for_selector("#new-label-grammar", TIMEOUT).await?;
+    h.click("#editor-label-grammar").await?;
     h.click("#create-card").await?;
     h.wait_for_text("#add-card-confirmation", "Card created", TIMEOUT)
         .await?;
 
     // Make it due (new cards start with a 30-minute wait).
-    let (store, user_id) = seed_store(&h).await?;
     let now = now_ms();
     let (cards, _) = store
         .search_cards(user_id, None, None, 0, 10)
@@ -1041,7 +1106,7 @@ async fn created_card_is_quizzable_until_filtered_out() -> Result<()> {
         .map_err(store_err)?;
 
     // The quiz's default selection is everything, so the card is due —
-    // and its minted label is a filter checkbox.
+    // and its label is a filter checkbox.
     h.click("#tab-quiz").await?;
     h.wait_for_text("#quiz-prompt", "Cross feature prompt", TIMEOUT)
         .await?;
@@ -1620,11 +1685,10 @@ async fn old_groom_filter_key_is_dropped_not_translated() -> Result<()> {
     Ok(())
 }
 
-/// The row's Labels button opens the per-card label editor (owner
-/// feedback 2026-08-01 — promoted out of the ⋯ menu, replacing the old
-/// Enable/Disable toggle): checkboxes pre-checked from the card's
-/// labels, arbitrary sets are saved (both labels → both badges, back to
-/// one), and Save stays disabled while nothing is checked.
+/// The row's Edit button opens the shared card editor: checkboxes are
+/// pre-checked from the card's labels, arbitrary sets are saved (both
+/// labels → both badges, back to one), and Save stays disabled while
+/// nothing is checked.
 #[tokio::test]
 #[ignore = "browser"]
 async fn row_labels_button_edits_the_cards_labels() -> Result<()> {
@@ -1645,7 +1709,7 @@ async fn row_labels_button_edits_the_cards_labels() -> Result<()> {
     .await?;
 
     // Labels exist only once used: mint "Enabled" BEFORE the page loads
-    // (its labels fetch happens at mount) so the editor modal can offer
+    // (its labels fetch happens at mount) so the shared editor can offer
     // it (the card itself starts Disabled-only).
     store
         .ensure_label(user_id, "Enabled")
@@ -1657,20 +1721,19 @@ async fn row_labels_button_edits_the_cards_labels() -> Result<()> {
 
     // The editor opens with the card's labels pre-checked (Disabled
     // only) and the prompt in the title.
-    h.click("#labels-card-edit").await?;
-    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
-    h.wait_for_text("#groom-labels-modal-text", "Edit labels prompt", TIMEOUT)
-        .await?;
+    h.click("#edit-card-edit").await?;
+    h.wait_for_selector("#editor-prompt", TIMEOUT).await?;
+    wait_for_field_value(&h, "#editor-prompt", "Edit labels prompt").await?;
     // The labels list fetches after mount; wait for the checkboxes.
-    h.wait_for_selector("#groom-labels-modal .label-filter-item input", TIMEOUT)
+    h.wait_for_selector("#editor-labels .label-filter-item input", TIMEOUT)
         .await?;
     if !h
-        .eval::<bool>("document.querySelector('#label-modal-label-Disabled').checked")
+        .eval::<bool>("document.querySelector('#editor-label-Disabled').checked")
         .await?
     {
         return Err(Error::message("the Disabled checkbox should start checked"));
     }
-    if h.eval::<bool>("document.querySelector('#label-modal-label-Enabled').checked")
+    if h.eval::<bool>("document.querySelector('#editor-label-Enabled').checked")
         .await?
     {
         return Err(Error::message(
@@ -1680,9 +1743,9 @@ async fn row_labels_button_edits_the_cards_labels() -> Result<()> {
 
     // Uncheck everything: Save disables (a label-less card would be
     // invisible to every union filter; the server rejects it too).
-    h.click("#label-modal-label-Disabled").await?;
+    h.click("#editor-label-Disabled").await?;
     if !h
-        .eval::<bool>("document.querySelector('#label-modal-save').disabled")
+        .eval::<bool>("document.querySelector('#editor-save').disabled")
         .await?
     {
         return Err(Error::message(
@@ -1693,9 +1756,9 @@ async fn row_labels_button_edits_the_cards_labels() -> Result<()> {
 
     // Give the card BOTH labels and save: both badges appear, the store
     // follows.
-    h.click("#label-modal-label-Disabled").await?;
-    h.click("#label-modal-label-Enabled").await?;
-    h.click("#label-modal-save").await?;
+    h.click("#editor-label-Disabled").await?;
+    h.click("#editor-label-Enabled").await?;
+    h.click("#editor-save").await?;
     h.wait_for_selector("#label-Enabled-card-edit", TIMEOUT)
         .await?;
     h.wait_for_selector("#label-Disabled-card-edit", TIMEOUT)
@@ -1713,12 +1776,13 @@ async fn row_labels_button_edits_the_cards_labels() -> Result<()> {
     }
 
     // Back to Disabled only via the editor.
-    h.click("#labels-card-edit").await?;
-    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
-    h.wait_for_selector("#groom-labels-modal .label-filter-item input", TIMEOUT)
+    h.click("#edit-card-edit").await?;
+    h.wait_for_selector("#editor-prompt", TIMEOUT).await?;
+    wait_for_field_value(&h, "#editor-prompt", "Edit labels prompt").await?;
+    h.wait_for_selector("#editor-labels .label-filter-item input", TIMEOUT)
         .await?;
-    h.click("#label-modal-label-Enabled").await?;
-    h.click("#label-modal-save").await?;
+    h.click("#editor-label-Enabled").await?;
+    h.click("#editor-save").await?;
     wait_until_gone(&h, "#label-Enabled-card-edit", TIMEOUT).await?;
     h.wait_for_selector("#label-Disabled-card-edit", TIMEOUT)
         .await?;

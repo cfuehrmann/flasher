@@ -112,18 +112,20 @@ fn editor_new_card_mode_keeps_add_card_ids() {
 }
 
 #[test]
-fn editor_edit_mode_prefills_from_draft() {
-    // A recovered draft of an existing card opens in edit mode with the
-    // draft text pre-filled.
-    let draft = flasher_types::AutoSaveResponse {
-        card_id: Some("card-1".to_owned()),
+fn editor_edit_mode_prefills_from_persisted_card() {
+    let card = flasher_types::CardResponse {
+        id: "card-1".to_owned(),
         prompt: "Draft prompt".to_owned(),
         solution: "Draft solution".to_owned(),
-        updated_at: 1_000,
+        state: flasher_types::CardState::New,
+        change_time: 1,
+        next_time: 2,
+        revision: 0,
+        labels: vec!["A".to_owned()],
     };
     let html = view! {
         <EditorTab
-            target=EditTarget::from_draft(&draft, true)
+            target=EditTarget::edit(&card)
             on_close=Callback::new(|_: EditorCloseOutcome| {})
         />
     }
@@ -137,26 +139,29 @@ fn editor_edit_mode_prefills_from_draft() {
 }
 
 #[test]
-fn editor_falls_back_to_new_mode_for_deleted_card() {
-    // Same draft, but the card is gone: new-card mode with the draft
-    // text kept.
-    let draft = flasher_types::AutoSaveResponse {
-        card_id: Some("card-gone".to_owned()),
+fn editor_modes_share_label_controls() {
+    let card = flasher_types::CardResponse {
+        id: "card-1".to_owned(),
         prompt: "Draft prompt".to_owned(),
         solution: String::new(),
-        updated_at: 1_000,
+        state: flasher_types::CardState::New,
+        change_time: 1,
+        next_time: 2,
+        revision: 0,
+        labels: vec!["A".to_owned()],
     };
-    let target = EditTarget::from_draft(&draft, false);
     let html = view! {
         <EditorTab
-            target=target
+            target=EditTarget::edit(&card)
             on_close=Callback::new(|_: EditorCloseOutcome| {})
         />
     }
     .to_html();
-    assert!(html.contains("new-prompt"), "rendered html: {html}");
-    assert!(html.contains("New card"), "rendered html: {html}");
-    assert!(html.contains("Draft prompt"), "rendered html: {html}");
+    assert!(html.contains("editor-prompt"), "rendered html: {html}");
+    assert!(html.contains("editor-solution"), "rendered html: {html}");
+    assert!(html.contains("editor-save"), "rendered html: {html}");
+    assert!(html.contains("editor-labels"), "rendered html: {html}");
+    assert!(html.contains("editor-discard"), "rendered html: {html}");
 }
 
 #[test]

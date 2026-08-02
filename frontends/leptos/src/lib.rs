@@ -18,36 +18,24 @@
 //! via the History API, browser back/forward follows via `popstate`, and
 //! a deep link requested while logged out survives the auth flow (the
 //! auth screen ignores `popstate`; a successful login re-reads the
-//! location). The editor overlay pushes one `/groom/edit/{id}` entry
-//! (bare `<tab>/edit` for a recovered new-card draft) when it opens, so
-//! Back while editing closes just the overlay — and Back/Forward ONTO
-//! such an entry re-opens the editor on the card (the popstate dispatch
-//! is on the full route, not just the tab). Any overlay close that
-//! was neither Save nor Cancel (tab switch, Back) leaves the server-side
-//! autosave draft behind, so it re-fetches `GET /api/autosave` and
-//! re-arms the recovery banner immediately — the orphaned draft never
-//! stays invisible until the next app start.
+//! location). The editor overlay pushes one `/groom/edit/{id}` entry when
+//! it opens, so Back while editing closes just the overlay — and
+//! Back/Forward ONTO such an entry re-opens the editor for that card.
+//! Closing keeps that target's server-side draft; Discard is the explicit
+//! way to delete it.
 //!
 //! Phase 6.6 made the UI session state survive a browser refresh:
 //! a fresh load of `/groom/edit/{id}` fetches the card and re-opens the
 //! editor on it (404 falls back to the Groom tab with the URL
-//! rewritten). When the
-//! restored editor and the server-side draft match (same card for the
-//! groom editor, a new-card draft for the Add card tab), the editor is
-//! prefilled with the draft content — F5 becomes a mini crash recovery
-//! — and the banner is suppressed for that draft; a non-matching draft
-//! still prompts the banner. Only fresh-load restores prefill: opening
-//! the editor by clicking Groom's Edit keeps the banner as the recovery
-//! surface, so an in-progress session is never silently overwritten.
+//! rewritten). When the restored editor and its target-scoped server-side
+//! draft match, the editor is prefilled with the draft content — F5 becomes
+//! a mini crash recovery — without a global recovery surface.
 //!
 //! Phase 4C: top-level pages switched client-side via the responsive nav —
 //! Quiz (review due cards, the default), Add card (the card editor in
 //! new-card mode), Groom (search, page and maintain the whole collection),
 //! Labels (label CRUD), and Account. The same editor opens over the tabs when a Groom row's
-//! Edit button is clicked or an autosave draft is recovered. On mount
-//! the app checks `GET /api/autosave` once; a leftover draft shows a
-//! dismissible recovery banner (Recover opens the editor with the draft,
-//! Discard deletes it). A small health line keeps proving the
+//! Edit button is clicked. A small health line keeps proving the
 //! same-origin `/api/health` round-trip through the shared
 //! `flasher-types` contract crate.
 
@@ -67,7 +55,7 @@ mod webauthn;
 
 use auth::{Account, AuthScreen};
 use editor::{CloseOutcome, Editor};
-use flasher_types::{AutoSaveResponse, HealthResponse};
+use flasher_types::HealthResponse;
 use groom::Groom;
 use labels::LabelManager;
 use leptos::prelude::*;
@@ -142,11 +130,11 @@ pub fn App() -> impl IntoView {
     // closes just the overlay; a fresh load of that URL re-opens the
     // editor on the card (Phase 6.6, see the restore effect below).
     let editing = RwSignal::new(None::<EditTarget>);
-    // The startup draft check (re-armed whenever an editing session is
-    // abandoned): `None` = not answered yet, `Some(None)` = no draft (or
-    // the check failed — no banner then), `Some(Some(draft))` = show the
-    // recovery banner.
-    let draft = RwSignal::new(None::<Option<AutoSaveResponse>>);
+    // Navigation waits until the editor's latest snapshot is persisted, so
+    // a newer keystroke cannot be stranded while the editor unmounts.
+    let editor_busy = RwSignal::new(false);
+    let editor_dirty = RwSignal::new(false);
+    let pending_navigation = RwSignal::new(None::<Tab>);
     let health = RwSignal::new(None::<Result<HealthResponse, String>>);
     // The responsive navigation is a persistent labeled sidebar on wide
     // screens and the same closed-by-default labeled drawer below that
@@ -156,14 +144,9 @@ pub fn App() -> impl IntoView {
     // Mirrors the drawer breakpoint so the closed drawer can be removed
     // from the accessibility tree without hiding the wide sidebar.
     let nav_narrow = RwSignal::new(false);
-    // Phase 6.6: `false` until the fresh-load session restore (draft
-    // check + `/groom/edit/{id}` editor re-open) has settled, so the
-    // Add card tab's editor never mounts blank only to be prefilled a
-    // moment later. `add_prefill` carries the matching new-card draft
-    // into the Add tab's editor; non-reactive and consumed on first
-    // render, so later switches to the tab start blank.
+    // `false` until a fresh-load route restore has settled, so a deep
+    // Groom edit never briefly shows the underlying tab before opening.
     let restored = RwSignal::new(false);
-    let add_prefill = StoredValue::new(None::<AutoSaveResponse>);
 
     // Effects only run client-side (csr); under ssr this is compiled out.
     #[cfg(feature = "csr")]
@@ -184,17 +167,30 @@ pub fn App() -> impl IntoView {
             if !matches!(auth_state.get_untracked(), AuthState::Authed { .. }) {
                 return;
             }
+            if editor_busy.get_untracked() || editor_dirty.get_untracked() {
+                // The browser has already moved the URL when popstate fires.
+                // Put it back while the editor finishes its server draft
+                // save; otherwise Back could unmount a dirty editor.
+                pending_navigation.set(Some(next.tab()));
+                if let Some(target) = editing.get_untracked() {
+                    if let Some(card_id) = target.card_id {
+                        route::push_groom_edit(&card_id);
+                    }
+                } else {
+                    route::push_tab(tab.get_untracked());
+                }
+                return;
+            }
             match next {
                 // Back/Forward ONTO an editor URL (F1): re-fetch the
                 // card and re-open the editor, mirroring the fresh-load
-                // restore (404 → Groom tab, URL rewritten; a matching
-                // draft prefills inline, anything else banners).
+                // restore (404 → Groom tab, URL rewritten). The editor
+                // itself loads only this card's target-scoped draft.
                 route::Route::GroomEdit(id) => {
                     leptos::task::spawn_local(async move {
-                        let found = api::get_autosave().await.unwrap_or_default();
-                        if let Some(target) = groom_edit_restore(&id, found.as_ref(), draft).await {
+                        if let Ok(Some(card)) = api::get_card(&id).await {
                             tab.set(Tab::Groom);
-                            editing.set(Some(target));
+                            editing.set(Some(EditTarget::edit(&card)));
                         } else {
                             editing.set(None);
                             tab.set(Tab::Groom);
@@ -205,20 +201,10 @@ pub fn App() -> impl IntoView {
                 // A plain tab route just selects the tab.
                 route::Route::Tab(_) => {
                     // Back/Forward with the editor overlay open pops its
-                    // /edit entry and closes just the overlay; leaving
-                    // the Add card tab abandons its editor the same way.
-                    // Either close was neither Save nor Cancel, so a
-                    // server-side draft may have been orphaned: re-arm
-                    // the recovery banner right away.
-                    let abandoned =
-                        editing.get_untracked().is_some() || tab.get_untracked() == Tab::AddCard;
+                    // /edit entry and closes just the overlay. The draft
+                    // remains target-scoped and is restored on re-entry.
                     editing.set(None);
                     tab.set(next.tab());
-                    if abandoned {
-                        leptos::task::spawn_local(async move {
-                            draft.set(Some(api::get_autosave().await.unwrap_or_default()));
-                        });
-                    }
                 }
             }
         });
@@ -249,16 +235,10 @@ pub fn App() -> impl IntoView {
         });
         let _keep_resize = StoredValue::new(resize);
         // Any mid-session 401 (expired session) bounces back to the auth
-        // screen. In dev-bypass mode 401s never occur. The first-load
-        // restore state is reset too (F2): without it a stale
-        // `restored == true` would let the Add tab mount blank after
-        // re-login while the orphaned draft stayed invisible (banner
-        // suppressed, prefill already consumed) until the next autosave
-        // tick overwrote it. Explicit logout does NOT go through here —
-        // it navigates to /quiz first, so there is no draft to lose.
+        // screen. In dev-bypass mode 401s never occur. The next login
+        // mounts each editor and reloads only the matching server draft.
         api::on_unauthorized(move || {
             restored.set(false);
-            add_prefill.set_value(None);
             auth_state.set(AuthState::Unauthenticated);
         });
         // Startup session probe: 200 with the user → app; 200 `null` (or
@@ -279,17 +259,9 @@ pub fn App() -> impl IntoView {
                 auth_state.set(next);
             });
         });
-        // The health line and the fresh-load session restore (Phase
-        // 6.6) only make sense once logged in; re-runs on each login.
-        // The restore reads the URL: a `/groom/edit/{id}` deep link
-        // re-opens the editor on that card (404 → groom tab, URL
-        // rewritten), and a server-side draft MATCHING the restored
-        // editor (same card id; a new-card draft for the Add card tab)
-        // prefills it inline — F5 as a mini crash recovery — instead of
-        // prompting the recovery banner. A draft for anything else
-        // still prompts the banner. `restored` holds back the tab view
-        // until this settles (one GET round-trip), so the Add tab's
-        // editor never mounts blank and then gets recreated prefilled.
+        // The health line and the fresh-load route restore only make sense
+        // once logged in; re-runs on each login. A deep Groom edit fetches
+        // its persisted card, then the editor loads that card's draft.
         Effect::new(move |_| {
             if matches!(auth_state.get(), AuthState::Authed { .. }) {
                 // Capture the route SYNCHRONOUSLY, before any await
@@ -299,7 +271,6 @@ pub fn App() -> impl IntoView {
                 let start_route = route::initial_route();
                 leptos::task::spawn_local(async move {
                     health.set(Some(api::health().await));
-                    let found = api::get_autosave().await.unwrap_or_default();
                     // Re-check after the awaits (F5): if the user
                     // navigated to another tab during the fetch window,
                     // drop the restore instead of yanking them back —
@@ -311,10 +282,8 @@ pub fn App() -> impl IntoView {
                         #[allow(clippy::match_wildcard_for_single_variants)]
                         match start_route {
                             route::Route::GroomEdit(id) => {
-                                if let Some(target) =
-                                    groom_edit_restore(&id, found.as_ref(), draft).await
-                                {
-                                    editing.set(Some(target));
+                                if let Ok(Some(card)) = api::get_card(&id).await {
+                                    editing.set(Some(EditTarget::edit(&card)));
                                 } else {
                                     // The card is gone (or the fetch
                                     // failed): the groom tab, URL
@@ -323,15 +292,7 @@ pub fn App() -> impl IntoView {
                                     route::replace_tab(Tab::Groom);
                                 }
                             }
-                            route::Route::Tab(Tab::AddCard) => match &found {
-                                // A new-card draft matches the Add tab's
-                                // editor: prefill it, no banner.
-                                Some(d) if d.card_id.is_none() => {
-                                    add_prefill.set_value(Some(d.clone()));
-                                }
-                                _ => draft.set(Some(found)),
-                            },
-                            _ => draft.set(Some(found)),
+                            route::Route::Tab(_) => {}
                         }
                     }
                     restored.set(true);
@@ -342,12 +303,9 @@ pub fn App() -> impl IntoView {
 
     // The one place every user-driven tab switch goes through: close an
     // open editor overlay, select the tab and push its path onto the
-    // history stack (Phase 6.5). `popstate` is the only other source of
-    // tab changes and deliberately does not push. A tab switch that
-    // abandons an open overlay was neither Save nor Cancel, so the
-    // autosave draft it leaves behind re-arms the recovery banner (same
-    // as the popstate path above).
-    let navigate = Callback::new(move |next: Tab| {
+    // history stack (Phase 6.5). Closing an editor retains its own draft;
+    // re-entering that exact editor restores it.
+    let complete_navigation = Callback::new(move |next: Tab| {
         // Clicking the already-active tab is a no-op while no editor
         // overlay is open (F3): RwSignal::set notifies unconditionally,
         // so without this guard the click would remount the tab
@@ -360,14 +318,21 @@ pub fn App() -> impl IntoView {
             return;
         }
         close_navigation(nav_open, nav_narrow);
-        let abandoned = editing.get_untracked().is_some() || tab.get_untracked() == Tab::AddCard;
         editing.set(None);
         tab.set(next);
         route::push_tab(next);
-        if abandoned {
-            leptos::task::spawn_local(async move {
-                draft.set(Some(api::get_autosave().await.unwrap_or_default()));
-            });
+    });
+    let navigate = Callback::new({
+        let complete_navigation = complete_navigation.clone();
+        move |next: Tab| {
+            if editor_busy.get_untracked() || editor_dirty.get_untracked() {
+                // Remember the click and carry it out after the current
+                // server draft snapshot finishes. This keeps navigation
+                // responsive without unmounting a dirty editor.
+                pending_navigation.set(Some(next));
+                return;
+            }
+            complete_navigation.run(next);
         }
     });
 
@@ -389,22 +354,16 @@ pub fn App() -> impl IntoView {
         auth_state.set(AuthState::Unauthenticated);
     });
 
-    // Save of an existing card returns to Groom (fresh list); Cancel
-    // returns where the session came from (Groom for an edit, Quiz for
-    // the Add card tab). The editor unmounts either way, which stops
-    // its autosave interval; Cancel has already deleted the draft
-    // server-side and Save (edit mode) let the server's PATCH clear it,
-    // so neither re-arms the recovery banner. An overlay close rewrites
-    // its `<tab>/edit` history entry back to the tab path (no stale
-    // entry for Back to trip over); closing the Add card tab's editor
-    // pushes like any other tab switch.
+    // Save returns to Groom; Close and Discard return to the underlying
+    // tab. Closing retains the target-scoped draft, while Discard has
+    // already deleted it. An overlay close rewrites its history entry.
     let on_editor_close = Callback::new(move |outcome: CloseOutcome| {
         let was_overlay = editing.get_untracked().is_some();
         editing.set(None);
         let target = match outcome {
             CloseOutcome::Saved => Tab::Groom,
-            CloseOutcome::Cancelled if was_overlay => Tab::Groom,
-            CloseOutcome::Cancelled => Tab::Quiz,
+            CloseOutcome::Closed | CloseOutcome::Discarded if was_overlay => Tab::Groom,
+            CloseOutcome::Closed | CloseOutcome::Discarded => Tab::Quiz,
         };
         tab.set(target);
         if was_overlay {
@@ -419,40 +378,29 @@ pub fn App() -> impl IntoView {
         editing.set(Some(EditTarget::edit(&card)));
     });
 
-    // Recover: open the editor with the draft — edit mode when the
-    // draft's card still exists, new-card mode otherwise. The banner is
-    // hidden immediately and not shown again while the editor is open
-    // (abandoning that session re-arms it via the navigate/popstate
-    // paths above). The overlay's history entry is the real
-    // `/groom/edit/{id}` route for an existing card (reload-safe), the
-    // bare `<tab>/edit` entry for a new-card draft.
-    let recover = move |_| {
-        if let Some(Some(found)) = draft.get_untracked() {
-            draft.set(Some(None));
-            leptos::task::spawn_local(async move {
-                let still_exists = match &found.card_id {
-                    Some(id) => api::get_card(id).await.ok().flatten().is_some(),
-                    None => false,
-                };
-                match &found.card_id {
-                    Some(id) if still_exists => route::push_groom_edit(id),
-                    _ => route::push_edit(tab.get_untracked()),
+    let on_editor_busy = {
+        let navigate = navigate.clone();
+        Callback::new(move |busy: bool| {
+            editor_busy.set(busy);
+            if !busy && !editor_dirty.get_untracked() {
+                let next = pending_navigation.get_untracked();
+                pending_navigation.set(None);
+                if let Some(next) = next {
+                    navigate.run(next);
                 }
-                editing.set(Some(EditTarget::from_draft(&found, still_exists)));
-            });
-        }
+            }
+        })
     };
-
-    // Discard: drop the draft server-side and hide the banner. A failed
-    // delete leaves the draft for the next app start to re-prompt.
-    let discard = move |_| {
-        if let Some(Some(_)) = draft.get_untracked() {
-            draft.set(Some(None));
-            leptos::task::spawn_local(async move {
-                _ = api::delete_autosave().await;
-            });
+    let on_editor_dirty = Callback::new(move |dirty: bool| {
+        editor_dirty.set(dirty);
+        if !dirty && !editor_busy.get_untracked() {
+            let next = pending_navigation.get_untracked();
+            pending_navigation.set(None);
+            if let Some(next) = next {
+                navigate.run(next);
+            }
         }
-    };
+    });
 
     view! {
         {move || match auth_state.get() {
@@ -599,24 +547,6 @@ pub fn App() -> impl IntoView {
                         <h1>{move || tab.get().title()}</h1>
                     </div>
                 </header>
-            {move || draft.get().flatten().map(|found| {
-                let age = relative_age(now_ms(), found.updated_at);
-                view! {
-                    <div class="draft-banner" id="recovery-banner" role="alert">
-                        <p class="draft-banner-text" id="recovery-text">
-                            "An unsaved draft from " {age} " exists."
-                        </p>
-                        <div class="draft-banner-buttons">
-                            <button type="button" id="recover-draft" class="primary" on:click=recover>
-                                "Recover"
-                            </button>
-                            <button type="button" id="discard-draft" on:click=discard>
-                                "Discard"
-                            </button>
-                        </div>
-                    </div>
-                }
-            })}
             {move || {
                 // Held back until the fresh-load session restore has
                 // settled (see the effect above): the restored editor
@@ -627,26 +557,25 @@ pub fn App() -> impl IntoView {
                     }
                         .into_any()
                 } else if let Some(target) = editing.get() {
-                    view! { <Editor target=target on_close=on_editor_close/> }.into_any()
+                    view! {
+                        <Editor
+                            target=target
+                            on_close=on_editor_close
+                            on_busy_change=on_editor_busy
+                            on_dirty_change=on_editor_dirty
+                        />
+                    }
+                        .into_any()
                 } else {
                     match tab.get() {
                         Tab::Quiz => view! { <Quiz/> }.into_any(),
                         Tab::AddCard => {
-                            // A matching new-card draft prefills the
-                            // editor on a fresh /add load; consumed
-                            // here (StoredValue is non-reactive), so
-                            // later tab switches start blank.
-                            let prefilled = add_prefill.get_value();
-                            if prefilled.is_some() {
-                                add_prefill.set_value(None);
-                            }
-                            let target = prefilled.map_or_else(EditTarget::new_card, |d| {
-                                EditTarget::from_draft(&d, false)
-                            });
                             view! {
                                 <Editor
-                                    target=target
+                                    target=EditTarget::new_card()
                                     on_close=on_editor_close
+                                    on_busy_change=on_editor_busy
+                                    on_dirty_change=on_editor_dirty
                                 />
                             }
                                 .into_any()
@@ -686,44 +615,6 @@ pub fn App() -> impl IntoView {
     }
 }
 
-/// Resolves the editor target for a `/groom/edit/{id}` route — shared by
-/// the fresh-load restore and the popstate (Back/Forward) dispatch, so
-/// both apply the same rules: a draft belonging to this very card
-/// recovers inline (prefill, banner suppressed AND cleared), a draft for
-/// anything else prompts the banner while the editor opens on the card's
-/// own content. Returns `None` when the card is gone or the fetch
-/// failed; the caller then falls back to the Groom tab and rewrites the
-/// URL (a leftover draft still banners).
-// The nested Option is the app's deliberate draft state (None = the
-// startup check has not answered yet, Some(None) = no draft, Some(Some)
-// = banner); flattening it here would lose the unanswered case.
-#[allow(clippy::option_option)]
-#[cfg(feature = "csr")]
-async fn groom_edit_restore(
-    id: &str,
-    found: Option<&AutoSaveResponse>,
-    draft: RwSignal<Option<Option<AutoSaveResponse>>>,
-) -> Option<EditTarget> {
-    let Ok(Some(card)) = api::get_card(id).await else {
-        draft.set(Some(found.cloned()));
-        return None;
-    };
-    let target = match found {
-        // The draft belongs to this very card: recover inline, no banner.
-        Some(d) if d.card_id.as_deref() == Some(id) => {
-            draft.set(Some(None));
-            EditTarget::from_draft(d, true)
-        }
-        // No draft, or one for something else: card content into the
-        // editor, draft into the banner.
-        _ => {
-            draft.set(Some(found.cloned()));
-            EditTarget::edit(&card)
-        }
-    };
-    Some(target)
-}
-
 /// Exports the sticky header's measured height as the `--top-h` CSS
 /// variable on `<html>`: the groom tab's sticky controls/paging bar
 /// (`.groom-head`) parks directly below the header (owner wish
@@ -745,67 +636,5 @@ fn export_top_height() {
             .unchecked_into::<web_sys::HtmlElement>()
             .style()
             .set_property("--top-h", &format!("{height}px"));
-    }
-}
-
-/// Human-friendly draft age: "just now" under a minute, then minutes,
-/// hours or days.
-fn relative_age(now_ms: i64, then_ms: i64) -> String {
-    let secs = now_ms.saturating_sub(then_ms) / 1_000;
-    if secs < 60 {
-        "just now".to_owned()
-    } else if secs < 3_600 {
-        let n = secs / 60;
-        format!("{n} minute{} ago", if n == 1 { "" } else { "s" })
-    } else if secs < 86_400 {
-        let n = secs / 3_600;
-        format!("{n} hour{} ago", if n == 1 { "" } else { "s" })
-    } else {
-        let n = secs / 86_400;
-        format!("{n} day{} ago", if n == 1 { "" } else { "s" })
-    }
-}
-
-/// Current unix epoch millis via the browser clock (wasm-only).
-#[cfg(feature = "csr")]
-fn now_ms() -> i64 {
-    // Date::now() is milliseconds since the epoch as f64; the value is
-    // far from any truncation boundary that matters here.
-    #[allow(clippy::cast_possible_truncation)]
-    {
-        js_sys::Date::now() as i64
-    }
-}
-
-/// SSR stand-in: the banner never renders server-side (the draft check
-/// is csr-only), so this only keeps the view linkable.
-#[cfg(not(feature = "csr"))]
-fn now_ms() -> i64 {
-    0
-}
-
-#[cfg(test)]
-mod tests {
-    use super::relative_age;
-
-    #[test]
-    fn relative_age_buckets() {
-        assert_eq!(relative_age(10_000, 9_000), "just now");
-        assert_eq!(relative_age(60_000, 0), "1 minute ago");
-        assert_eq!(relative_age(70_000, 10_000), "1 minute ago");
-        assert_eq!(relative_age(600_000, 0), "10 minutes ago");
-        assert_eq!(relative_age(3_600_000, 0), "1 hour ago");
-        assert_eq!(relative_age(3_700_000, 0), "1 hour ago");
-        assert_eq!(relative_age(7_300_000, 0), "2 hours ago");
-        assert_eq!(relative_age(86_400_000, 0), "1 day ago");
-        assert_eq!(relative_age(90_000_000, 0), "1 day ago");
-        assert_eq!(relative_age(200_000_000, 0), "2 days ago");
-    }
-
-    #[test]
-    fn relative_age_clamps_clock_skew() {
-        // A draft timestamped in the future reads as "just now", never
-        // as a negative duration.
-        assert_eq!(relative_age(1_000, 5_000), "just now");
     }
 }

@@ -1,75 +1,58 @@
-//! Card editor (Phase 4C): prompt/solution textareas with a live
-//! Markdown preview side by side and a 5 s autosave draft.
+//! The shared card editor for new cards and existing cards.
 //!
-//! One component covers both modes: editing an existing card (opened
-//! from a Groom row's Edit button, or by recovering a draft of one) and
-//! drafting a new card (the "Add card" tab, or a recovered new-card
-//! draft). New-card mode deliberately keeps the ids and behavior of the
-//! old Add card form (`new-prompt`, `new-solution`, `create-card`,
-//! `add-card-confirmation`): the existing e2e suite drives exactly that
-//! flow, so a successful create stays on the editor, clears the form and
-//! shows the confirmation instead of navigating away. Saving an
-//! *existing* card closes the editor back to Groom (the server's PATCH
-//! already deletes the draft). Cancel deletes the draft explicitly
-//! before closing — like the reference app's Cancel/Abandon — so a
-//! deliberately cancelled session never triggers the recovery banner.
-//!
-//! Autosave is a port of the old `useAutoSave`: a 5 s interval, skipping
-//! ticks while a write is in flight, while the content matches the last
-//! saved/loaded baseline, or while both fields are empty. The interval
-//! handle is cleared in `on_cleanup`, so leaving the editor (Save,
-//! Cancel, tab switch) stops it. A subtle indicator shows "unsaved
-//! changes" while dirty and "draft saved HH:MM:SS" after a write.
+//! The two workflows deliberately have different server-side draft stores:
+//! one new-card draft per user and one edit draft per user/card. The editor
+//! looks the same in both modes, but a draft can never cross from one mode to
+//! the other. Drafts are autosaved after a short idle debounce and also at a
+//! maximum interval while the user keeps typing.
 
-use flasher_types::{AutoSaveResponse, CardResponse, LabelResponse};
+use std::time::Duration;
+
+#[cfg(feature = "csr")]
+use flasher_types::{CardEditDraftResponse, NewCardDraftResponse};
+use flasher_types::{CardResponse, LabelResponse};
 use leptos::prelude::*;
 
 use crate::api;
 use crate::labels::toggle_label_name;
 use crate::markdown::MarkdownView;
 
-/// Autosave cadence, ported from the old `useAutoSave` (5 s).
-#[cfg(feature = "csr")]
-const AUTOSAVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(5);
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+const AUTOSAVE_IDLE: Duration = Duration::from_millis(750);
 
 /// What the editor is working on.
 #[derive(Clone, Debug)]
 pub struct EditTarget {
     /// `Some(id)` edits that existing card; `None` drafts a new one.
-    card_id: Option<String>,
-    /// Initial textarea content (card content, or the recovered draft).
-    initial_prompt: String,
-    initial_solution: String,
+    pub(crate) card_id: Option<String>,
+    pub(crate) initial_prompt: String,
+    pub(crate) initial_solution: String,
+    pub(crate) initial_labels: Vec<String>,
+    pub(crate) initial_revision: i64,
 }
 
 impl EditTarget {
-    /// A blank new-card draft (the "Add card" tab).
+    /// A blank new-card editor.
     pub fn new_card() -> Self {
         Self {
             card_id: None,
             initial_prompt: String::new(),
             initial_solution: String::new(),
+            initial_labels: Vec::new(),
+            initial_revision: 0,
         }
     }
 
-    /// Edit an existing card, pre-filled with its content.
+    /// An existing card's persisted content.
     pub fn edit(card: &CardResponse) -> Self {
         Self {
             card_id: Some(card.id.clone()),
             initial_prompt: card.prompt.clone(),
             initial_solution: card.solution.clone(),
-        }
-    }
-
-    /// Recover a draft: edit mode when the draft belongs to a card that
-    /// still exists, new-card mode otherwise (draft for a new card, or
-    /// the card was deleted meanwhile — the draft text is kept either
-    /// way).
-    pub fn from_draft(draft: &AutoSaveResponse, card_still_exists: bool) -> Self {
-        Self {
-            card_id: draft.card_id.clone().filter(|_| card_still_exists),
-            initial_prompt: draft.prompt.clone(),
-            initial_solution: draft.solution.clone(),
+            initial_labels: card.labels.clone(),
+            initial_revision: card.revision,
         }
     }
 }
@@ -77,226 +60,444 @@ impl EditTarget {
 /// How an editing session ended.
 #[derive(Clone, Copy, Debug)]
 pub enum CloseOutcome {
-    /// An existing card was saved (navigate back to Groom).
+    /// An existing card was committed.
     Saved,
-    /// Closed without saving; the autosave draft was deleted first,
-    /// matching the reference app's Cancel/Abandon.
-    Cancelled,
+    /// The editor was closed while retaining its draft.
+    Closed,
+    /// The matching draft was explicitly deleted.
+    Discarded,
 }
 
-/// The card editor: inputs left, live preview right (stacked on mobile).
-// The autosave loop, save handler and the two view panes make this long;
-// splitting them further would only add indirection (same reasoning as
-// the groom tab).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DraftFields {
+    prompt: String,
+    solution: String,
+    labels: Vec<String>,
+}
+
+fn autosave_fields_differ(current: &DraftFields, baseline: &DraftFields, is_new: bool) -> bool {
+    if is_new {
+        current.prompt != baseline.prompt || current.solution != baseline.solution
+    } else {
+        current != baseline
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum DraftStatus {
+    Loading,
+    Clean,
+    Dirty,
+    Saving,
+    Saved(String),
+    Error(String),
+}
+
+/// The shared card editor: prompt, solution, labels, and live previews.
 #[allow(clippy::too_many_lines)]
 #[component]
-pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl IntoView {
+pub fn Editor(
+    target: EditTarget,
+    on_close: Callback<CloseOutcome>,
+    #[prop(optional)] on_busy_change: Option<Callback<bool>>,
+    #[prop(optional)] on_dirty_change: Option<Callback<bool>>,
+) -> impl IntoView {
     let EditTarget {
         card_id,
         initial_prompt,
         initial_solution,
+        initial_labels,
+        initial_revision,
     } = target;
     let is_new = card_id.is_none();
-
     let prompt = RwSignal::new(initial_prompt.clone());
     let solution = RwSignal::new(initial_solution.clone());
-    // What the content is compared against: the loaded content at open,
-    // then the last successfully autosaved content. Differences against
-    // it are what "dirty" (and the 5 s PUT) means.
-    let baseline = RwSignal::new((initial_prompt, initial_solution));
-    // Formatted time of the last successful draft write.
-    let saved_at = RwSignal::new(None::<String>);
-    let validation = RwSignal::new(None::<String>);
-    let error = RwSignal::new(None::<String>);
-    let confirmation = RwSignal::new(false);
-    // Re-entrancy guard shared by the autosave tick, Save and Cancel
-    // (the old hook's `isSaving` ref): while a write is in flight the
-    // tick skips and all three buttons are disabled. This closes two
-    // races: an in-flight autosave PUT landing after Save's server-side
-    // draft deletion would resurrect a stale draft, and a double-click
-    // on Create would create duplicate cards.
-    let busy = RwSignal::new(false);
-
-    // New-card mode only: the label picker (owner decision 2026-08-01 —
-    // cards get their labels at creation time). The working selection
-    // starts EMPTY (label names carry no semantics, so there is no
-    // name-based default); Create stays disabled until at least one
-    // label is checked or freshly added. Labels are NOT part of the
-    // autosave draft: a recovered draft starts the picker empty again.
-    // After a successful create the selection is KEPT (batch entry of
-    // similar cards).
+    let working_labels = RwSignal::new(initial_labels.clone());
     let all_labels = RwSignal::new(Vec::<LabelResponse>::new());
-    let working_labels = RwSignal::new(Vec::<String>::new());
-    let new_label_input = RwSignal::new(String::new());
-    #[cfg(feature = "csr")]
-    if is_new {
-        leptos::task::spawn_local(async move {
-            match api::labels().await {
-                Ok(labels) => all_labels.set(labels),
-                Err(err) => error.set(Some(err)),
-            }
-        });
-    }
-
-    // Adds the typed name as a new checked label (created server-side on
-    // the next create — nothing is written to the label table here).
-    let add_new_label = Callback::new(move |(): ()| {
-        let name = new_label_input.get_untracked().trim().to_owned();
-        if name.is_empty() {
-            return;
+    let baseline = RwSignal::new(DraftFields {
+        prompt: initial_prompt,
+        solution: initial_solution,
+        labels: initial_labels,
+    });
+    let revision = RwSignal::new(initial_revision);
+    let draft_loaded = RwSignal::new(!cfg!(feature = "csr"));
+    let status = RwSignal::new(if cfg!(feature = "csr") {
+        DraftStatus::Loading
+    } else {
+        DraftStatus::Clean
+    });
+    let busy = RwSignal::new(false);
+    let confirmation = RwSignal::new(false);
+    let change_generation = RwSignal::new(0_u64);
+    let retry_requested = RwSignal::new(false);
+    let close_requested = RwSignal::new(false);
+    let error = RwSignal::new(None::<String>);
+    let busy_change = on_busy_change.clone();
+    let set_busy = Callback::new(move |value: bool| {
+        if let Some(callback) = &busy_change {
+            callback.run(value);
         }
-        // The find filter's `labels` query parameter is comma-joined, so
-        // a comma in a name would silently break filtering later.
-        if name.contains(',') {
-            validation.set(Some("Label names must not contain commas.".to_owned()));
-            return;
+        busy.set(value);
+    });
+    let dirty_change = on_dirty_change.clone();
+    let set_dirty = Callback::new(move |value: bool| {
+        if let Some(callback) = &dirty_change {
+            callback.run(value);
         }
-        validation.set(None);
-        if !working_labels.get_untracked().contains(&name) {
-            working_labels.update(|working| working.push(name.clone()));
+    });
+    let busy_change = on_busy_change.clone();
+    let dirty_change = on_dirty_change.clone();
+    on_cleanup(move || {
+        if let Some(callback) = &busy_change {
+            callback.run(false);
         }
-        all_labels.update(|labels| {
-            if !labels.iter().any(|label| label.name == name) {
-                labels.push(LabelResponse {
-                    id: 0,
-                    name,
-                    card_count: 0,
-                });
-            }
-        });
-        new_label_input.set(String::new());
+        if let Some(callback) = &dirty_change {
+            callback.run(false);
+        }
     });
 
-    // The 5 s autosave loop (browser only). The handle lives until the
-    // component unmounts — Save, Cancel and tab switches all unmount it.
+    // Every editor instance loads only its own workflow's draft. This also
+    // handles tab switches, browser reloads, session expiry/re-login, and
+    // multiple browser tabs without any browser-side sensitive storage.
     #[cfg(feature = "csr")]
     {
-        let tick_card_id = card_id.clone();
-        if let Ok(handle) = set_interval_with_handle(
-            move || {
-                if busy.get_untracked() {
-                    return;
-                }
-                let p = prompt.get_untracked();
-                let s = solution.get_untracked();
-                if p.trim().is_empty() && s.trim().is_empty() {
-                    return;
-                }
-                if baseline.with_untracked(|(bp, bs)| p == *bp && s == *bs) {
-                    return;
-                }
-                busy.set(true);
-                let tick_card_id = tick_card_id.clone();
-                leptos::task::spawn_local(async move {
-                    // A failed write just stays dirty and retries on the
-                    // next tick (the old app behaved the same).
-                    if let Ok(saved) = api::put_autosave(tick_card_id.as_deref(), &p, &s).await {
-                        baseline.set((p, s));
-                        saved_at.set(Some(format_hms(saved.updated_at)));
-                    }
-                    busy.set(false);
-                });
-            },
-            AUTOSAVE_INTERVAL,
-        ) {
-            on_cleanup(move || handle.clear());
-        }
-    }
-
-    let save_card_id = card_id.clone();
-    let save = move |_| {
-        // Honor the busy guard (see its declaration): a click while an
-        // autosave PUT is in flight must not start Save — the late PUT
-        // would resurrect the draft Save deletes server-side — and a
-        // double-click must not create the card twice.
-        if busy.get_untracked() {
-            return;
-        }
-        validation.set(None);
-        error.set(None);
-        confirmation.set(false);
-        let prompt_text = prompt.get_untracked();
-        if prompt_text.trim().is_empty() {
-            validation.set(Some("Prompt must not be empty.".to_owned()));
-            return;
-        }
-        if is_new && working_labels.get_untracked().is_empty() {
-            validation.set(Some("Choose at least one label.".to_owned()));
-            return;
-        }
-        let solution_text = solution.get_untracked();
-        let card_id = save_card_id.clone();
-        let create_labels = working_labels.get_untracked();
-        busy.set(true);
+        let load_card_id = card_id.clone();
         leptos::task::spawn_local(async move {
-            let result = match &card_id {
-                // PATCH deletes the draft server-side.
-                Some(id) => api::update_card(id, &prompt_text, &solution_text)
+            let labels_result = api::labels().await;
+            let draft_result = match load_card_id.as_deref() {
+                Some(id) => api::get_card_edit_draft(id)
                     .await
-                    .map(|_| ()),
-                // POST does not, so the draft is dropped explicitly.
-                None => {
-                    match api::create_card(&prompt_text, &solution_text, &create_labels).await {
-                        Ok(_card) => api::delete_autosave().await,
-                        Err(err) => Err(err),
-                    }
-                }
+                    .map(|draft| draft.map(EditDraftLoaded::Existing)),
+                None => api::get_new_card_draft()
+                    .await
+                    .map(|draft| draft.map(EditDraftLoaded::New)),
             };
-            match result {
-                Ok(()) if card_id.is_some() => {
-                    // Move the baseline to the just-saved content BEFORE
-                    // releasing busy, so a tick that fires before the
-                    // unmount sees "not dirty" and cannot re-PUT the
-                    // draft the PATCH just deleted server-side.
-                    baseline.set((prompt_text, solution_text));
-                    busy.set(false);
-                    on_close.run(CloseOutcome::Saved);
+            if let Ok(labels) = labels_result {
+                all_labels.set(labels);
+            }
+            match draft_result {
+                Ok(Some(EditDraftLoaded::New(draft))) => {
+                    let fields = DraftFields {
+                        prompt: draft.prompt,
+                        solution: draft.solution,
+                        labels: working_labels.get_untracked(),
+                    };
+                    prompt.set(fields.prompt.clone());
+                    solution.set(fields.solution.clone());
+                    working_labels.set(fields.labels.clone());
+                    baseline.set(fields);
+                    status.set(DraftStatus::Saved(format_hms(draft.updated_at)));
                 }
-                Ok(()) => {
-                    // New-card mode stays open (old Add card behavior):
-                    // clear the form for the next card and confirm.
-                    prompt.set(String::new());
-                    solution.set(String::new());
-                    baseline.set((String::new(), String::new()));
-                    saved_at.set(None);
-                    busy.set(false);
-                    confirmation.set(true);
+                Ok(Some(EditDraftLoaded::Existing(draft))) => {
+                    let fields = DraftFields {
+                        prompt: draft.prompt,
+                        solution: draft.solution,
+                        labels: draft.labels,
+                    };
+                    prompt.set(fields.prompt.clone());
+                    solution.set(fields.solution.clone());
+                    working_labels.set(fields.labels.clone());
+                    baseline.set(fields);
+                    revision.set(draft.base_revision);
+                    status.set(DraftStatus::Saved(format_hms(draft.updated_at)));
                 }
+                Ok(None) => status.set(DraftStatus::Clean),
                 Err(err) => {
-                    busy.set(false);
                     error.set(Some(err));
+                    status.set(DraftStatus::Error("draft could not be loaded".to_owned()));
                 }
             }
+            draft_loaded.set(true);
         });
-    };
+    }
 
-    // Cancel abandons the session AND deletes the autosave draft — this
-    // matches the reference app (GroomView/QuizView Cancel/Abandon called
-    // AutoSave.delete), so a deliberately cancelled session must not
-    // produce a recovery banner on the next load. Best-effort: the
-    // editor closes regardless of the DELETE result.
-    let cancel = move |_| {
-        if busy.get_untracked() {
-            return;
+    // The actual autosave operation is shared by the idle debounce and the
+    // maximum-interval timer. Existing-card drafts write a complete snapshot;
+    // new-card drafts deliberately persist only prompt and solution because
+    // labels are committed only by Create.
+    let autosave = Callback::new({
+        let card_id = card_id.clone();
+        let set_busy = set_busy.clone();
+        let set_dirty = set_dirty.clone();
+        let on_close = on_close.clone();
+        move |(): ()| {
+            if !draft_loaded.get_untracked() {
+                return;
+            }
+            if busy.get_untracked() {
+                // An input can arrive while the previous request is still
+                // in flight. Remember it instead of silently treating that
+                // snapshot as saved; the effect below retries immediately
+                // after the request finishes.
+                retry_requested.set(true);
+                return;
+            }
+            let fields = DraftFields {
+                prompt: prompt.get_untracked(),
+                solution: solution.get_untracked(),
+                labels: working_labels.get_untracked(),
+            };
+            if !autosave_fields_differ(&fields, &baseline.get_untracked(), is_new) {
+                retry_requested.set(false);
+                set_dirty.run(false);
+                if close_requested.get_untracked() {
+                    close_requested.set(false);
+                    on_close.run(CloseOutcome::Closed);
+                }
+                return;
+            }
+            set_busy.run(true);
+            status.set(DraftStatus::Saving);
+            let card_id = card_id.clone();
+            let base_revision = revision.get_untracked();
+            let set_busy_for_request = set_busy.clone();
+            leptos::task::spawn_local(async move {
+                let result = match card_id.as_deref() {
+                    Some(id) => api::put_card_edit_draft(
+                        id,
+                        base_revision,
+                        &fields.prompt,
+                        &fields.solution,
+                        &fields.labels,
+                    )
+                    .await
+                    .map(|draft| (draft.updated_at, fields)),
+                    None => api::put_new_card_draft(&fields.prompt, &fields.solution)
+                        .await
+                        .map(|draft| (draft.updated_at, fields)),
+                };
+                match result {
+                    Ok((saved_at, saved_fields)) => {
+                        if !autosave_fields_differ(
+                            &DraftFields {
+                                prompt: prompt.get_untracked(),
+                                solution: solution.get_untracked(),
+                                labels: working_labels.get_untracked(),
+                            },
+                            &saved_fields,
+                            is_new,
+                        ) {
+                            baseline.set(saved_fields);
+                            retry_requested.set(false);
+                            status.set(DraftStatus::Saved(format_hms(saved_at)));
+                            set_dirty.run(false);
+                            let should_close = close_requested.get_untracked();
+                            close_requested.set(false);
+                            set_busy_for_request.run(false);
+                            if should_close {
+                                on_close.run(CloseOutcome::Closed);
+                            }
+                            return;
+                        } else {
+                            // The user changed the editor while this
+                            // request was in flight. Keep the older snapshot
+                            // as the baseline and immediately send the
+                            // newer one after `busy` becomes false.
+                            retry_requested.set(true);
+                            status.set(DraftStatus::Dirty);
+                            set_dirty.run(true);
+                        }
+                    }
+                    Err(err) => {
+                        status.set(DraftStatus::Error(err.clone()));
+                        error.set(Some(err));
+                        set_dirty.run(true);
+                    }
+                }
+                set_busy_for_request.run(false);
+            });
         }
-        busy.set(true);
-        leptos::task::spawn_local(async move {
-            _ = api::delete_autosave().await;
-            busy.set(false);
-            on_close.run(CloseOutcome::Cancelled);
+    });
+
+    // A save completion flips `busy` back to false after marking a newer
+    // snapshot pending. This effect serializes the retry without allowing
+    // overlapping writes to the same target draft.
+    #[cfg(feature = "csr")]
+    {
+        let autosave = autosave.clone();
+        Effect::new(move |_| {
+            if retry_requested.get() && !busy.get() {
+                retry_requested.set(false);
+                autosave.run(());
+            }
         });
+    }
+
+    // Maximum dirty interval: continuous typing cannot postpone the save
+    // forever. The input handler below adds the shorter idle save.
+    #[cfg(feature = "csr")]
+    if let Ok(handle) = set_interval_with_handle(move || autosave.run(()), AUTOSAVE_INTERVAL) {
+        on_cleanup(move || handle.clear());
+    }
+
+    let schedule_autosave = {
+        let autosave = autosave.clone();
+        Callback::new(move |(): ()| {
+            change_generation.update(|generation| *generation += 1);
+            let armed = change_generation.get_untracked();
+            let fields = DraftFields {
+                prompt: prompt.get_untracked(),
+                solution: solution.get_untracked(),
+                labels: working_labels.get_untracked(),
+            };
+            if autosave_fields_differ(&fields, &baseline.get_untracked(), is_new) {
+                if busy.get_untracked() {
+                    retry_requested.set(true);
+                }
+                status.set(DraftStatus::Dirty);
+                set_dirty.run(true);
+            }
+            set_timeout(
+                move || {
+                    if change_generation.get_untracked() == armed {
+                        autosave.run(());
+                    }
+                },
+                AUTOSAVE_IDLE,
+            );
+        })
     };
 
-    // New-card mode keeps the old Add card ids: the existing e2e suite
-    // drives them (see module docs).
-    let (prompt_id, solution_id, save_id, validation_id, error_id, heading, save_label) = if is_new
-    {
+    let on_text_input = move |_| schedule_autosave.run(());
+    let on_label_change = move |name: String, checked: bool| {
+        let next = toggle_label_name(&working_labels.get_untracked(), &name, checked);
+        working_labels.set(next);
+        schedule_autosave.run(());
+    };
+
+    let save = {
+        let card_id = card_id.clone();
+        let set_busy = set_busy.clone();
+        move |_| {
+            if busy.get_untracked() || !draft_loaded.get_untracked() {
+                return;
+            }
+            error.set(None);
+            confirmation.set(false);
+            let prompt_text = prompt.get_untracked();
+            if prompt_text.trim().is_empty() {
+                error.set(Some("Prompt must not be empty.".to_owned()));
+                return;
+            }
+            let labels = working_labels.get_untracked();
+            if labels.is_empty() {
+                error.set(Some("Choose at least one label.".to_owned()));
+                return;
+            }
+            let solution_text = solution.get_untracked();
+            let card_id = card_id.clone();
+            let expected_revision = revision.get_untracked();
+            set_busy.run(true);
+            status.set(DraftStatus::Saving);
+            let set_busy_for_request = set_busy.clone();
+            leptos::task::spawn_local(async move {
+                let result = match card_id.as_deref() {
+                    Some(id) => api::save_card_edit(
+                        id,
+                        expected_revision,
+                        &prompt_text,
+                        &solution_text,
+                        &labels,
+                    )
+                    .await
+                    .map(|_| ()),
+                    None => api::create_card(&prompt_text, &solution_text, &labels)
+                        .await
+                        .map(|_| ()),
+                };
+                match result {
+                    Ok(()) if card_id.is_some() => {
+                        set_dirty.run(false);
+                        close_requested.set(false);
+                        set_busy_for_request.run(false);
+                        on_close.run(CloseOutcome::Saved);
+                    }
+                    Ok(()) => {
+                        set_dirty.run(false);
+                        close_requested.set(false);
+                        prompt.set(String::new());
+                        solution.set(String::new());
+                        baseline.set(DraftFields {
+                            prompt: String::new(),
+                            solution: String::new(),
+                            labels: labels.clone(),
+                        });
+                        status.set(DraftStatus::Clean);
+                        set_busy_for_request.run(false);
+                        confirmation.set(true);
+                    }
+                    Err(err) => {
+                        set_dirty.run(true);
+                        set_busy_for_request.run(false);
+                        status.set(DraftStatus::Error(err.clone()));
+                        error.set(Some(err));
+                    }
+                }
+            });
+        }
+    };
+
+    // Closing retains the draft. Only the explicit Discard button deletes
+    // it, which keeps ordinary navigation warning-free and reversible.
+    let close = {
+        let autosave = autosave.clone();
+        move |_| {
+            if !draft_loaded.get_untracked() || busy.get_untracked() {
+                return;
+            }
+            let fields = DraftFields {
+                prompt: prompt.get_untracked(),
+                solution: solution.get_untracked(),
+                labels: working_labels.get_untracked(),
+            };
+            if !autosave_fields_differ(&fields, &baseline.get_untracked(), is_new) {
+                set_dirty.run(false);
+                on_close.run(CloseOutcome::Closed);
+            } else {
+                close_requested.set(true);
+                autosave.run(());
+            }
+        }
+    };
+    let discard = {
+        let card_id = card_id.clone();
+        let set_busy = set_busy.clone();
+        move |_| {
+            if busy.get_untracked() {
+                return;
+            }
+            set_busy.run(true);
+            let card_id = card_id.clone();
+            let set_busy_for_request = set_busy.clone();
+            leptos::task::spawn_local(async move {
+                let result = match card_id.as_deref() {
+                    Some(id) => api::delete_card_edit_draft(id).await,
+                    None => api::delete_new_card_draft().await,
+                };
+                match result {
+                    Ok(()) => {
+                        set_dirty.run(false);
+                        close_requested.set(false);
+                        set_busy_for_request.run(false);
+                        on_close.run(CloseOutcome::Discarded);
+                    }
+                    Err(err) => {
+                        set_dirty.run(true);
+                        set_busy_for_request.run(false);
+                        status.set(DraftStatus::Error(err.clone()));
+                        error.set(Some(err));
+                    }
+                }
+            });
+        }
+    };
+
+    let (prompt_id, solution_id, save_id, validation_id, heading, save_label) = if is_new {
         (
             "new-prompt",
             "new-solution",
             "create-card",
             "add-card-validation",
-            "add-card-error",
             "New card",
             "Create card",
         )
@@ -306,21 +507,18 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
             "editor-solution",
             "editor-save",
             "editor-validation",
-            "editor-error",
             "Edit card",
             "Save",
         )
     };
 
-    let indicator = move || {
-        let dirty = (prompt.get(), solution.get()) != baseline.get();
-        if dirty {
-            "unsaved changes".to_owned()
-        } else {
-            saved_at
-                .get()
-                .map_or(String::new(), |at| format!("draft saved {at}"))
-        }
+    let indicator = move || match status.get() {
+        DraftStatus::Loading => "Loading draft…".to_owned(),
+        DraftStatus::Clean => "".to_owned(),
+        DraftStatus::Dirty => "unsaved changes".to_owned(),
+        DraftStatus::Saving => "saving draft…".to_owned(),
+        DraftStatus::Saved(at) => format!("draft saved {at}"),
+        DraftStatus::Error(message) => format!("draft save failed: {message}"),
     };
 
     view! {
@@ -328,12 +526,17 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
             <h2 id="editor-heading">{heading}</h2>
             <div class="editor-panes">
                 <div class="editor-inputs">
+                    {move || (!draft_loaded.get()).then(|| view! {
+                        <p class="editor-loading" id="editor-loading">"Loading draft…"</p>
+                    })}
                     <label for=prompt_id>"Prompt"</label>
                     <textarea
                         id=prompt_id
                         rows="6"
                         placeholder="Front of the card (Markdown)"
                         bind:value=prompt
+                        on:input=on_text_input
+                        disabled=move || !draft_loaded.get()
                     ></textarea>
                     <label for=solution_id>"Solution"</label>
                     <textarea
@@ -341,70 +544,49 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
                         rows="10"
                         placeholder="Back of the card (Markdown)"
                         bind:value=solution
+                        on:input=on_text_input
+                        disabled=move || !draft_loaded.get()
                     ></textarea>
-                    {is_new.then(|| view! {
-                        <div class="editor-labels" id="new-labels">
-                            <label>"Labels (at least one)"</label>
-                            {move || {
-                                all_labels
-                                    .get()
-                                    .into_iter()
-                                    .map(|label| {
-                                        let name = label.name.clone();
-                                        let box_id = format!("new-label-{name}");
-                                        let on_toggle = {
-                                            let name = name.clone();
-                                            move |ev: leptos::ev::Event| {
-                                                let next = toggle_label_name(
-                                                    &working_labels.get_untracked(),
-                                                    &name,
-                                                    event_target_checked(&ev),
-                                                );
-                                                working_labels.set(next);
-                                            }
-                                        };
-                                        let for_id = box_id.clone();
-                                        view! {
-                                            <label class="label-filter-item" for=for_id>
-                                                {label.name.clone()}
-                                                <input
-                                                    type="checkbox"
-                                                    id=box_id
-                                                    prop:checked=move || {
-                                                        working_labels.get().contains(&name)
+                    <div class="editor-labels" id="editor-labels">
+                        <label>"Labels"</label>
+                        {move || {
+                            all_labels
+                                .get()
+                                .into_iter()
+                                .map(|label| {
+                                    let name = label.name.clone();
+                                    let box_id = format!("editor-label-{name}");
+                                    let for_id = box_id.clone();
+                                    let checked_name = name.clone();
+                                    view! {
+                                        <label class="label-filter-item" for=for_id>
+                                            {label.name.clone()}
+                                            <input
+                                                type="checkbox"
+                                                id=box_id
+                                                prop:checked=move || {
+                                                    working_labels.get().contains(&checked_name)
+                                                }
+                                                disabled=move || !draft_loaded.get()
+                                                on:change={
+                                                    let name = name.clone();
+                                                    move |ev: leptos::ev::Event| {
+                                                        on_label_change(
+                                                            name.clone(),
+                                                            event_target_checked(&ev),
+                                                        );
                                                     }
-                                                    on:change=on_toggle
-                                                />
-                                            </label>
-                                        }
-                                    })
-                                    .collect_view()
-                            }}
-                            <div class="editor-new-label">
-                                <input
-                                    type="text"
-                                    id="new-label-input"
-                                    placeholder="New label…"
-                                    aria-label="New label name"
-                                    bind:value=new_label_input
-                                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                                        if ev.key() == "Enter" {
-                                            ev.prevent_default();
-                                            add_new_label.run(());
-                                        }
+                                                }
+                                            />
+                                        </label>
                                     }
-                                />
-                                <button
-                                    type="button"
-                                    id="new-label-add"
-                                    disabled=move || new_label_input.get().trim().is_empty()
-                                    on:click=move |_| add_new_label.run(())
-                                >
-                                    "Add"
-                                </button>
-                            </div>
-                        </div>
-                    })}
+                                })
+                                .collect_view()
+                        }}
+                        {move || (draft_loaded.get() && all_labels.get().is_empty()).then(|| view! {
+                            <p class="editor-label-hint">"Create labels on the Labels page first."</p>
+                        })}
+                    </div>
                     <div class="editor-bar">
                         <span class="draft-indicator" id="draft-indicator">{indicator}</span>
                         <button
@@ -412,7 +594,7 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
                             id=save_id
                             class="primary"
                             disabled=move || {
-                                busy.get() || (is_new && working_labels.get().is_empty())
+                                busy.get() || !draft_loaded.get() || working_labels.get().is_empty()
                             }
                             on:click=save
                         >
@@ -420,11 +602,19 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
                         </button>
                         <button
                             type="button"
-                            id="editor-cancel"
+                            id="editor-close"
                             disabled=move || busy.get()
-                            on:click=cancel
+                            on:click=close
                         >
-                            "Cancel"
+                            "Close"
+                        </button>
+                        <button
+                            type="button"
+                            id="editor-discard"
+                            disabled=move || busy.get()
+                            on:click=discard
+                        >
+                            "Discard"
                         </button>
                     </div>
                 </div>
@@ -436,30 +626,28 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
                     <MarkdownView
                         markdown=Signal::derive(move || solution.get())
                         id="editor-preview-solution"
-                        class="solution"
                     />
                 </div>
             </div>
-            {move || validation.get().map(|msg| view! {
-                <p class="form-error" id=validation_id>{msg}</p>
+            {move || error.get().map(|message| view! {
+                <p class="form-error" id={validation_id}>{message}</p>
             })}
             {move || confirmation.get().then(|| view! {
-                <p class="form-ok" id="add-card-confirmation">
-                    "Card created."
-                </p>
-            })}
-            {move || error.get().map(|err| view! {
-                <p class="form-error" id=error_id>"Something went wrong: " {err}</p>
+                <p class="form-ok" id="add-card-confirmation">"Card created."</p>
             })}
         </section>
     }
 }
 
-/// Local `HH:MM:SS` for the draft indicator (browser clock).
+#[cfg(feature = "csr")]
+enum EditDraftLoaded {
+    New(NewCardDraftResponse),
+    Existing(CardEditDraftResponse),
+}
+
+/// Local `HH:MM:SS` for the draft indicator.
 #[cfg(feature = "csr")]
 fn format_hms(epoch_ms: i64) -> String {
-    // Unix epoch millis fit an f64 exactly until far past any relevant
-    // date; the sub-millisecond truncation is invisible on a clock label.
     #[allow(clippy::cast_precision_loss)]
     let date = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64(epoch_ms as f64));
     format!(
@@ -468,4 +656,9 @@ fn format_hms(epoch_ms: i64) -> String {
         date.get_minutes(),
         date.get_seconds()
     )
+}
+
+#[cfg(not(feature = "csr"))]
+fn format_hms(_epoch_ms: i64) -> String {
+    String::new()
 }

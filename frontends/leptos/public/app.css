@@ -816,9 +816,8 @@ textarea:focus-visible {
   border-color: var(--accent-border);
 }
 
-/* The new-card label picker (owner decision 2026-08-01: cards get their
-   labels at creation time): existing labels as checkbox rows (same
-   left/right rhythm as the filter panel) plus the new-label input row. */
+/* The shared card-editor label picker. It sits immediately above the
+   action bar so changing labels and saving is a short mouse movement. */
 .editor-labels {
   display: flex;
   flex-direction: column;
@@ -831,22 +830,6 @@ textarea:focus-visible {
 .editor-labels .label-filter-item {
   display: flex;
   margin: 0;
-}
-
-.editor-new-label {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.editor-new-label input {
-  flex: 1;
-  box-sizing: border-box;
-  font: inherit;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.4rem 0.625rem;
 }
 
 .editor-preview {
@@ -870,6 +853,13 @@ textarea:focus-visible {
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   margin-right: auto;
+}
+
+.editor-label-hint,
+.editor-loading {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 /* Draft recovery banner (app start with a leftover autosave). */
@@ -1002,6 +992,14 @@ textarea:focus-visible {
   background: transparent;
   border: 1px solid var(--text-muted);
   color: var(--text-muted);
+}
+
+/* Pending edits must stand out from the user's ordinary label badges. */
+.badge.draft {
+  background: var(--warn);
+  border: 1px solid var(--warn);
+  color: var(--bg);
+  font-weight: 750;
 }
 
 /* The per-card label editor inside the confirm-style modal: one

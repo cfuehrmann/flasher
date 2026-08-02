@@ -30,6 +30,8 @@ pub struct Card {
     pub change_time: i64,
     /// Unix epoch millis.
     pub next_time: i64,
+    /// Monotonic content/schedule revision used to reject stale edits.
+    pub revision: i64,
     /// Label names, filled by the store's read paths after the row load.
     #[sqlx(skip)]
     pub labels: Vec<String>,
@@ -51,6 +53,29 @@ pub struct NewCard {
     pub labels: Vec<String>,
 }
 
+/// A draft for the Add card workflow. It is deliberately separate from
+/// [`CardEditDraft`], so the two editor modes can never cross-load data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewCardDraft {
+    pub prompt: String,
+    pub solution: String,
+    /// Unix epoch millis.
+    pub updated_at: i64,
+}
+
+/// A draft for one existing card.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CardEditDraft {
+    pub card_id: String,
+    pub prompt: String,
+    pub solution: String,
+    pub labels: Vec<String>,
+    /// Card revision captured when the edit draft was first created.
+    pub base_revision: i64,
+    /// Unix epoch millis.
+    pub updated_at: i64,
+}
+
 /// A label as persisted in the `labels` table (per-user unique name).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Label {
@@ -58,18 +83,6 @@ pub struct Label {
     pub name: String,
     /// Number of cards owned by the label's user that carry this label.
     pub card_count: i64,
-}
-
-/// The in-progress edit a client autosaves during a card edit session.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow)]
-pub struct AutoSave {
-    /// The card being edited (the old `AutoSave.Id`); `None` for a draft
-    /// of a brand-new card.
-    pub card_id: Option<String>,
-    pub prompt: String,
-    pub solution: String,
-    /// Unix epoch millis.
-    pub updated_at: i64,
 }
 
 /// A `WebAuthn` passkey as persisted in the `passkeys` table.

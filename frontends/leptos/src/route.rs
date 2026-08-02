@@ -214,23 +214,8 @@ pub fn replace_tab(tab: Tab) {
     }
 }
 
-/// Pushes the editor overlay's entry (`<tab>/edit`) when an editing
-/// session opens over a tab. One entry per session: browser Back while
-/// editing then pops just the overlay (popstate back to the tab path)
-/// instead of also navigating away from the tab.
-#[cfg(feature = "csr")]
-pub fn push_edit(tab: Tab) {
-    let path = format!("{}/edit", tab_to_path(tab));
-    if current_path() != path {
-        with_history(|history| {
-            _ = history.push_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&path));
-        });
-    }
-}
-
 /// Pushes the groom editor's entry (`/groom/edit/{id}`) when an edit
-/// session for a known card opens. Unlike the bare [`push_edit`] path
-/// this one is a real route: a fresh load re-opens the editor on the
+/// session for a known card opens. This is a real route: a fresh load re-opens the editor on the
 /// card. One entry per session, so browser Back closes just the overlay.
 #[cfg(feature = "csr")]
 pub fn push_groom_edit(id: &str) {
@@ -264,10 +249,6 @@ pub fn push_tab(_tab: Tab) {}
 /// ssr twin of [`replace_tab`]: no history exists server-side.
 #[cfg(not(feature = "csr"))]
 pub fn replace_tab(_tab: Tab) {}
-
-/// ssr twin of [`push_edit`]: no history exists server-side.
-#[cfg(not(feature = "csr"))]
-pub fn push_edit(_tab: Tab) {}
 
 /// ssr twin of [`push_groom_edit`]: no history exists server-side.
 #[cfg(not(feature = "csr"))]

@@ -359,15 +359,20 @@ async fn quiz_shows_due_cards_regardless_of_labels() -> Result<()> {
 }
 
 /// Add card: the label picker is mandatory (owner decision 2026-08-01) —
-/// Create stays disabled until at least one label is chosen, a fresh
-/// database offers to MINT a name inline, and the created card carries
-/// exactly the chosen labels (state=new, 30-minute initial wait).
+/// Create stays disabled until at least one existing label is chosen, and
+/// the created card carries exactly the chosen label (state=new,
+/// 30-minute initial wait). Label creation belongs to the Labels page.
 /// Submitting an empty prompt is rejected client-side and creates
 /// nothing.
 #[tokio::test]
 #[ignore = "browser"]
 async fn add_card_creates_card_with_chosen_labels() -> Result<()> {
     let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    store
+        .ensure_label(user_id, "grammar")
+        .await
+        .map_err(store_err)?;
     h.goto("/").await?;
 
     h.click("#tab-add-card").await?;
@@ -375,8 +380,7 @@ async fn add_card_creates_card_with_chosen_labels() -> Result<()> {
     h.type_into("#new-prompt", "e2e prompt").await?;
     h.type_into("#new-solution", "e2e solution").await?;
 
-    // Fresh database, no labels: Create stays disabled until a label is
-    // chosen; minting one inline enables it.
+    // Create stays disabled until an existing label is chosen.
     if !h
         .eval::<bool>("document.querySelector('#create-card').disabled")
         .await?
@@ -386,9 +390,7 @@ async fn add_card_creates_card_with_chosen_labels() -> Result<()> {
         ));
     }
     h.screenshot("03_quiz/add-card").await?;
-    h.type_into("#new-label-input", "grammar").await?;
-    h.click("#new-label-add").await?;
-    h.wait_for_selector("#new-label-grammar", TIMEOUT).await?;
+    h.click("#editor-label-grammar").await?;
     if h.eval::<bool>("document.querySelector('#create-card').disabled")
         .await?
     {
@@ -401,7 +403,6 @@ async fn add_card_creates_card_with_chosen_labels() -> Result<()> {
         .await?;
     h.screenshot("03_quiz/add-card-created").await?;
 
-    let (store, user_id) = seed_store(&h).await?;
     let (cards, count) = store
         .search_cards(user_id, Some("e2e prompt"), None, 0, 10)
         .await

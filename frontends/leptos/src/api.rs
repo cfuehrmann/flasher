@@ -7,13 +7,14 @@
 //! the components themselves cfg-free.
 
 use flasher_types::{
-    AutoSaveResponse, CardResponse, FindCardsResponse, GetAutoSaveResponse, HealthResponse,
-    LabelResponse, NextCardResponse,
+    CardDraftSummary, CardEditDraftResponse, CardResponse, FindCardsResponse, HealthResponse,
+    LabelResponse, NewCardDraftResponse, NextCardResponse,
 };
 #[cfg(feature = "csr")]
 use flasher_types::{
-    CardUpdateRequest, CreateCardRequest, CreateLabelRequest, DeleteLabelRequest,
-    LabelDeleteConflict, PutAutoSaveRequest, RenameLabelRequest, SetCardStateRequest,
+    CreateCardRequest, CreateLabelRequest, DeleteLabelRequest, LabelDeleteConflict,
+    PutCardEditDraftRequest, PutNewCardDraftRequest, RenameLabelRequest, SaveCardEditRequest,
+    SetCardStateRequest,
 };
 
 /// Result of the two-stage label delete protocol. A label with card
@@ -313,16 +314,21 @@ pub async fn find_cards(
     Err(SSR_STUB_ERROR.to_owned())
 }
 
-/// `PATCH /api/cards/{id}` — update prompt and solution. The server
-/// deletes the user's autosave draft as a side effect of the content
-/// change, so a successful save needs no separate draft cleanup.
+/// `PUT /api/cards/{id}` — commit an existing-card editor.
 #[cfg(feature = "csr")]
-pub async fn update_card(id: &str, prompt: &str, solution: &str) -> Result<CardResponse, String> {
-    let request = gloo_net::http::Request::patch(&format!("/api/cards/{id}"))
-        .json(&CardUpdateRequest {
-            prompt: Some(prompt.to_owned()),
-            solution: Some(solution.to_owned()),
-            labels: None,
+pub async fn save_card_edit(
+    id: &str,
+    expected_revision: i64,
+    prompt: &str,
+    solution: &str,
+    labels: &[String],
+) -> Result<CardResponse, String> {
+    let request = gloo_net::http::Request::put(&format!("/api/cards/{id}"))
+        .json(&SaveCardEditRequest {
+            expected_revision,
+            prompt: prompt.to_owned(),
+            solution: solution.to_owned(),
+            labels: labels.to_vec(),
         })
         .map_err(|err| err.to_string())?;
     let response = request.send().await.map_err(|err| err.to_string())?;
@@ -338,25 +344,24 @@ pub async fn update_card(id: &str, prompt: &str, solution: &str) -> Result<CardR
 /// `PATCH /api/cards/{id}` (ssr stub, never called).
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async)]
-pub async fn update_card(
+pub async fn save_card_edit(
     _id: &str,
+    _expected_revision: i64,
     _prompt: &str,
     _solution: &str,
+    _labels: &[String],
 ) -> Result<CardResponse, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
-/// `PUT /api/autosave` — upserts the current user's draft; returns the
-/// stored draft (`updated_at` only bumps on a real content change).
+/// `PUT /api/new-card-draft`.
 #[cfg(feature = "csr")]
-pub async fn put_autosave(
-    card_id: Option<&str>,
+pub async fn put_new_card_draft(
     prompt: &str,
     solution: &str,
-) -> Result<AutoSaveResponse, String> {
-    let request = gloo_net::http::Request::put("/api/autosave")
-        .json(&PutAutoSaveRequest {
-            card_id: card_id.map(str::to_owned),
+) -> Result<NewCardDraftResponse, String> {
+    let request = gloo_net::http::Request::put("/api/new-card-draft")
+        .json(&PutNewCardDraftRequest {
             prompt: prompt.to_owned(),
             solution: solution.to_owned(),
         })
@@ -366,26 +371,25 @@ pub async fn put_autosave(
         return Err(error_message(response).await);
     }
     response
-        .json::<AutoSaveResponse>()
+        .json::<NewCardDraftResponse>()
         .await
         .map_err(|err| err.to_string())
 }
 
-/// `PUT /api/autosave` (ssr stub, never called).
+/// SSR stub for `PUT /api/new-card-draft`.
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async, dead_code)]
-pub async fn put_autosave(
-    _card_id: Option<&str>,
+pub async fn put_new_card_draft(
     _prompt: &str,
     _solution: &str,
-) -> Result<AutoSaveResponse, String> {
+) -> Result<NewCardDraftResponse, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
-/// `GET /api/autosave` — the current user's draft, or `None`.
+/// `GET /api/new-card-draft`.
 #[cfg(feature = "csr")]
-pub async fn get_autosave() -> Result<GetAutoSaveResponse, String> {
-    let response = gloo_net::http::Request::get("/api/autosave")
+pub async fn get_new_card_draft() -> Result<Option<NewCardDraftResponse>, String> {
+    let response = gloo_net::http::Request::get("/api/new-card-draft")
         .send()
         .await
         .map_err(|err| err.to_string())?;
@@ -393,22 +397,22 @@ pub async fn get_autosave() -> Result<GetAutoSaveResponse, String> {
         return Err(error_message(response).await);
     }
     response
-        .json::<GetAutoSaveResponse>()
+        .json::<Option<NewCardDraftResponse>>()
         .await
         .map_err(|err| err.to_string())
 }
 
-/// `GET /api/autosave` (ssr stub, never called).
+/// SSR stub for `GET /api/new-card-draft`.
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async, dead_code)]
-pub async fn get_autosave() -> Result<GetAutoSaveResponse, String> {
+pub async fn get_new_card_draft() -> Result<Option<NewCardDraftResponse>, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
-/// `DELETE /api/autosave` — drops the current user's draft (204).
+/// `DELETE /api/new-card-draft`.
 #[cfg(feature = "csr")]
-pub async fn delete_autosave() -> Result<(), String> {
-    let response = gloo_net::http::Request::delete("/api/autosave")
+pub async fn delete_new_card_draft() -> Result<(), String> {
+    let response = gloo_net::http::Request::delete("/api/new-card-draft")
         .send()
         .await
         .map_err(|err| err.to_string())?;
@@ -418,17 +422,15 @@ pub async fn delete_autosave() -> Result<(), String> {
     Ok(())
 }
 
-/// `DELETE /api/autosave` (ssr stub, never called).
+/// SSR stub for `DELETE /api/new-card-draft`.
 #[cfg(not(feature = "csr"))]
 #[allow(clippy::unused_async)]
-pub async fn delete_autosave() -> Result<(), String> {
+pub async fn delete_new_card_draft() -> Result<(), String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
 /// `GET /api/cards/{id}` — one card by id, `Ok(None)` on 404 (unknown
-/// or deleted meanwhile). Used by the editor deep-link restore (Phase
-/// 6.6) and by draft recovery to fall back to new-card mode when the
-/// edited card no longer exists.
+/// or deleted meanwhile). Used by the editor deep-link restore.
 #[cfg(feature = "csr")]
 pub async fn get_card(id: &str) -> Result<Option<CardResponse>, String> {
     let response = gloo_net::http::Request::get(&format!("/api/cards/{id}"))
@@ -455,15 +457,21 @@ pub async fn get_card(_id: &str) -> Result<Option<CardResponse>, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 
-/// `PATCH /api/cards/{id}` — replace the card's label set; prompt and
-/// solution stay untouched.
+/// `PUT /api/cards/{id}/draft`.
 #[cfg(feature = "csr")]
-pub async fn set_card_labels(id: &str, labels: &[String]) -> Result<CardResponse, String> {
-    let request = gloo_net::http::Request::patch(&format!("/api/cards/{id}"))
-        .json(&CardUpdateRequest {
-            prompt: None,
-            solution: None,
-            labels: Some(labels.to_vec()),
+pub async fn put_card_edit_draft(
+    id: &str,
+    base_revision: i64,
+    prompt: &str,
+    solution: &str,
+    labels: &[String],
+) -> Result<CardEditDraftResponse, String> {
+    let request = gloo_net::http::Request::put(&format!("/api/cards/{id}/draft"))
+        .json(&PutCardEditDraftRequest {
+            base_revision,
+            prompt: prompt.to_owned(),
+            solution: solution.to_owned(),
+            labels: labels.to_vec(),
         })
         .map_err(|err| err.to_string())?;
     let response = request.send().await.map_err(|err| err.to_string())?;
@@ -471,15 +479,86 @@ pub async fn set_card_labels(id: &str, labels: &[String]) -> Result<CardResponse
         return Err(error_message(response).await);
     }
     response
-        .json::<CardResponse>()
+        .json::<CardEditDraftResponse>()
         .await
         .map_err(|err| err.to_string())
 }
 
-/// `PATCH /api/cards/{id}` (ssr stub, never called).
 #[cfg(not(feature = "csr"))]
-#[allow(clippy::unused_async)]
-pub async fn set_card_labels(_id: &str, _labels: &[String]) -> Result<CardResponse, String> {
+#[allow(clippy::unused_async, dead_code)]
+pub async fn put_card_edit_draft(
+    _id: &str,
+    _base_revision: i64,
+    _prompt: &str,
+    _solution: &str,
+    _labels: &[String],
+) -> Result<CardEditDraftResponse, String> {
+    Err(SSR_STUB_ERROR.to_owned())
+}
+
+/// `GET /api/cards/{id}/draft`.
+#[cfg(feature = "csr")]
+pub async fn get_card_edit_draft(id: &str) -> Result<Option<CardEditDraftResponse>, String> {
+    let response = gloo_net::http::Request::get(&format!("/api/cards/{id}/draft"))
+        .send()
+        .await
+        .map_err(|err| err.to_string())?;
+    if response.status() == 404 {
+        return Ok(None);
+    }
+    if response.status() != 200 {
+        return Err(error_message(response).await);
+    }
+    response
+        .json::<Option<CardEditDraftResponse>>()
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[cfg(not(feature = "csr"))]
+#[allow(clippy::unused_async, dead_code)]
+pub async fn get_card_edit_draft(_id: &str) -> Result<Option<CardEditDraftResponse>, String> {
+    Err(SSR_STUB_ERROR.to_owned())
+}
+
+/// `DELETE /api/cards/{id}/draft`.
+#[cfg(feature = "csr")]
+pub async fn delete_card_edit_draft(id: &str) -> Result<(), String> {
+    let response = gloo_net::http::Request::delete(&format!("/api/cards/{id}/draft"))
+        .send()
+        .await
+        .map_err(|err| err.to_string())?;
+    if response.status() != 204 {
+        return Err(error_message(response).await);
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "csr"))]
+#[allow(clippy::unused_async, dead_code)]
+pub async fn delete_card_edit_draft(_id: &str) -> Result<(), String> {
+    Err(SSR_STUB_ERROR.to_owned())
+}
+
+/// `GET /api/card-drafts` — cards with pending edit drafts.
+#[cfg(feature = "csr")]
+pub async fn card_drafts() -> Result<Vec<CardDraftSummary>, String> {
+    let response = gloo_net::http::Request::get("/api/card-drafts")
+        .send()
+        .await
+        .map_err(|err| err.to_string())?;
+    if response.status() != 200 {
+        return Err(error_message(response).await);
+    }
+    response
+        .json::<Vec<CardDraftSummary>>()
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[cfg(not(feature = "csr"))]
+#[allow(clippy::unused_async, dead_code)]
+pub async fn card_drafts() -> Result<Vec<CardDraftSummary>, String> {
     Err(SSR_STUB_ERROR.to_owned())
 }
 

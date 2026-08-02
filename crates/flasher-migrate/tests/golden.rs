@@ -34,6 +34,7 @@ struct CardRow {
     state: String,
     change_time: i64,
     next_time: i64,
+    revision: i64,
 }
 
 #[derive(serde::Serialize, sqlx::FromRow)]
@@ -50,11 +51,21 @@ struct CardLabelRow {
 }
 
 #[derive(serde::Serialize, sqlx::FromRow)]
-struct AutosaveRow {
+struct NewCardDraftRow {
     user_id: i64,
-    card_id: Option<String>,
     prompt: String,
     solution: String,
+    updated_at: i64,
+}
+
+#[derive(serde::Serialize, sqlx::FromRow)]
+struct CardEditDraftRow {
+    user_id: i64,
+    card_id: String,
+    prompt: String,
+    solution: String,
+    labels: String,
+    base_revision: i64,
     updated_at: i64,
 }
 
@@ -84,8 +95,8 @@ async fn dump(store: &Store) -> Result<serde_json::Value, sqlx::Error> {
             .fetch_all(pool)
             .await?;
     let cards = sqlx::query_as::<_, CardRow>(
-        "SELECT id, user_id, prompt, solution, state, change_time, next_time \
-         FROM cards ORDER BY user_id, id",
+        "SELECT id, user_id, prompt, solution, state, change_time, next_time, \
+         revision FROM cards ORDER BY user_id, id",
     )
     .fetch_all(pool)
     .await?;
@@ -100,8 +111,15 @@ async fn dump(store: &Store) -> Result<serde_json::Value, sqlx::Error> {
     )
     .fetch_all(pool)
     .await?;
-    let autosaves = sqlx::query_as::<_, AutosaveRow>(
-        "SELECT user_id, card_id, prompt, solution, updated_at FROM autosaves ORDER BY user_id",
+    let new_card_drafts = sqlx::query_as::<_, NewCardDraftRow>(
+        "SELECT user_id, prompt, solution, updated_at \
+         FROM new_card_drafts ORDER BY user_id",
+    )
+    .fetch_all(pool)
+    .await?;
+    let card_edit_drafts = sqlx::query_as::<_, CardEditDraftRow>(
+        "SELECT user_id, card_id, prompt, solution, labels, base_revision, updated_at \
+         FROM card_edit_drafts ORDER BY user_id, card_id",
     )
     .fetch_all(pool)
     .await?;
@@ -123,7 +141,8 @@ async fn dump(store: &Store) -> Result<serde_json::Value, sqlx::Error> {
         "cards": cards,
         "labels": labels,
         "card_labels": card_labels,
-        "autosaves": autosaves,
+        "new_card_drafts": new_card_drafts,
+        "card_edit_drafts": card_edit_drafts,
     }))
 }
 

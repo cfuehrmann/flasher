@@ -546,7 +546,7 @@ async fn capture_app_screenshots() -> Result<()> {
     )
     .await?;
     shoot_both(&h, "editor").await?;
-    h.click("#editor-cancel").await?;
+    h.click("#editor-close").await?;
     h.wait_for_selector("#groom-search", TIMEOUT).await?;
 
     // --- Account: identity + passkey management ---
@@ -576,22 +576,26 @@ async fn capture_app_screenshots() -> Result<()> {
     h.wait_for_selector("#labels-list", TIMEOUT).await?;
     shoot_both(&h, "labels").await?;
 
-    // --- Recovery banner: a leftover autosave draft prompts on start ---
+    // --- New-card draft: re-entering Add card restores it inline ---
     store
-        .put_autosave(
+        .put_new_card_draft(
             user_id,
-            None,
             "Draft of a card about the CAP theorem …",
             "… with its half-finished solution.",
             now_ms() - 300_000,
         )
         .await
         .map_err(store_err)?;
-    h.goto("/").await?;
-    h.wait_for_selector("#recovery-banner", TIMEOUT).await?;
-    shoot_both(&h, "recovery-banner").await?;
-    h.click("#discard-draft").await?;
-    wait_until_gone(&h, "#recovery-banner", TIMEOUT).await?;
+    h.goto("/add").await?;
+    wait_for_js(
+        &h,
+        "document.querySelector('#new-prompt')?.value.includes('CAP theorem')",
+        TIMEOUT,
+    )
+    .await?;
+    shoot_both(&h, "new-card-draft").await?;
+    h.click("#editor-discard").await?;
+    h.wait_for_text("#quiz-done", "All done", TIMEOUT).await?;
 
     Ok(())
 }

@@ -19,7 +19,7 @@
 
 use std::path::{Path, PathBuf};
 
-use flasher_store::{AutoSave, Card, CardState, Store};
+use flasher_store::{Card, CardState, Store};
 use serde::Deserialize;
 use time::format_description::FormatItem;
 use time::format_description::well_known::Rfc3339;
@@ -152,8 +152,16 @@ pub fn render_report(report: &Report) -> String {
 struct LegacyUser {
     username: String,
     cards: Vec<Card>,
-    autosave: Option<AutoSave>,
+    autosave: Option<ImportedDraft>,
     notes: Vec<String>,
+}
+
+#[derive(Debug)]
+struct ImportedDraft {
+    card_id: Option<String>,
+    prompt: String,
+    solution: String,
+    updated_at: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -283,6 +291,7 @@ fn parse_user(dir: &Path, username: &str, now: i64) -> Result<Option<LegacyUser>
                 state: CardState::from(legacy.state),
                 change_time: parse_datetime(&cards_path, &legacy.change_time)?,
                 next_time: parse_datetime(&cards_path, &legacy.next_time)?,
+                revision: 0,
                 // The legacy flag maps to these label names (opaque to
                 // the app — meaningful only as this import's mapping of
                 // the old `disabled` semantics; nothing is seeded).
@@ -307,7 +316,7 @@ fn parse_user(dir: &Path, username: &str, now: i64) -> Result<Option<LegacyUser>
                 source: serde::de::Error::missing_field("Prompt/Solution"),
             });
         };
-        autosave = Some(AutoSave {
+        autosave = Some(ImportedDraft {
             card_id: legacy.id,
             prompt,
             solution,
@@ -442,15 +451,30 @@ async fn import_impl(
             store.upsert_card(db_user.id, card).await?;
         }
         if let Some(autosave) = &user.autosave {
-            store
-                .put_autosave(
-                    db_user.id,
-                    autosave.card_id.as_deref(),
-                    &autosave.prompt,
-                    &autosave.solution,
-                    autosave.updated_at,
-                )
-                .await?;
+            if let Some(card_id) = autosave.card_id.as_deref() {
+                if let Some(card) = store.get_card(db_user.id, card_id).await? {
+                    store
+                        .put_card_edit_draft(
+                            db_user.id,
+                            card_id,
+                            card.revision,
+                            &autosave.prompt,
+                            &autosave.solution,
+                            &[],
+                            autosave.updated_at,
+                        )
+                        .await?;
+                }
+            } else {
+                store
+                    .put_new_card_draft(
+                        db_user.id,
+                        &autosave.prompt,
+                        &autosave.solution,
+                        autosave.updated_at,
+                    )
+                    .await?;
+            }
         }
 
         let verified = verify(store, db_user.id, user).await?;
@@ -520,6 +544,23 @@ async fn verify(store: &Store, user_id: i64, user: &LegacyUser) -> Result<bool, 
             return Ok(false);
         }
     }
-    let has_autosave = store.get_autosave(user_id).await?.is_some();
-    Ok(has_autosave == user.autosave.is_some())
+    let has_new_draft = store.get_new_card_draft(user_id).await?.is_some();
+    let has_edit_draft = store
+        .list_card_edit_drafts(user_id)
+        .await?
+        .iter()
+        .any(|(id, _)| {
+            user.autosave
+                .as_ref()
+                .and_then(|draft| draft.card_id.as_deref())
+                == Some(id.as_str())
+        });
+    let expected_draft = user.autosave.as_ref().is_some_and(|draft| {
+        draft.card_id.is_none()
+            || user
+                .cards
+                .iter()
+                .any(|card| Some(card.id.as_str()) == draft.card_id.as_deref())
+    });
+    Ok((has_new_draft || has_edit_draft) == expected_draft)
 }

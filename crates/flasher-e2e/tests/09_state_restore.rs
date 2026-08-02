@@ -2,11 +2,10 @@
 //! keeps the tab and the groom editor (`/groom/edit/{id}`), but NOT the
 //! quiz's solution-revealed state — that is transient and a refresh
 //! always starts collapsed at the prompt. A
-//! server-side autosave draft matching the restored editor prefills it
-//! inline (F5 as a mini crash recovery) instead of prompting the
-//! recovery banner; a non-matching draft still banners. All click-driven
-//! through the browser, with the database only used for seeding and
-//! white-box verification.
+//! target-scoped server-side drafts matching the restored editor prefill it
+//! inline (F5 as a mini crash recovery). Drafts are never shown as a global
+//! recovery prompt. All journeys are click-driven through the browser, with
+//! the database only used for seeding and white-box verification.
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -17,9 +16,8 @@ use flasher_store::{CardState, NewCard, Store};
 /// download and boot first (same reasoning as the harness default).
 const TIMEOUT: Duration = Duration::from_secs(15);
 
-/// Waiting for the autosave indicator: the interval ticks every 5 s, so
-/// the first "draft saved" can take a full tick plus the PUT round-trip.
-const AUTOSAVE_TIMEOUT: Duration = Duration::from_secs(25);
+/// Waiting for the draft indicator and its server round-trip.
+const AUTOSAVE_TIMEOUT: Duration = Duration::from_secs(15);
 
 fn now_ms() -> i64 {
     SystemTime::now()
@@ -230,7 +228,7 @@ async fn reveal_adds_no_history_entry() -> Result<()> {
 }
 
 /// (c) The groom editor survives a reload WITH its draft: open Edit,
-/// type, wait for the autosave, reload at `/groom/edit/{id}` — the
+/// type, wait for the draft save, reload at `/groom/edit/{id}` — the
 /// editor re-opens with the TYPED text (not the original card content)
 /// and no recovery banner; Save persists the typed text.
 #[tokio::test]
@@ -262,6 +260,8 @@ async fn editor_survives_reload_with_draft() -> Result<()> {
     // recovered inline.
     h.goto("/groom/edit/card-edit").await?;
     h.wait_for_selector("#editor-prompt", TIMEOUT).await?;
+    h.wait_for_text("#draft-indicator", "draft saved", AUTOSAVE_TIMEOUT)
+        .await?;
     let prompt = field_value(&h, "#editor-prompt").await?;
     if prompt != "Seed prompt v2" {
         return Err(Error::message(format!(
@@ -298,9 +298,9 @@ async fn editor_survives_reload_with_draft() -> Result<()> {
     Ok(())
 }
 
-/// (d) Like (c), but the card is deleted before the reload: the edit
-/// URL's fetch 404s, the app falls back to the Groom tab (URL `/groom`)
-/// and the orphaned draft still prompts the recovery banner.
+/// (d) Like (c), but the card is deleted before the reload: deleting the
+/// card also deletes its target-scoped draft, and the edit URL falls back
+/// to Groom without exposing the deleted card's data.
 #[tokio::test]
 #[ignore = "browser"]
 async fn editor_reload_deleted_card_falls_back() -> Result<()> {
@@ -335,11 +335,11 @@ async fn editor_reload_deleted_card_falls_back() -> Result<()> {
     }
 
     // Reload at the now-dangling edit URL: 404 → Groom tab, URL
-    // rewritten to /groom, and the draft prompts the banner.
+    // rewritten to /groom, with no orphaned draft or global prompt.
     h.goto("/groom/edit/card-doom").await?;
     h.wait_for_selector("#groom-search", TIMEOUT).await?;
     wait_for_path(&h, "/groom").await?;
-    h.wait_for_selector("#recovery-banner", TIMEOUT).await?;
+    assert_absent(&h, "#recovery-banner").await?;
     if h.eval::<bool>("!!document.querySelector('#editor-prompt')")
         .await?
     {
@@ -347,7 +347,8 @@ async fn editor_reload_deleted_card_falls_back() -> Result<()> {
             "the editor must not open for a deleted card",
         ));
     }
-    h.screenshot("09_state_restore/deleted-card-banner").await?;
+    h.screenshot("09_state_restore/deleted-card-no-draft")
+        .await?;
     Ok(())
 }
 
@@ -368,6 +369,8 @@ async fn add_tab_draft_prefill() -> Result<()> {
     // Reload at /add: the fields hold the draft, the banner stays away.
     h.goto("/add").await?;
     h.wait_for_selector("#new-prompt", TIMEOUT).await?;
+    h.wait_for_text("#draft-indicator", "draft saved", AUTOSAVE_TIMEOUT)
+        .await?;
     let prompt = field_value(&h, "#new-prompt").await?;
     if prompt != "Add draft prompt" {
         return Err(Error::message(format!(
@@ -385,11 +388,11 @@ async fn add_tab_draft_prefill() -> Result<()> {
     Ok(())
 }
 
-/// (f) A draft for an existing card, unrelated to the loaded route,
-/// still prompts the banner; Recover opens the editor with the draft.
+/// (f) A draft for an existing card is invisible outside that card's
+/// editor, and re-entering Edit restores it directly without a banner.
 #[tokio::test]
 #[ignore = "browser"]
-async fn unrelated_draft_still_banners() -> Result<()> {
+async fn edit_draft_is_visible_only_in_matching_editor() -> Result<()> {
     let h = TestHarness::start().await?;
     let (store, user_id) = seed_store(&h).await?;
     seed_card(
@@ -401,17 +404,36 @@ async fn unrelated_draft_still_banners() -> Result<()> {
         now_ms() + 60_000,
     )
     .await?;
+    let card = store
+        .get_card(user_id, "card-x")
+        .await
+        .map_err(store_err)?
+        .ok_or_else(|| Error::message("card-x vanished"))?;
     store
-        .put_autosave(user_id, Some("card-x"), "Draft P", "Draft S", now_ms())
+        .put_card_edit_draft(
+            user_id,
+            "card-x",
+            card.revision,
+            "Draft P",
+            "Draft S",
+            &["Enabled".to_owned()],
+            now_ms(),
+        )
         .await
         .map_err(store_err)?;
 
-    // Fresh load at /quiz: the draft matches no restored editor, so
-    // the banner is the recovery surface.
+    // Fresh load at /quiz has no global recovery surface.
     h.goto("/quiz").await?;
-    h.wait_for_selector("#recovery-banner", TIMEOUT).await?;
-    h.click("#recover-draft").await?;
+    h.wait_for_text("#quiz-done", "All done", TIMEOUT).await?;
+    assert_absent(&h, "#recovery-banner").await?;
+
+    // Groom shows the persisted card plus a distinct Draft badge.
+    h.click("#tab-groom").await?;
+    h.wait_for_selector("#draft-card-x", TIMEOUT).await?;
+    h.click("#edit-card-x").await?;
     h.wait_for_selector("#editor-prompt", TIMEOUT).await?;
+    h.wait_for_text("#draft-indicator", "draft saved", AUTOSAVE_TIMEOUT)
+        .await?;
     let prompt = field_value(&h, "#editor-prompt").await?;
     if prompt != "Draft P" {
         return Err(Error::message(format!(
@@ -424,9 +446,8 @@ async fn unrelated_draft_still_banners() -> Result<()> {
             "recovered editor should hold the draft solution, shows: {solution:?}"
         )));
     }
-    // The recovered edit of an existing card is a real route.
     wait_for_path(&h, "/groom/edit/card-x").await?;
-    h.screenshot("09_state_restore/banner-recovered-editor")
+    h.screenshot("09_state_restore/target-scoped-editor")
         .await?;
     Ok(())
 }
@@ -657,7 +678,7 @@ async fn tab_switch_collapses_reveal() -> Result<()> {
 /// after re-login the first-load restore gate has re-engaged, so /add
 /// mounts PREFILLED with the draft and no recovery banner. The expiry
 /// is simulated by deleting the live session server-side (identified
-/// via the browser's cookie) and letting the next autosave tick hit the
+/// via the browser's cookie) and letting the next draft-save tick hit the
 /// 401 — the natural "session expired" path, just faster.
 #[tokio::test]
 #[ignore = "browser"]
@@ -674,7 +695,7 @@ async fn relogin_on_add_restores_draft_prefill() -> Result<()> {
     h.click("#sign-in").await?;
     h.wait_for_selector("#new-prompt", TIMEOUT).await?;
 
-    // Type a draft and wait for the autosave round-trip.
+    // Type a draft and wait for the server round-trip.
     h.type_into("#new-prompt", "Relogin draft prompt").await?;
     h.wait_for_text("#draft-indicator", "draft saved", AUTOSAVE_TIMEOUT)
         .await?;
@@ -689,7 +710,7 @@ async fn relogin_on_add_restores_draft_prefill() -> Result<()> {
         return Err(Error::message("the live session should have been deleted"));
     }
 
-    // Dirty the editor so the next autosave tick PUTs, hits the 401 and
+    // Dirty the editor so the next draft-save tick PUTs, hits the 401 and
     // bounces the app to the auth screen.
     h.type_into("#new-prompt", "!").await?;
     h.wait_for_selector("#sign-in", AUTOSAVE_TIMEOUT).await?;
