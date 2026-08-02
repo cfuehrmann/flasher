@@ -8,10 +8,10 @@
 //! The label filter above the card (labels dissolved the hardcoded
 //! enabled-only rule, owner decision 2026-08-01) selects which labels
 //! may be quizzed — union semantics, any selected label matches. The
-//! first-usage default is everything selected (label names carry no
-//! semantics, so there is no name-based default); the selection persists
-//! in `localStorage`, independent of the groom tab's own persisted
-//! selection. Changing it refetches the next card.
+//! first-usage default is everything selected; the selection is keyed by
+//! stable label ID and persists in `localStorage`, independent of the groom
+//! tab's own persisted selection. Names are resolved only at the existing
+//! card-filter API boundary. Changing it refetches the next card.
 //!
 //! The reveal state is deliberately NOT mirrored into the URL or anywhere
 //! else: it is transient in-memory state, so a browser refresh (or a tab
@@ -22,9 +22,11 @@ use flasher_types::{CardResponse, LabelResponse};
 use leptos::prelude::*;
 
 use crate::api;
-use crate::labels::{LabelFilter, join_labels};
+use crate::labels::{
+    LabelFilter, StoredLabelSelection, join_labels, resolve_stored_labels, selected_label_names,
+};
 #[cfg(feature = "csr")]
-use crate::labels::{split_labels, storage_get, storage_set};
+use crate::labels::{join_label_ids, split_stored_labels, storage_get, storage_set};
 use crate::markdown::MarkdownView;
 
 /// `localStorage` key for the quiz's label selection — deliberately NOT
@@ -34,12 +36,11 @@ use crate::markdown::MarkdownView;
 const STORAGE_LABELS_KEY: &str = "flasher-quiz-labels";
 
 /// The persisted quiz label selection, or `None` when nothing is
-/// stored — the default (ALL labels; names carry no semantics, so no
-/// name-based default exists) is applied once the labels list lands.
-fn initial_labels() -> Option<Vec<String>> {
+/// stored — the default (ALL labels) is applied once the labels list lands.
+fn initial_labels() -> Option<Vec<StoredLabelSelection>> {
     #[cfg(feature = "csr")]
     if let Some(raw) = storage_get(STORAGE_LABELS_KEY) {
-        return Some(split_labels(&raw));
+        return Some(split_stored_labels(&raw));
     }
     None
 }
@@ -72,8 +73,8 @@ pub fn Quiz() -> impl IntoView {
     let initial_selection = initial_labels();
     // Only the csr effects read this (their code is cfg'd out under ssr).
     #[cfg_attr(not(feature = "csr"), allow(unused_variables))]
-    let selection_ready = RwSignal::new(initial_selection.is_some());
-    let selected = RwSignal::new(initial_selection.unwrap_or_default());
+    let selection_ready = RwSignal::new(false);
+    let selected = RwSignal::new(Vec::<i64>::new());
     // The user's labels (for the filter's checkbox panel).
     let all_labels = RwSignal::new(Vec::<LabelResponse>::new());
 
@@ -92,7 +93,8 @@ pub fn Quiz() -> impl IntoView {
         state.set(QuizState::Loading);
         fetch_generation.update(|count| *count += 1);
         let armed = fetch_generation.get_untracked();
-        let labels = join_labels(&selected.get_untracked());
+        let names = selected_label_names(&all_labels.get_untracked(), &selected.get_untracked());
+        let labels = join_labels(&names);
         leptos::task::spawn_local(async move {
             let result = api::next_card(&labels).await;
             if fetch_generation.get_untracked() != armed {
@@ -108,16 +110,30 @@ pub fn Quiz() -> impl IntoView {
     });
 
     // Loads the labels list (the filter's panel); the default selection
-    // (ALL labels) applies where the names are known. Shared by the
+    // (ALL labels) applies where the IDs are known. Shared by the
     // mount load and the error retry (adversarial review 2026-08-01: a
     // retry must reload the labels too, or a transient failure leaves an
     // empty panel).
     let load_labels = Callback::new(move |(): ()| {
+        let stored_selection = initial_selection.clone();
         leptos::task::spawn_local(async move {
             match api::labels().await {
                 Ok(labels) => {
                     if !selection_ready.get_untracked() {
-                        selected.set(labels.iter().map(|label| label.name.clone()).collect());
+                        let next = stored_selection.as_deref().map_or_else(
+                            || labels.iter().map(|label| label.id).collect(),
+                            |stored| resolve_stored_labels(stored, &labels),
+                        );
+                        selected.set(next.clone());
+                        #[cfg(feature = "csr")]
+                        // An empty first load means the user has no labels
+                        // yet. Do not persist that empty default: a label
+                        // created later must be selected by the next Quiz
+                        // mount. An explicitly stored empty selection is
+                        // intentional and must remain empty.
+                        if stored_selection.is_some() || !labels.is_empty() {
+                            storage_set(STORAGE_LABELS_KEY, &join_label_ids(&next));
+                        }
                         selection_ready.set(true);
                     }
                     all_labels.set(labels);
@@ -132,9 +148,9 @@ pub fn Quiz() -> impl IntoView {
     // Selection change: persist (localStorage) and refetch the next
     // card — a deliberate act, so abandoning the current card is right
     // (it may no longer match).
-    let on_label_change = Callback::new(move |next: Vec<String>| {
+    let on_label_change = Callback::new(move |next: Vec<i64>| {
         #[cfg(feature = "csr")]
-        storage_set(STORAGE_LABELS_KEY, &join_labels(&next));
+        storage_set(STORAGE_LABELS_KEY, &join_label_ids(&next));
         selected.set(next);
     });
 

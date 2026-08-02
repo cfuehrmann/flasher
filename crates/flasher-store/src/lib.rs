@@ -75,6 +75,18 @@ pub enum SetCardState {
     NotFound,
 }
 
+/// Outcome of [`Store::delete_label`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeleteLabel {
+    /// No label with this id belongs to the requested user.
+    NotFound,
+    /// The label is still attached to this many cards and confirmation was
+    /// not supplied.
+    InUse(i64),
+    /// The label was deleted, and this many card associations were removed.
+    Deleted(i64),
+}
+
 /// A connection pool to the Flasher `SQLite` database.
 #[derive(Debug, Clone)]
 pub struct Store {
@@ -357,6 +369,84 @@ impl Store {
                 .fetch_one(&self.pool)
                 .await?;
         Ok(id)
+    }
+
+    /// Creates a label owned by `user_id`.
+    ///
+    /// # Errors
+    /// Returns an error on database failure, including a uniqueness
+    /// violation when the user already has the exact name.
+    pub async fn create_label(&self, user_id: i64, name: &str) -> Result<Label, Error> {
+        let label = sqlx::query_as::<_, Label>(
+            "INSERT INTO labels (user_id, name) VALUES (?, ?) RETURNING id, name",
+        )
+        .bind(user_id)
+        .bind(name)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(label)
+    }
+
+    /// Renames a label owned by this user. Returns `None` for an unknown
+    /// or other-user id.
+    ///
+    /// # Errors
+    /// Returns an error on database failure, including a uniqueness
+    /// violation when the new name already exists for this user.
+    pub async fn rename_label(
+        &self,
+        user_id: i64,
+        id: i64,
+        name: &str,
+    ) -> Result<Option<Label>, Error> {
+        let label = sqlx::query_as::<_, Label>(
+            "UPDATE labels SET name = ? WHERE user_id = ? AND id = ? \
+             RETURNING id, name",
+        )
+        .bind(name)
+        .bind(user_id)
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(label)
+    }
+
+    /// Checks a label's card usage and deletes it only when `confirm` is
+    /// true. The check and delete share one transaction, so the final
+    /// confirmation cannot silently remove a changed set of associations.
+    /// The label's `ON DELETE CASCADE` foreign key removes its card links.
+    ///
+    /// # Errors
+    /// Returns an error on database failure.
+    pub async fn delete_label(
+        &self,
+        user_id: i64,
+        id: i64,
+        confirm: bool,
+    ) -> Result<DeleteLabel, Error> {
+        let mut transaction = self.pool.begin().await?;
+        let usage = sqlx::query_as::<_, (i64, i64)>(
+            "SELECT l.id, COUNT(cl.card_id) FROM labels l \
+             LEFT JOIN card_labels cl ON cl.label_id = l.id \
+             WHERE l.user_id = ? AND l.id = ? GROUP BY l.id",
+        )
+        .bind(user_id)
+        .bind(id)
+        .fetch_optional(&mut *transaction)
+        .await?;
+        let Some((_, affected_cards)) = usage else {
+            return Ok(DeleteLabel::NotFound);
+        };
+        if affected_cards > 0 && !confirm {
+            return Ok(DeleteLabel::InUse(affected_cards));
+        }
+        sqlx::query("DELETE FROM labels WHERE user_id = ? AND id = ?")
+            .bind(user_id)
+            .bind(id)
+            .execute(&mut *transaction)
+            .await?;
+        transaction.commit().await?;
+        Ok(DeleteLabel::Deleted(affected_cards))
     }
 
     /// The label names attached to one card, ordered by name.

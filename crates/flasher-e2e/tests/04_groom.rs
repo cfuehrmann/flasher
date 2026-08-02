@@ -387,7 +387,8 @@ async fn clear_button_resets_search() -> Result<()> {
     let (store, user_id) = seed_store(&h).await?;
     seed_page_cards(&store, user_id, 3, "card-clear-").await?;
 
-    goto_groom(&h).await?;
+    h.goto("/groom").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
     h.wait_for_text("#groom-page-info", "of 3", TIMEOUT).await?;
     let disabled = h
         .eval::<bool>("document.querySelector('#groom-clear').disabled")
@@ -510,7 +511,7 @@ async fn filter_enabled_disabled_all() -> Result<()> {
 async fn expect_restored(h: &TestHarness) -> Result<()> {
     h.wait_for_text("#groom-page-info", "of 1", TIMEOUT).await?;
     let labels = persisted_labels(h, "flasher-groom-labels").await?;
-    if labels != "Disabled" {
+    if labels != "id:1" {
         return Err(Error::message(format!(
             "the label selection should be restored as Disabled, is {labels:?}"
         )));
@@ -1450,21 +1451,67 @@ async fn resize_refits_and_keeps_anchor() -> Result<()> {
 #[ignore = "browser"]
 async fn sticky_chrome_keeps_header_and_controls_pinned() -> Result<()> {
     let h = TestHarness::start().await?;
-    h.set_viewport(1280, 280).await?;
+    // Keep the responsive header visible for this probe. At desktop width
+    // the persistent sidebar owns the chrome and `.top` is intentionally
+    // display:none; the drawer breakpoint is the state whose sticky header
+    // and groom controls this test needs to measure.
+    // The groom chrome itself is taller than the old 280px probe after the
+    // permanent labels row; keep enough viewport for it to remain pinned.
+    h.set_viewport(900, 550).await?;
     let (store, user_id) = seed_store(&h).await?;
-    seed_page_cards(&store, user_id, 6, "card-s").await?;
+    // The fit pass deliberately removes overflow from the first page. Load
+    // short rows first, then add taller rows after calibration: the next
+    // window must overflow, which gives the sticky chrome a real scroll
+    // surface to protect.
+    seed_page_cards(&store, user_id, 3, "card-s").await?;
 
-    goto_groom(&h).await?;
+    h.goto("/groom").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
     let fit = wait_for_calibration(&h).await?;
-    // Premise: even the fitted page overflows the tiny viewport, so the
-    // page genuinely scrolls.
+    if fit >= 10 {
+        return Err(Error::message(format!(
+            "test premise: the short fixture should produce multiple pages, is {fit}"
+        )));
+    }
+    let long_prompt = "A deliberately long prompt that wraps to a second line so a later groom window is taller than the calibrated first window. ".repeat(30);
+    let later = now_ms();
+    for i in 4..=20 {
+        let mut labels = vec!["Enabled".to_owned()];
+        labels.extend((0..60).map(|j| format!("Tall-{i}-{j}")));
+        store
+            .insert_card(&NewCard {
+                user_id,
+                id: format!("card-s{i:02}"),
+                prompt: long_prompt.clone(),
+                solution: "Long solution".to_owned(),
+                state: CardState::New,
+                change_time: later,
+                next_time: later + i64::from(i) * 60_000,
+                labels,
+            })
+            .await
+            .map_err(store_err)?;
+    }
+    // The first page was already calibrated against the short cards, so the
+    // newly inserted long cards become the intentionally overflowing page.
+    h.click("#groom-next").await?;
+    h.wait_for_text("#groom-page-info", &showing_at(fit, fit, 20), TIMEOUT)
+        .await?;
+    h.click("#groom-next").await?;
+    h.wait_for_text("#groom-page-info", &showing_at(fit * 2, fit, 20), TIMEOUT)
+        .await?;
     if !h
         .eval::<bool>("document.scrollingElement.scrollHeight > window.innerHeight + 1")
         .await?
     {
-        return Err(Error::message(
-            "test premise: the tiny viewport should overflow even after the fit",
-        ));
+        let metrics = h
+            .eval::<String>(
+                "JSON.stringify({scroll: document.scrollingElement.scrollHeight, inner: window.innerHeight, fit: document.querySelectorAll('.groom-row').length, rows: [...document.querySelectorAll('.groom-row')].map(r => Math.round(r.getBoundingClientRect().height)), app: Math.round(document.querySelector('.app').getBoundingClientRect().height), results: Math.round(document.querySelector('#groom-results').getBoundingClientRect().height)})",
+            )
+            .await?;
+        return Err(Error::message(format!(
+            "test premise: the later window should overflow even after the fit ({metrics})"
+        )));
     }
     h.eval::<bool>("window.scrollTo(0, document.scrollingElement.scrollHeight); true")
         .await?;
@@ -1491,14 +1538,14 @@ async fn sticky_chrome_keeps_header_and_controls_pinned() -> Result<()> {
         )));
     }
     // The pinned paging buttons still work while scrolled to the bottom.
-    h.click("#groom-next").await?;
-    h.wait_for_text("#groom-page-info", &showing(1, fit, 6), TIMEOUT)
+    h.click("#groom-prev").await?;
+    h.wait_for_text("#groom-page-info", &showing(1, fit, 20), TIMEOUT)
         .await?;
     h.screenshot("04_groom/sticky-scrolled").await?;
 
     // The header is sticky on the other tabs too: the Add card editor
     // overflows this viewport as well.
-    h.click("#tab-add-card").await?;
+    h.goto("/add").await?;
     h.wait_for_selector("#new-prompt", TIMEOUT).await?;
     if !h
         .eval::<bool>("document.scrollingElement.scrollHeight > window.innerHeight + 1")

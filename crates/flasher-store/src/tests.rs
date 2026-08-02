@@ -1,7 +1,9 @@
 //! Observable-behavior tests for `Store`, run against real `SQLite`
 //! (in-memory, plus one tempfile-backed test for `connect`).
 
-use super::{Card, CardState, Error, LEGACY_MIGRATION_METADATA, NewCard, SetCardState, Store};
+use super::{
+    Card, CardState, DeleteLabel, Error, LEGACY_MIGRATION_METADATA, NewCard, SetCardState, Store,
+};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -206,6 +208,61 @@ async fn fresh_user_has_no_labels() -> TestResult {
     for id in [user.id, other.id] {
         assert!(store.labels(id).await?.is_empty());
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn label_crud_is_scoped_and_delete_requires_confirmation_when_used() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let user = store.create_user("alice").await?;
+    let other = store.create_user("bob").await?;
+
+    let created = store.create_label(user.id, "Topics").await?;
+    assert_eq!(created.name, "Topics");
+    assert_eq!(store.labels(other.id).await?, Vec::new());
+
+    let unused = store.create_label(user.id, "Unused").await?;
+    assert_eq!(
+        store.delete_label(user.id, unused.id, false).await?,
+        DeleteLabel::Deleted(0)
+    );
+
+    let renamed = store
+        .rename_label(user.id, created.id, "Subjects")
+        .await?
+        .ok_or("label vanished during rename")?;
+    assert_eq!(renamed.name, "Subjects");
+    assert_eq!(
+        store.rename_label(other.id, created.id, "Nope").await?,
+        None
+    );
+
+    let mut card = new_card(user.id, "c-label");
+    card.labels = names(&["Subjects"]);
+    store.insert_card(&card).await?;
+
+    assert_eq!(
+        store.delete_label(user.id, created.id, false).await?,
+        DeleteLabel::InUse(1)
+    );
+    assert_eq!(store.labels(user.id).await?.len(), 1);
+    assert_eq!(
+        store.delete_label(other.id, created.id, true).await?,
+        DeleteLabel::NotFound
+    );
+    assert_eq!(
+        store.delete_label(user.id, created.id, true).await?,
+        DeleteLabel::Deleted(1)
+    );
+    assert!(store.labels(user.id).await?.is_empty());
+    assert_eq!(
+        store.get_card(user.id, "c-label").await?.map(|c| c.labels),
+        Some(Vec::new())
+    );
+    assert_eq!(
+        store.delete_label(user.id, created.id, true).await?,
+        DeleteLabel::NotFound
+    );
     Ok(())
 }
 

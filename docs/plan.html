@@ -621,6 +621,13 @@ browser e2e (clicking) together — never a backend without its user-facing test
     an expanded labeled left sidebar; narrower screens use the same closed-by-default labeled
     drawer, with no icon-only navigation. Existing routes and IDs remain unchanged; Escape,
     focus restoration, and closed-drawer accessibility state are covered in the browser suite.</li>
+    <li class="done"><b>Dedicated label CRUD and rename-safe filters (#132, 2026-08-01):</b> the new <code>/labels</code>
+    page creates and renames per-user labels and deletes them through an atomic usage check;
+    used labels report the exact affected-card count and require a second explicit confirmation.
+    Shared contracts, store/server routes, SSR coverage, browser CRUD e2e, desktop/mobile
+    screenshots, and the existing responsive drawer navigation are covered. Quiz and Groom
+    persist stable label IDs, so renaming updates the badge without changing the filter result;
+    this regression is covered in the browser suite.</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>

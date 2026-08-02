@@ -464,6 +464,7 @@ async fn capture_navigation_review(h: &TestHarness) -> Result<()> {
 /// view, account tab — each at desktop and mobile width.
 #[tokio::test]
 #[ignore = "browser"]
+#[allow(clippy::too_many_lines)]
 async fn capture_app_screenshots() -> Result<()> {
     let h = TestHarness::start().await?;
     let (store, user_id) = seed_store(&h).await?;
@@ -561,6 +562,19 @@ async fn capture_app_screenshots() -> Result<()> {
     h.wait_for_text("#passkeys-list", "YubiKey", TIMEOUT)
         .await?;
     shoot_both(&h, "account").await?;
+
+    // --- Labels: dedicated CRUD page with realistic existing labels ---
+    h.click("#nav-toggle").await?;
+    h.wait_for_selector("#nav-backdrop", TIMEOUT).await?;
+    wait_for_js(
+        &h,
+        "document.querySelector('#primary-nav')?.getBoundingClientRect().left >= -0.5",
+        TIMEOUT,
+    )
+    .await?;
+    h.click("#tab-labels").await?;
+    h.wait_for_selector("#labels-list", TIMEOUT).await?;
+    shoot_both(&h, "labels").await?;
 
     // --- Recovery banner: a leftover autosave draft prompts on start ---
     store

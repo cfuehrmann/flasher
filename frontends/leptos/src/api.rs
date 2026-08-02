@@ -12,8 +12,19 @@ use flasher_types::{
 };
 #[cfg(feature = "csr")]
 use flasher_types::{
-    CardUpdateRequest, CreateCardRequest, PutAutoSaveRequest, SetCardStateRequest,
+    CardUpdateRequest, CreateCardRequest, CreateLabelRequest, DeleteLabelRequest,
+    LabelDeleteConflict, PutAutoSaveRequest, RenameLabelRequest, SetCardStateRequest,
 };
+
+/// Result of the two-stage label delete protocol. A label with card
+/// associations returns the exact count on the first request; the UI then
+/// sends an explicit confirmation.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeleteLabelOutcome {
+    Deleted,
+    NeedsConfirmation(i64),
+}
 
 /// The error every non-`csr` stub returns.
 #[cfg(not(feature = "csr"))]
@@ -57,6 +68,86 @@ pub async fn labels() -> Result<Vec<LabelResponse>, String> {
         .json::<Vec<LabelResponse>>()
         .await
         .map_err(|err| err.to_string())
+}
+
+/// `POST /api/labels` — creates a label for the current user.
+#[cfg(feature = "csr")]
+pub async fn create_label(name: &str) -> Result<LabelResponse, String> {
+    let request = gloo_net::http::Request::post("/api/labels")
+        .json(&CreateLabelRequest {
+            name: name.to_owned(),
+        })
+        .map_err(|err| err.to_string())?;
+    let response = request.send().await.map_err(|err| err.to_string())?;
+    if response.status() != 201 {
+        return Err(error_message(response).await);
+    }
+    response
+        .json::<LabelResponse>()
+        .await
+        .map_err(|err| err.to_string())
+}
+
+/// `create_label` (ssr stub, never called).
+#[cfg(not(feature = "csr"))]
+#[allow(clippy::unused_async)]
+pub async fn create_label(_name: &str) -> Result<LabelResponse, String> {
+    Err(SSR_STUB_ERROR.to_owned())
+}
+
+/// `PATCH /api/labels/{id}` — renames a label for the current user.
+#[cfg(feature = "csr")]
+pub async fn rename_label(id: i64, name: &str) -> Result<LabelResponse, String> {
+    let request = gloo_net::http::Request::patch(&format!("/api/labels/{id}"))
+        .json(&RenameLabelRequest {
+            name: name.to_owned(),
+        })
+        .map_err(|err| err.to_string())?;
+    let response = request.send().await.map_err(|err| err.to_string())?;
+    if response.status() != 200 {
+        return Err(error_message(response).await);
+    }
+    response
+        .json::<LabelResponse>()
+        .await
+        .map_err(|err| err.to_string())
+}
+
+/// `rename_label` (ssr stub, never called).
+#[cfg(not(feature = "csr"))]
+#[allow(clippy::unused_async)]
+pub async fn rename_label(_id: i64, _name: &str) -> Result<LabelResponse, String> {
+    Err(SSR_STUB_ERROR.to_owned())
+}
+
+/// `DELETE /api/labels/{id}` — a first request checks usage; `confirm`
+/// permits deletion of the label and its card associations.
+#[cfg(feature = "csr")]
+pub async fn delete_label(id: i64, confirm: bool) -> Result<DeleteLabelOutcome, String> {
+    let request = gloo_net::http::Request::delete(&format!("/api/labels/{id}"))
+        .json(&DeleteLabelRequest { confirm })
+        .map_err(|err| err.to_string())?;
+    let response = request.send().await.map_err(|err| err.to_string())?;
+    if response.status() == 204 {
+        return Ok(DeleteLabelOutcome::Deleted);
+    }
+    if response.status() == 409 {
+        let conflict = response
+            .json::<LabelDeleteConflict>()
+            .await
+            .map_err(|err| err.to_string())?;
+        return Ok(DeleteLabelOutcome::NeedsConfirmation(
+            conflict.affected_cards,
+        ));
+    }
+    Err(error_message(response).await)
+}
+
+/// `delete_label` (ssr stub, never called).
+#[cfg(not(feature = "csr"))]
+#[allow(clippy::unused_async)]
+pub async fn delete_label(_id: i64, _confirm: bool) -> Result<DeleteLabelOutcome, String> {
+    Err(SSR_STUB_ERROR.to_owned())
 }
 
 /// `GET /api/labels` (ssr stub, never called — its only callers are

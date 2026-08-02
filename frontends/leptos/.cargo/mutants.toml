@@ -220,4 +220,34 @@ exclude_re = [
     # assertions.
     'editor\.rs:\d+:\d+: (delete !|replace == with !=|replace && with \|\|) in Editor',
     'quiz\.rs:\d+:\d+: delete ! in Quiz',
+
+    # --- Browser-only dedicated label management page (2026-08-01) -----------
+    # The CRUD request wrappers are gloo-net calls and the LabelManager is
+    # signal/view/modal glue. Host-target SSR tests can render only its
+    # initial loading state; they cannot observe request status handling,
+    # inline editing, the two-step used-label confirmation, or row removal.
+    # Those behaviors are pinned by 10_labels.rs in Chromium, which drives
+    # create, rename, exact usage warning, destructive confirmation, cascade
+    # verification, and the responsive drawer.
+    'api\\.rs:\\d+:\\d+: .* in (create_label|rename_label|delete_label)$',
+    'replace (create_label|rename_label|delete_label) -> ',
+    'labels\\.rs:\\d+:\\d+: .* in LabelManager$',
+    'replace LabelManager -> ',
+
+    # --- Browser-only rename migration and management callback ---------------
+    # preserve_selection_after_rename upgrades selections written by the
+    # pre-ID UI in window.localStorage. The browser regression in
+    # 10_labels.rs exercises the resulting rename-safe Quiz and Groom state;
+    # host-target tests cannot provide localStorage or remount the CSR views.
+    'replace preserve_selection_after_rename -> ',
+    'replace preserve_selection_after_rename with \(\)',
+    'replace .* in preserve_selection_after_rename',
+    # The groom legacy-key cleanup calls storage_remove through the browser's
+    # localStorage API. Its migration behavior is covered by the browser
+    # state-restore test, not observable in the host-target build.
+    'replace storage_remove with \(\)',
+    # LabelManager's ID comparison selects the row being renamed. The CRUD
+    # browser test exercises the callback against the rendered row; SSR does
+    # not render a loaded label list.
+    'replace == with != in LabelManager',
 ]

@@ -10,11 +10,11 @@
 //! mid-session 401 from a data API call bounces back to the auth screen
 //! via [`api::on_unauthorized`] (auth ceremony 401s are surfaced locally
 //! instead — a failed ceremony says nothing about the session).
-//! Logged-in users get a fourth Account tab ([`Account`]) with passkey
-//! management.
+//! Logged-in users get dedicated Account and Labels pages with passkey and
+//! label management respectively.
 //!
-//! Phase 6.5 added hand-rolled URL routing (see [`route`]): each tab owns
-//! a path (`/quiz`, `/add`, `/groom`, `/account`), tab switches push it
+//! Phase 6.5 added hand-rolled URL routing (see [`route`]): each page owns
+//! a path (`/quiz`, `/add`, `/groom`, `/labels`, `/account`), page switches push it
 //! via the History API, browser back/forward follows via `popstate`, and
 //! a deep link requested while logged out survives the auth flow (the
 //! auth screen ignores `popstate`; a successful login re-reads the
@@ -40,10 +40,10 @@
 //! the editor by clicking Groom's Edit keeps the banner as the recovery
 //! surface, so an in-progress session is never silently overwritten.
 //!
-//! Phase 4C: three tabs switched client-side via a simple top nav — Quiz
-//! (review due cards, the default), Add card (the card editor in
-//! new-card mode), and Groom (search, page and maintain the whole
-//! collection). The same editor opens over the tabs when a Groom row's
+//! Phase 4C: top-level pages switched client-side via the responsive nav —
+//! Quiz (review due cards, the default), Add card (the card editor in
+//! new-card mode), Groom (search, page and maintain the whole collection),
+//! Labels (label CRUD), and Account. The same editor opens over the tabs when a Groom row's
 //! Edit button is clicked or an autosave draft is recovered. On mount
 //! the app checks `GET /api/autosave` once; a leftover draft shows a
 //! dismissible recovery banner (Recover opens the editor with the draft,
@@ -69,6 +69,7 @@ use auth::{Account, AuthScreen};
 use editor::{CloseOutcome, Editor};
 use flasher_types::{AutoSaveResponse, HealthResponse};
 use groom::Groom;
+use labels::LabelManager;
 use leptos::prelude::*;
 use quiz::Quiz;
 use route::Tab;
@@ -77,6 +78,7 @@ use route::Tab;
 pub use auth::{Account as AccountTab, AuthScreen as AuthScreenTab};
 pub use editor::{CloseOutcome as EditorCloseOutcome, EditTarget, Editor as EditorTab};
 pub use groom::Groom as GroomTab;
+pub use labels::LabelManager as LabelManagerTab;
 pub use quiz::Quiz as QuizTab;
 
 /// Where the startup session check stands. The app starts in `Checking`
@@ -535,6 +537,17 @@ pub fn App() -> impl IntoView {
                     </button>
                     <button
                         type="button"
+                        id="tab-labels"
+                        class="nav-item"
+                        aria-label="Labels"
+                        aria-current=move || if tab.get() == Tab::Labels { "page" } else { "false" }
+                        class:active=move || tab.get() == Tab::Labels
+                        on:click=move |_| navigate.run(Tab::Labels)
+                    >
+                        <span class="nav-label">"Labels"</span>
+                    </button>
+                    <button
+                        type="button"
                         id="tab-account"
                         class="nav-item"
                         aria-label="Account"
@@ -639,6 +652,7 @@ pub fn App() -> impl IntoView {
                                 .into_any()
                         }
                         Tab::Groom => view! { <Groom on_edit=open_edit/> }.into_any(),
+                        Tab::Labels => view! { <LabelManager/> }.into_any(),
                         Tab::Account => {
                             view! {
                                 <Account

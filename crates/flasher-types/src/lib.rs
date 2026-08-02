@@ -118,9 +118,10 @@ pub struct CardUpdateRequest {
     pub labels: Option<Vec<String>>,
 }
 
-/// One label as returned by `GET /api/labels`. Labels are per-user and
-/// identified by name on the wire (unique per user). Label names carry
-/// NO semantics anywhere in the app (owner decision 2026-08-01): they
+/// One label as returned by `GET /api/labels`. The numeric ID is the stable
+/// identity; the name is a user-visible value that may be renamed. Card
+/// filter requests still carry names at the current internal wire boundary.
+/// Label names carry NO semantics anywhere in the app (owner decision 2026-08-01): they
 /// are opaque strings the user invents and assigns at card-creation
 /// time; a fresh database has no labels at all.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -128,6 +129,34 @@ pub struct LabelResponse {
     /// Database id of the label row.
     pub id: i64,
     pub name: String,
+}
+
+/// Body of `POST /api/labels`: creates one label for the current user.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct CreateLabelRequest {
+    pub name: String,
+}
+
+/// Body of `PATCH /api/labels/{id}`: renames one label owned by the
+/// current user. The new name is trimmed and must be 1–64 characters.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct RenameLabelRequest {
+    pub name: String,
+}
+
+/// Body of `DELETE /api/labels/{id}`. The first request uses `false` to
+/// ask the server to check usage; a request with `true` explicitly permits
+/// deleting a label from all cards that carry it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct DeleteLabelRequest {
+    pub confirm: bool,
+}
+
+/// Conflict response for deleting a label that is still attached to cards.
+/// The frontend uses the exact count in the confirmation warning.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct LabelDeleteConflict {
+    pub affected_cards: i64,
 }
 
 /// Upper bound for the optional per-request `take` of `GET /api/cards`

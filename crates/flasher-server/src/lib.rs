@@ -109,12 +109,13 @@ use axum::{
 };
 use flasher_auth::{Auth, Passkey, PublicKeyCredential, RegisterPublicKeyCredential};
 use flasher_core::SrsConfig;
-use flasher_store::{AutoSave, Card, CardState, NewCard, SetCardState, Store, User};
+use flasher_store::{AutoSave, Card, CardState, DeleteLabel, NewCard, SetCardState, Store, User};
 use flasher_types::{
     AutoSaveResponse, BootstrapResponse, CardResponse, CardUpdateRequest, CreateCardRequest,
-    FindCardsResponse, GetAutoSaveResponse, HealthResponse, LabelResponse, MAX_TAKE,
-    NextCardResponse, PasskeyResponse, PutAutoSaveRequest, RegisterStartRequest,
-    RenamePasskeyRequest, SessionResponse, SetCardStateRequest,
+    CreateLabelRequest, DeleteLabelRequest, FindCardsResponse, GetAutoSaveResponse, HealthResponse,
+    LabelDeleteConflict, LabelResponse, MAX_TAKE, NextCardResponse, PasskeyResponse,
+    PutAutoSaveRequest, RegisterStartRequest, RenameLabelRequest, RenamePasskeyRequest,
+    SessionResponse, SetCardStateRequest,
 };
 use serde::Deserialize;
 use tokio::net::TcpListener;
@@ -369,6 +370,19 @@ pub enum ApiError {
     /// A label set replacement named an unknown label or was empty.
     #[error("{0}")]
     InvalidLabels(String),
+    /// A label name failed validation (1–64 chars after trimming).
+    #[error("label name must be 1-64 characters")]
+    InvalidLabelName,
+    /// The user already owns a label with this exact name.
+    #[error("a label with that name already exists")]
+    LabelAlreadyExists,
+    /// The label id does not belong to the current user.
+    #[error("label not found")]
+    LabelNotFound,
+    /// The label is still attached to cards; the body carries the exact
+    /// count so the UI can ask for an informed explicit confirmation.
+    #[error("label is still used by {0} card(s)")]
+    LabelInUse(i64),
     /// The autosave written by `PUT /api/autosave` could not be read
     /// back (can only happen on a concurrent delete in between).
     #[error("autosave disappeared after write")]
@@ -426,14 +440,21 @@ pub enum ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         match self {
-            Self::CardNotFound => StatusCode::NOT_FOUND.into_response(),
+            Self::CardNotFound | Self::LabelNotFound => StatusCode::NOT_FOUND.into_response(),
             Self::EmptyPrompt
             | Self::EmptyUpdate
             | Self::InvalidLabels(_)
+            | Self::InvalidLabelName
             | Self::InvalidUsername
             | Self::InvalidPasskeyName => {
                 (StatusCode::UNPROCESSABLE_ENTITY, self.to_string()).into_response()
             }
+            Self::LabelAlreadyExists => (StatusCode::CONFLICT, self.to_string()).into_response(),
+            Self::LabelInUse(affected_cards) => (
+                StatusCode::CONFLICT,
+                Json(LabelDeleteConflict { affected_cards }),
+            )
+                .into_response(),
             Self::AutosaveGone => {
                 tracing::error!("autosave read-back after upsert failed");
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -487,7 +508,8 @@ pub fn app(dist_dir: PathBuf, state: AppState) -> Router {
     let api = Router::new()
         .route("/health", get(health))
         .nest("/auth", auth)
-        .route("/labels", get(list_labels))
+        .route("/labels", get(list_labels).post(create_label))
+        .route("/labels/{id}", patch(rename_label).delete(delete_label))
         .route("/cards/next", get(next_card))
         .route("/cards", post(create_card).get(find_cards))
         .route(
@@ -1127,6 +1149,71 @@ async fn list_labels(
         })
         .collect();
     Ok(Json(labels))
+}
+
+/// `POST /api/labels` — creates a label for the current user. Names are
+/// intentionally opaque; unlike card creation this page makes the label
+/// explicit before it is attached to a card.
+async fn create_label(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+    Json(request): Json<CreateLabelRequest>,
+) -> Result<(StatusCode, Json<LabelResponse>), ApiError> {
+    let name = validate_name(&request.name).ok_or(ApiError::InvalidLabelName)?;
+    let label = match state.store.create_label(user_id, &name).await {
+        Ok(label) => label,
+        Err(err) if err.is_unique_violation() => return Err(ApiError::LabelAlreadyExists),
+        Err(err) => return Err(err.into()),
+    };
+    Ok((
+        StatusCode::CREATED,
+        Json(LabelResponse {
+            id: label.id,
+            name: label.name,
+        }),
+    ))
+}
+
+/// `PATCH /api/labels/{id}` — renames an own label. Existing card
+/// associations keep pointing at the same row, so all cards immediately
+/// expose the new name.
+async fn rename_label(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+    Path(id): Path<i64>,
+    Json(request): Json<RenameLabelRequest>,
+) -> Result<Json<LabelResponse>, ApiError> {
+    let name = validate_name(&request.name).ok_or(ApiError::InvalidLabelName)?;
+    let label = match state.store.rename_label(user_id, id, &name).await {
+        Ok(Some(label)) => label,
+        Ok(None) => return Err(ApiError::LabelNotFound),
+        Err(err) if err.is_unique_violation() => return Err(ApiError::LabelAlreadyExists),
+        Err(err) => return Err(err.into()),
+    };
+    Ok(Json(LabelResponse {
+        id: label.id,
+        name: label.name,
+    }))
+}
+
+/// `DELETE /api/labels/{id}` — checks usage and requires a second,
+/// explicit request with `confirm = true` before deleting a label that is
+/// attached to cards. The store performs the check and delete atomically.
+async fn delete_label(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+    Path(id): Path<i64>,
+    Json(request): Json<DeleteLabelRequest>,
+) -> Result<StatusCode, ApiError> {
+    match state
+        .store
+        .delete_label(user_id, id, request.confirm)
+        .await?
+    {
+        DeleteLabel::NotFound => Err(ApiError::LabelNotFound),
+        DeleteLabel::InUse(count) => Err(ApiError::LabelInUse(count)),
+        DeleteLabel::Deleted(_) => Ok(StatusCode::NO_CONTENT),
+    }
 }
 
 /// Query parameters of `GET /api/cards/next`: `labels` is a comma-joined

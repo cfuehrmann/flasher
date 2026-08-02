@@ -94,7 +94,7 @@ fmt:
 # Lighthouse audit of the release build (on-demand, NOT part of the gate):
 # release trunk bundle + release server on a free port with a throwaway DB
 # and a dev-bypass user (so the real pages render, not the auth screen).
-# Every tab (/quiz, /groom, /add, /account) is audited; the per-page
+# Every page (/quiz, /groom, /add, /labels, /account) is audited; the per-page
 # reports land in test-output/lighthouse/<page>.json and a compact score
 # table is printed. latest.json stays the /quiz report (comparable with
 # earlier runs).
@@ -118,7 +118,7 @@ lighthouse:
         curl -sf "http://localhost:$port/api/health" >/dev/null 2>&1 && break
         sleep 0.2
     done
-    pages=(quiz groom add account)
+    pages=(quiz groom add labels account)
     for page in "${pages[@]}"; do
         echo "auditing /$page ..."
         CHROME_PATH=/usr/bin/chromium pnpm dlx lighthouse "http://localhost:$port/$page" \
@@ -128,7 +128,7 @@ lighthouse:
     cp test-output/lighthouse/quiz.json test-output/lighthouse/latest.json
     python3 - <<'PY'
     import json
-    pages = ["quiz", "groom", "add", "account"]
+    pages = ["quiz", "groom", "add", "labels", "account"]
     reports = {p: json.load(open(f"test-output/lighthouse/{p}.json")) for p in pages}
     cats = list(reports["quiz"]["categories"].keys())
     width = max(len(c) for c in cats) + 2

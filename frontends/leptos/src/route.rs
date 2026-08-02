@@ -1,4 +1,4 @@
-//! Hand-rolled URL routing for the tab bar (Phase 6.5), extended in
+//! Hand-rolled URL routing for the page nav (Phase 6.5), extended in
 //! Phase 6.6 to carry the groom editor (`/groom/edit/{card_id}`) as a
 //! real, reload-surviving route. The quiz's solution-revealed state is
 //! deliberately NOT routed: it is transient in-memory state and a
@@ -44,7 +44,7 @@
 #[cfg(feature = "csr")]
 use leptos::prelude::*;
 
-/// The top-level tabs of the app.
+/// The top-level pages of the app.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     /// Review due cards (default).
@@ -55,6 +55,8 @@ pub enum Tab {
     Groom,
     /// Identity, logout and passkey management.
     Account,
+    /// Create, rename and delete the user's labels.
+    Labels,
 }
 
 /// A URL the app can restore its full UI state from (Phase 6.6): beyond
@@ -66,7 +68,7 @@ pub enum Tab {
 #[cfg_attr(not(any(feature = "csr", test)), allow(dead_code))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Route {
-    /// One of the four tabs.
+    /// One of the app's top-level pages.
     Tab(Tab),
     /// The groom editor open on a specific card (`/groom/edit/{id}`).
     GroomEdit(String),
@@ -124,6 +126,7 @@ pub fn path_to_tab(path: &str) -> Tab {
         "/add" => Tab::AddCard,
         "/groom" => Tab::Groom,
         "/account" => Tab::Account,
+        "/labels" => Tab::Labels,
         _ => Tab::Quiz,
     }
 }
@@ -138,6 +141,7 @@ pub fn tab_to_path(tab: Tab) -> &'static str {
         Tab::AddCard => "/add",
         Tab::Groom => "/groom",
         Tab::Account => "/account",
+        Tab::Labels => "/labels",
     }
 }
 
@@ -276,6 +280,7 @@ mod tests {
         assert_eq!(path_to_tab("/add"), Tab::AddCard);
         assert_eq!(path_to_tab("/groom"), Tab::Groom);
         assert_eq!(path_to_tab("/account"), Tab::Account);
+        assert_eq!(path_to_tab("/labels"), Tab::Labels);
     }
 
     #[test]
@@ -310,11 +315,18 @@ mod tests {
         assert_eq!(path_to_tab("/GROOM"), Tab::Groom);
         assert_eq!(path_to_tab("/Add"), Tab::AddCard);
         assert_eq!(path_to_tab("/Account"), Tab::Account);
+        assert_eq!(path_to_tab("/LABELS"), Tab::Labels);
     }
 
     #[test]
     fn tab_paths_roundtrip() {
-        for tab in [Tab::Quiz, Tab::AddCard, Tab::Groom, Tab::Account] {
+        for tab in [
+            Tab::Quiz,
+            Tab::AddCard,
+            Tab::Groom,
+            Tab::Labels,
+            Tab::Account,
+        ] {
             assert_eq!(path_to_tab(tab_to_path(tab)), tab);
         }
     }

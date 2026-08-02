@@ -59,9 +59,14 @@ use flasher_types::{CardResponse, CardState, LabelResponse, MAX_TAKE};
 use leptos::prelude::*;
 
 use crate::api;
-use crate::labels::{LabelFilter, join_labels, toggle_label_name};
+use crate::labels::{
+    LabelFilter, StoredLabelSelection, join_labels, resolve_stored_labels, selected_label_names,
+    toggle_label_name,
+};
 #[cfg(feature = "csr")]
-use crate::labels::{split_labels, storage_get, storage_remove, storage_set};
+use crate::labels::{
+    join_label_ids, split_stored_labels, storage_get, storage_remove, storage_set,
+};
 
 /// Page size of the very first fetch, before the viewport-fit calibration
 /// has measured the real row heights (or when localStorage is
@@ -102,15 +107,17 @@ const STORAGE_TAKE_KEY: &str = "flasher-groom-take";
 /// the default (ALL labels) is then applied once the labels list lands.
 /// The pre-labels filter key is simply dropped when seen: label names
 /// carry no semantics (owner decision 2026-08-01), so there is nothing
-/// meaningful to translate its all/enabled/disabled value into.
-fn initial_labels() -> Option<Vec<String>> {
+/// meaningful to translate its all/enabled/disabled value into. New
+/// selections are keyed by stable label ID; names are only used at the
+/// existing card-filter API boundary.
+fn initial_labels() -> Option<Vec<StoredLabelSelection>> {
     #[cfg(feature = "csr")]
     {
         if storage_get(OLD_STORAGE_FILTER_KEY).is_some() {
             storage_remove(OLD_STORAGE_FILTER_KEY);
         }
         if let Some(raw) = storage_get(STORAGE_LABELS_KEY) {
-            return Some(split_labels(&raw));
+            return Some(split_stored_labels(&raw));
         }
     }
     None
@@ -372,8 +379,8 @@ pub fn Groom(
     let initial_selection = initial_labels();
     // Only the csr effects read this (their code is cfg'd out under ssr).
     #[cfg_attr(not(feature = "csr"), allow(unused_variables))]
-    let selection_ready = RwSignal::new(initial_selection.is_some());
-    let selected = RwSignal::new(initial_selection.unwrap_or_default());
+    let selection_ready = RwSignal::new(false);
+    let selected = RwSignal::new(Vec::<i64>::new());
     // The user's labels (for the filter's checkbox panel).
     let all_labels = RwSignal::new(Vec::<LabelResponse>::new());
     // The list is OFFSET-based, not page-number-based (owner feedback
@@ -392,17 +399,31 @@ pub fn Groom(
     let fetch_generation = RwSignal::new(0_u64);
 
     // Loads the labels list; the default selection (ALL labels) applies
-    // where the names are known. Shared by the mount load and the error
+    // where the IDs are known. Shared by the mount load and the error
     // retry (adversarial review 2026-08-01: a retry must reload the
     // labels too — a transient labels failure otherwise strands the tab
     // with an empty panel and, without a ready selection, a false
     // "No cards match.").
     let load_labels = Callback::new(move |(): ()| {
+        let stored_selection = initial_selection.clone();
         leptos::task::spawn_local(async move {
             match api::labels().await {
                 Ok(labels) => {
                     if !selection_ready.get_untracked() {
-                        selected.set(labels.iter().map(|label| label.name.clone()).collect());
+                        let next = stored_selection.as_deref().map_or_else(
+                            || labels.iter().map(|label| label.id).collect(),
+                            |stored| resolve_stored_labels(stored, &labels),
+                        );
+                        selected.set(next.clone());
+                        #[cfg(feature = "csr")]
+                        // An empty first load means the user has no labels
+                        // yet. Do not persist that empty default: a label
+                        // created later must be selected by the next Groom
+                        // mount. An explicitly stored empty selection is
+                        // intentional and must remain empty.
+                        if stored_selection.is_some() || !labels.is_empty() {
+                            storage_set(STORAGE_LABELS_KEY, &join_label_ids(&next));
+                        }
                         selection_ready.set(true);
                     }
                     all_labels.set(labels);
@@ -448,7 +469,7 @@ pub fn Groom(
         }
         fetch.run((
             query.get(),
-            join_labels(&selected.get()),
+            join_labels(&selected_label_names(&all_labels.get(), &selected.get())),
             skip.get(),
             take.get(),
         ));
@@ -595,9 +616,9 @@ pub fn Groom(
     // card and refetch (the `batch` makes both one effect trigger), but
     // immediate: a checkbox needs no debounce. The choice persists across
     // tab switches and refresh (localStorage).
-    let on_label_change = Callback::new(move |next: Vec<String>| {
+    let on_label_change = Callback::new(move |next: Vec<i64>| {
         #[cfg(feature = "csr")]
-        storage_set(STORAGE_LABELS_KEY, &join_labels(&next));
+        storage_set(STORAGE_LABELS_KEY, &join_label_ids(&next));
         batch(|| {
             skip.set(0);
             selected.set(next);
@@ -616,7 +637,8 @@ pub fn Groom(
     // without a way back.
     let after_label_change = Callback::new(move |new_labels: Vec<String>| {
         let selection = selected.get_untracked();
-        let drops_out = !selection.iter().any(|name| new_labels.contains(name));
+        let selected_names = selected_label_names(&all_labels.get_untracked(), &selection);
+        let drops_out = !selected_names.iter().any(|name| new_labels.contains(name));
         let was_single = matches!(
             state.get_untracked(),
             LoadState::Loaded { ref cards, .. } if cards.len() == 1
@@ -626,7 +648,7 @@ pub fn Groom(
         } else {
             fetch.run((
                 query.get_untracked(),
-                join_labels(&selection),
+                join_labels(&selected_names),
                 skip.get_untracked(),
                 take.get_untracked(),
             ));
@@ -655,7 +677,10 @@ pub fn Groom(
                     } else {
                         fetch.run((
                             query.get_untracked(),
-                            join_labels(&selected.get_untracked()),
+                            join_labels(&selected_label_names(
+                                &all_labels.get_untracked(),
+                                &selected.get_untracked(),
+                            )),
                             skip.get_untracked(),
                             take.get_untracked(),
                         ));
@@ -673,7 +698,10 @@ pub fn Groom(
             match api::delete_history(&card.id).await {
                 Ok(_updated) => fetch.run((
                     query.get_untracked(),
-                    join_labels(&selected.get_untracked()),
+                    join_labels(&selected_label_names(
+                        &all_labels.get_untracked(),
+                        &selected.get_untracked(),
+                    )),
                     skip.get_untracked(),
                     take.get_untracked(),
                 )),
@@ -790,7 +818,10 @@ pub fn Groom(
                                 if selection_ready.get_untracked() {
                                     fetch.run((
                                         query.get_untracked(),
-                                        join_labels(&selected.get_untracked()),
+                                        join_labels(&selected_label_names(
+                                            &all_labels.get_untracked(),
+                                            &selected.get_untracked(),
+                                        )),
                                         skip.get_untracked(),
                                         take.get_untracked(),
                                     ));

@@ -12,7 +12,8 @@
 #![recursion_limit = "256"]
 
 use flasher_leptos::{
-    AccountTab, App, AuthScreenTab, EditTarget, EditorCloseOutcome, EditorTab, GroomTab, QuizTab,
+    AccountTab, App, AuthScreenTab, EditTarget, EditorCloseOutcome, EditorTab, GroomTab,
+    LabelManagerTab, QuizTab,
 };
 use leptos::prelude::*;
 
@@ -179,4 +180,12 @@ fn groom_tab_renders_its_initial_state() {
         "rendered html: {html}"
     );
     assert!(html.contains("Loading cards"), "rendered html: {html}");
+}
+
+#[test]
+fn labels_page_renders_its_initial_state() {
+    let html = view! { <LabelManagerTab/> }.to_html();
+    assert!(html.contains("labels-page"), "rendered html: {html}");
+    assert!(html.contains("new-label-name"), "rendered html: {html}");
+    assert!(html.contains("labels-loading"), "rendered html: {html}");
 }

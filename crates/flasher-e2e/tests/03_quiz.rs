@@ -585,7 +585,7 @@ async fn quiz_label_filter_selects_persists_and_is_independent() -> Result<()> {
     let quiz_persisted = h
         .eval::<String>("localStorage.getItem('flasher-quiz-labels') ?? ''")
         .await?;
-    if groom_persisted != "Enabled" || quiz_persisted != "Disabled" {
+    if groom_persisted != "id:1" || quiz_persisted != "id:2" {
         return Err(Error::message(format!(
             "selections should persist independently, groom={groom_persisted:?} quiz={quiz_persisted:?}"
         )));
