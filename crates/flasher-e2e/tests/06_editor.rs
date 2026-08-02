@@ -123,7 +123,7 @@ async fn editor_requires_prompt_and_at_least_one_label() -> Result<()> {
     }
     if !h
         .eval::<bool>(
-            "document.querySelector('#editor-label-requirement').textContent.includes('Choose at least one label.')",
+            "document.querySelector('#editor-label-requirement').textContent.includes('(choose at least one)')",
         )
         .await?
     {
@@ -155,7 +155,7 @@ async fn editor_requires_prompt_and_at_least_one_label() -> Result<()> {
     wait_for_js(&h, "!document.querySelector('#editor-save').disabled").await?;
     if !h
         .eval::<bool>(
-            "document.querySelector('#editor-label-requirement').textContent.includes('Choose at least one label.')",
+            "document.querySelector('#editor-label-requirement').textContent.includes('(choose at least one)')",
         )
         .await?
     {

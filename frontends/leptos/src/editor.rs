@@ -551,7 +551,7 @@ pub fn Editor(
                         <div class="editor-label-heading">
                             <label>"Labels"</label>
                             <span class="editor-label-requirement" id="editor-label-requirement">
-                                "Choose at least one label."
+                                "(choose at least one)"
                             </span>
                         </div>
                         {move || {
