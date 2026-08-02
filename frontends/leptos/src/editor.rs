@@ -548,7 +548,12 @@ pub fn Editor(
                         disabled=move || !draft_loaded.get()
                     ></textarea>
                     <div class="editor-labels" id="editor-labels">
-                        <label>"Labels"</label>
+                        <div class="editor-label-heading">
+                            <label>"Labels"</label>
+                            <span class="editor-label-requirement" id="editor-label-requirement">
+                                "Choose at least one label."
+                            </span>
+                        </div>
                         {move || {
                             all_labels
                                 .get()
@@ -594,7 +599,10 @@ pub fn Editor(
                             id=save_id
                             class="primary"
                             disabled=move || {
-                                busy.get() || !draft_loaded.get() || working_labels.get().is_empty()
+                                busy.get()
+                                    || !draft_loaded.get()
+                                    || prompt.get().trim().is_empty()
+                                    || working_labels.get().is_empty()
                             }
                             on:click=save
                         >

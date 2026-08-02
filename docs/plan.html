@@ -273,15 +273,17 @@ are the prime mutation-testing target.</p>
 <pre><code>users(id, username, created_at)
 passkeys(id, user_id → users, credential_id UNIQUE, data /* serialized passkey */, name, created_at, last_used_at)
 sessions(token, user_id → users, expires_at, verified_at)
-cards(id, user_id → users, prompt, solution,
+cards(id, user_id → users, prompt, solution, revision,
       state CHECK(state IN ('new','ok','failed')),
       change_time, next_time)
-autosaves(user_id → users PRIMARY KEY, prompt, solution, updated_at, card_id NULL)
+new_card_drafts(user_id → users PRIMARY KEY, prompt, solution, updated_at)
+card_edit_drafts(user_id, card_id → cards PRIMARY KEY, prompt, solution,
+                 labels, base_revision, updated_at)
 labels(user_id → users, name UNIQUE)
 card_labels(card_id → cards, label_id → labels)
 </code></pre>
 <ul>
-  <li>Migrations: <code>0005_current_schema_baseline.sql</code> is the current-schema baseline, embedded in the binary and run on startup. The first baseline release accepts only the known current <code>0001</code>–<code>0004</code> history, verifies the schema, and prunes those history rows; future changes append roll-forward migrations after <code>0005</code>. Backups run before each migration.</li>
+  <li>Migrations: <code>0005_current_schema_baseline.sql</code> is the current-schema baseline, and <code>0006_target_scoped_drafts.sql</code> converts the legacy autosave into separate new-card and per-card edit drafts. The first baseline release accepts only the known current <code>0001</code>–<code>0004</code> history, verifies the schema, and prunes those history rows; future changes append roll-forward migrations after <code>0006</code>. Backups run before each migration.</li>
   <li><b>JSON → SQLite import:</b> <code>flasher migrate --from ../flasher-store [--dry-run]</code>. Idempotent (safe to re-run), prints a per-user verification report (card counts, state histogram) and exits non-zero on mismatch. The old JSON store remains the source of truth until cutover is verified.</li>
   <li>SRS tunables (<code>Cards:*</code>) become config keys with the same defaults.</li>
 </ul>
@@ -646,7 +648,9 @@ browser e2e (clicking) together — never a backend without its user-facing test
     screenshots and the full browser gate pass.</li>
     <li class="done"><b><span class="badge b-done">done</span> Issue #137 — target-scoped card drafts:</b>
     separate server-side drafts for Add and each edited card; shared editor with autosave and revision safety;
-    Quiz/Groom use persisted cards, Groom’s label popup is removed, and drafts have a distinct badge.</li>
+    Quiz/Groom use persisted cards, Groom’s label popup is removed, and drafts have a distinct badge.
+    The shared editor disables Create/Save until the prompt and at least one label are present; migration
+    coverage includes fresh databases, legacy conversion, invalid ownership, and reopen/idempotence checks.</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>

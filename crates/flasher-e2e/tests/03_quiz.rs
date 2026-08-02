@@ -362,8 +362,7 @@ async fn quiz_shows_due_cards_regardless_of_labels() -> Result<()> {
 /// Create stays disabled until at least one existing label is chosen, and
 /// the created card carries exactly the chosen label (state=new,
 /// 30-minute initial wait). Label creation belongs to the Labels page.
-/// Submitting an empty prompt is rejected client-side and creates
-/// nothing.
+/// An empty prompt keeps Create disabled and creates nothing.
 #[tokio::test]
 #[ignore = "browser"]
 async fn add_card_creates_card_with_chosen_labels() -> Result<()> {
@@ -438,12 +437,17 @@ async fn add_card_creates_card_with_chosen_labels() -> Result<()> {
         )));
     }
 
-    // The success cleared the form; submitting again now exercises the
-    // empty-prompt validation, which must create nothing.
-    h.click("#create-card").await?;
-    h.wait_for_text("#add-card-validation", "Prompt must not be empty", TIMEOUT)
-        .await?;
-    h.screenshot("03_quiz/add-card-validation").await?;
+    // The success cleared the form; Create stays disabled while the prompt
+    // is empty, so an empty submission cannot create another card.
+    if !h
+        .eval::<bool>("document.querySelector('#create-card').disabled")
+        .await?
+    {
+        return Err(Error::message(
+            "Create should be disabled after the form is cleared",
+        ));
+    }
+    h.screenshot("03_quiz/add-card-empty-disabled").await?;
     let (_all, total) = store
         .search_cards(user_id, None, None, 0, 100)
         .await

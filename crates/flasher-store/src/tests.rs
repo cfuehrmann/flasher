@@ -969,6 +969,32 @@ async fn reconnect_backs_up_existing_database_before_migrations() -> TestResult 
 }
 
 #[tokio::test]
+async fn fresh_database_has_only_target_scoped_draft_tables() -> TestResult {
+    let store = Store::connect_in_memory().await?;
+    let versions: Vec<i64> =
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(store.pool())
+            .await?;
+    assert_eq!(versions, [5, 6]);
+
+    let tables: Vec<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master
+         WHERE type = 'table' AND name IN ('autosaves', 'new_card_drafts', 'card_edit_drafts')
+         ORDER BY name",
+    )
+    .fetch_all(store.pool())
+    .await?;
+    assert_eq!(tables, ["card_edit_drafts", "new_card_drafts"]);
+
+    let card_columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('cards')")
+            .fetch_all(store.pool())
+            .await?;
+    assert!(card_columns.iter().any(|column| column == "revision"));
+    Ok(())
+}
+
+#[tokio::test]
 async fn squashes_the_current_legacy_migration_history() -> TestResult {
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("flasher.sqlite");
@@ -1031,6 +1057,150 @@ async fn squashes_the_current_legacy_migration_history() -> TestResult {
             .labels,
         names(&["A"])
     );
+    assert!(store.get_new_card_draft(user_id).await?.is_none());
+    let autosaves: i64 = sqlx::query_scalar(
+        "SELECT EXISTS(
+             SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'autosaves'
+         )",
+    )
+    .fetch_one(store.pool())
+    .await?;
+    assert_eq!(autosaves, 0);
+    let revision: i64 = sqlx::query_scalar("SELECT revision FROM cards WHERE id = 'c1'")
+        .fetch_one(store.pool())
+        .await?;
+    assert_eq!(revision, 0);
+
+    // A second open must see an already-current 0005+0006 history as-is.
+    drop(store);
+    let reopened = Store::connect(&path).await?;
+    assert_eq!(
+        reopened
+            .get_card_edit_draft(user_id, "c1")
+            .await?
+            .ok_or("edit draft disappeared after reopening")?
+            .prompt,
+        "recovered prompt"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn migrates_a_legacy_new_card_autosave_and_reopens_it() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("flasher.sqlite");
+    let user_id;
+
+    {
+        let store = Store::connect(&path).await?;
+        let user = store.create_user("alice").await?;
+        user_id = user.id;
+        restore_pre_issue_137_schema(&store).await?;
+        sqlx::query(
+            "INSERT INTO autosaves (user_id, prompt, solution, updated_at, card_id)
+             VALUES (?, ?, ?, ?, NULL)",
+        )
+        .bind(user_id)
+        .bind("new recovered prompt")
+        .bind("new recovered solution")
+        .bind(4_000_i64)
+        .execute(store.pool())
+        .await?;
+        sqlx::query("DELETE FROM _sqlx_migrations")
+            .execute(store.pool())
+            .await?;
+        for (version, description, checksum) in LEGACY_MIGRATION_METADATA {
+            sqlx::query(
+                "INSERT INTO _sqlx_migrations
+                 (version, description, installed_on, success, checksum, execution_time)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, 1, ?, 0)",
+            )
+            .bind(version)
+            .bind(description)
+            .bind(checksum)
+            .execute(store.pool())
+            .await?;
+        }
+    }
+
+    let store = Store::connect(&path).await?;
+    let draft = store
+        .get_new_card_draft(user_id)
+        .await?
+        .ok_or("legacy new-card draft was not migrated")?;
+    assert_eq!(draft.prompt, "new recovered prompt");
+    assert_eq!(draft.solution, "new recovered solution");
+    assert!(
+        store
+            .get_card_edit_draft(user_id, "missing")
+            .await?
+            .is_none()
+    );
+    drop(store);
+
+    let reopened = Store::connect(&path).await?;
+    assert_eq!(
+        reopened
+            .get_new_card_draft(user_id)
+            .await?
+            .ok_or("new-card draft disappeared after reopening")?
+            .prompt,
+        "new recovered prompt"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn drops_a_legacy_edit_autosave_for_another_users_card() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("flasher.sqlite");
+
+    {
+        let store = Store::connect(&path).await?;
+        let owner = store.create_user("alice").await?;
+        let other = store.create_user("bob").await?;
+        store.insert_card(&new_card(other.id, "other-card")).await?;
+        restore_pre_issue_137_schema(&store).await?;
+        sqlx::query(
+            "INSERT INTO autosaves (user_id, prompt, solution, updated_at, card_id)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(owner.id)
+        .bind("should not leak")
+        .bind("should not leak")
+        .bind(5_000_i64)
+        .bind("other-card")
+        .execute(store.pool())
+        .await?;
+        sqlx::query("DELETE FROM _sqlx_migrations")
+            .execute(store.pool())
+            .await?;
+        for (version, description, checksum) in LEGACY_MIGRATION_METADATA {
+            sqlx::query(
+                "INSERT INTO _sqlx_migrations
+                 (version, description, installed_on, success, checksum, execution_time)
+                 VALUES (?, ?, CURRENT_TIMESTAMP, 1, ?, 0)",
+            )
+            .bind(version)
+            .bind(description)
+            .bind(checksum)
+            .execute(store.pool())
+            .await?;
+        }
+    }
+
+    let store = Store::connect(&path).await?;
+    let owner = store
+        .get_user_by_name("alice")
+        .await?
+        .ok_or("owner disappeared")?;
+    assert!(
+        store
+            .get_card_edit_draft(owner.id, "other-card")
+            .await?
+            .is_none()
+    );
+    assert!(store.get_new_card_draft(owner.id).await?.is_none());
     Ok(())
 }
 

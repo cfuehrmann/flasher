@@ -824,6 +824,19 @@ textarea:focus-visible {
   gap: 0.375rem;
 }
 
+.editor-label-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.editor-label-requirement {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
 /* The generic .editor label rule (block + margin for the field titles)
    would flatten the checkbox rows' flex layout — restore it here and
    drop the title margin. */

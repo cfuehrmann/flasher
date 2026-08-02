@@ -87,9 +87,109 @@ async fn field_checked(h: &TestHarness, selector: &str) -> Result<bool> {
         .await
 }
 
+async fn button_disabled(h: &TestHarness, selector: &str) -> Result<bool> {
+    h.eval::<bool>(&format!("document.querySelector({selector:?}).disabled"))
+        .await
+}
+
 async fn seed_labels(store: &Store, user_id: i64) -> Result<()> {
     store.create_label(user_id, "A").await.map_err(store_err)?;
     store.create_label(user_id, "B").await.map_err(store_err)?;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "browser"]
+async fn editor_requires_prompt_and_at_least_one_label() -> Result<()> {
+    let h = TestHarness::start().await?;
+    let (store, user_id) = seed_store(&h).await?;
+    seed_labels(&store, user_id).await?;
+    seed_card(
+        &store,
+        user_id,
+        "card-validation",
+        "Existing prompt",
+        "Existing solution",
+        now_ms() + 60_000,
+    )
+    .await?;
+
+    h.goto("/add").await?;
+    h.wait_for_selector("#new-prompt", TIMEOUT).await?;
+    if !button_disabled(&h, "#create-card").await? {
+        return Err(Error::message(
+            "Create must be disabled while the prompt is empty",
+        ));
+    }
+    if !h
+        .eval::<bool>(
+            "document.querySelector('#editor-label-requirement').textContent.includes('Choose at least one label.')",
+        )
+        .await?
+    {
+        return Err(Error::message(
+            "Add card does not explain that at least one label is required",
+        ));
+    }
+    h.type_into("#new-prompt", "A prompt").await?;
+    if !button_disabled(&h, "#create-card").await? {
+        return Err(Error::message(
+            "Create must remain disabled until a label is selected",
+        ));
+    }
+    h.click("#editor-label-A").await?;
+    if button_disabled(&h, "#create-card").await? {
+        return Err(Error::message(
+            "Create should enable after a non-empty prompt and label",
+        ));
+    }
+    h.click("#editor-discard").await?;
+    h.wait_for_text("#quiz-done", "All done", TIMEOUT).await?;
+
+    h.goto("/groom").await?;
+    h.wait_for_selector("#edit-card-validation", TIMEOUT)
+        .await?;
+    h.click("#edit-card-validation").await?;
+    h.wait_for_selector("#editor-prompt", TIMEOUT).await?;
+    h.wait_for_selector("#editor-label-A", TIMEOUT).await?;
+    wait_for_js(&h, "!document.querySelector('#editor-save').disabled").await?;
+    if !h
+        .eval::<bool>(
+            "document.querySelector('#editor-label-requirement').textContent.includes('Choose at least one label.')",
+        )
+        .await?
+    {
+        return Err(Error::message(
+            "Edit card does not explain that at least one label is required",
+        ));
+    }
+    if button_disabled(&h, "#editor-save").await? {
+        return Err(Error::message("An initially valid edit should be saveable"));
+    }
+    h.click("#editor-label-A").await?;
+    if !button_disabled(&h, "#editor-save").await? {
+        return Err(Error::message(
+            "Save must be disabled when all labels are cleared",
+        ));
+    }
+    h.click("#editor-label-A").await?;
+    let prompt = h
+        .page
+        .find_element("#editor-prompt")
+        .await
+        .map_err(Error::Cdp)?;
+    prompt.click().await.map_err(Error::Cdp)?;
+    prompt.press_key("End").await.map_err(Error::Cdp)?;
+    for _ in "Existing prompt".chars() {
+        prompt.press_key("Backspace").await.map_err(Error::Cdp)?;
+    }
+    if !button_disabled(&h, "#editor-save").await? {
+        return Err(Error::message(
+            "Save must be disabled when the prompt is empty",
+        ));
+    }
+    h.click("#editor-discard").await?;
+    h.wait_for_selector("#groom-search", TIMEOUT).await?;
     Ok(())
 }
 
