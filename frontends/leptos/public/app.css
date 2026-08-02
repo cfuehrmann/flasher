@@ -434,7 +434,7 @@ textarea:focus-visible {
   overflow-wrap: break-word;
 }
 
-.md.solution {
+.quiz-card .md.solution {
   border-top: 1px solid var(--border);
   padding-top: 1rem;
 }
@@ -550,6 +550,12 @@ textarea:focus-visible {
 /* ------------------------------------------------------------------ */
 /* Quiz tab (keyboard-first: big actions, visible key hints).          */
 /* ------------------------------------------------------------------ */
+
+.quiz {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
 
 .quiz-buttons {
   display: flex;
