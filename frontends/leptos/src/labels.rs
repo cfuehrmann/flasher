@@ -536,7 +536,6 @@ pub fn LabelManager() -> impl IntoView {
                             id="new-label-name"
                             maxlength="64"
                             autocomplete="off"
-                            placeholder="e.g. Rust"
                             prop:value=move || new_name.get()
                             on:input=move |ev| {
                                 new_name.set(event_target_value(&ev));
