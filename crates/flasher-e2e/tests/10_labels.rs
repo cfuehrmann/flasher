@@ -187,10 +187,8 @@ async fn label_card_counts_refresh_after_relabeling() -> Result<()> {
     // one used label and one deliberately unused label.
     h.goto("/labels").await?;
     h.wait_for_selector("#labels-page", TIMEOUT).await?;
-    h.wait_for_text("#label-card-count-1", "1 card", TIMEOUT)
-        .await?;
-    h.wait_for_text("#label-card-count-2", "0 cards", TIMEOUT)
-        .await?;
+    h.wait_for_text("#label-card-count-1", "1", TIMEOUT).await?;
+    h.wait_for_text("#label-card-count-2", "0", TIMEOUT).await?;
 
     // Change the association through the browser, not the internal API.
     h.goto("/groom").await?;
@@ -208,10 +206,8 @@ async fn label_card_counts_refresh_after_relabeling() -> Result<()> {
 
     h.goto("/labels").await?;
     h.wait_for_selector("#labels-page", TIMEOUT).await?;
-    h.wait_for_text("#label-card-count-1", "0 cards", TIMEOUT)
-        .await?;
-    h.wait_for_text("#label-card-count-2", "1 card", TIMEOUT)
-        .await?;
+    h.wait_for_text("#label-card-count-1", "0", TIMEOUT).await?;
+    h.wait_for_text("#label-card-count-2", "1", TIMEOUT).await?;
     Ok(())
 }
 

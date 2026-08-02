@@ -605,7 +605,7 @@ pub fn LabelManager() -> impl IntoView {
                                                             <span class="label-row-info">
                                                                 <span class="badge label">{name.clone()}</span>
                                                                 <span class="label-card-count" id=format!("label-card-count-{id}")>
-                                                                    {card_count} " " {if card_count == 1 { "card" } else { "cards" }}
+                                                                    {card_count}
                                                                 </span>
                                                             </span>
                                                             <span class="label-row-actions">
