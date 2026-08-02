@@ -157,7 +157,11 @@ pub fn Editor(target: EditTarget, on_close: Callback<CloseOutcome>) -> impl Into
         }
         all_labels.update(|labels| {
             if !labels.iter().any(|label| label.name == name) {
-                labels.push(LabelResponse { id: 0, name });
+                labels.push(LabelResponse {
+                    id: 0,
+                    name,
+                    card_count: 0,
+                });
             }
         });
         new_label_input.set(String::new());

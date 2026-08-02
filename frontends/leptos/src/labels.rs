@@ -223,10 +223,12 @@ mod tests {
             LabelResponse {
                 id: 7,
                 name: "aaa".to_owned(),
+                card_count: 0,
             },
             LabelResponse {
                 id: 8,
                 name: "Other".to_owned(),
+                card_count: 2,
             },
         ];
         assert_eq!(
@@ -523,7 +525,7 @@ pub fn LabelManager() -> impl IntoView {
                 <div class="labels-card-heading">
                     <h2 id="labels-heading">"Your labels"</h2>
                     <span class="labels-count">
-                        {move || labels.get().map_or_else(|| "".to_owned(), |list| list.len().to_string())}
+                        {move || labels.get().map_or_else(String::new, |list| list.len().to_string())}
                     </span>
                 </div>
                 <form id="create-label-form" class="label-create" on:submit=create>
@@ -567,6 +569,7 @@ pub fn LabelManager() -> impl IntoView {
                                     {list.into_iter().map(|label| {
                                         let id = label.id;
                                         let name = label.name.clone();
+                                        let card_count = label.card_count;
                                         let row_id = format!("label-row-{id}");
                                         view! {
                                             <li class="label-row" id=row_id>
@@ -601,6 +604,9 @@ pub fn LabelManager() -> impl IntoView {
                                                         view! {
                                                             <span class="label-row-info">
                                                                 <span class="badge label">{name.clone()}</span>
+                                                                <span class="label-card-count" id=format!("label-card-count-{id}")>
+                                                                    {card_count} " " {if card_count == 1 { "card" } else { "cards" }}
+                                                                </span>
                                                             </span>
                                                             <span class="label-row-actions">
                                                                 <button type="button" id=format!("rename-label-{id}") on:click=move |_| start_edit((id, edit_name.clone()))>

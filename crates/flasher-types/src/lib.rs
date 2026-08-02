@@ -129,6 +129,8 @@ pub struct LabelResponse {
     /// Database id of the label row.
     pub id: i64,
     pub name: String,
+    /// Number of cards owned by the current user that carry this label.
+    pub card_count: i64,
 }
 
 /// Body of `POST /api/labels`: creates one label for the current user.
@@ -348,9 +350,10 @@ mod tests {
         let label = LabelResponse {
             id: 7,
             name: "Enabled".to_owned(),
+            card_count: 3,
         };
         let json = serde_json::to_string(&label)?;
-        assert_eq!(json, r#"{"id":7,"name":"Enabled"}"#);
+        assert_eq!(json, r#"{"id":7,"name":"Enabled","card_count":3}"#);
         let parsed: LabelResponse = serde_json::from_str(&json)?;
         assert_eq!(parsed, label);
         Ok(())

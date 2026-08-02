@@ -219,6 +219,7 @@ async fn label_crud_is_scoped_and_delete_requires_confirmation_when_used() -> Te
 
     let created = store.create_label(user.id, "Topics").await?;
     assert_eq!(created.name, "Topics");
+    assert_eq!(created.card_count, 0);
     assert_eq!(store.labels(other.id).await?, Vec::new());
 
     let unused = store.create_label(user.id, "Unused").await?;
@@ -240,6 +241,10 @@ async fn label_crud_is_scoped_and_delete_requires_confirmation_when_used() -> Te
     let mut card = new_card(user.id, "c-label");
     card.labels = names(&["Subjects"]);
     store.insert_card(&card).await?;
+
+    let labels = store.labels(user.id).await?;
+    assert_eq!(labels.len(), 1);
+    assert_eq!(labels[0].card_count, 1);
 
     assert_eq!(
         store.delete_label(user.id, created.id, false).await?,

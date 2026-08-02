@@ -333,12 +333,35 @@ impl Store {
     /// Returns an error on database failure.
     pub async fn labels(&self, user_id: i64) -> Result<Vec<Label>, Error> {
         let labels = sqlx::query_as::<_, Label>(
-            "SELECT id, name FROM labels WHERE user_id = ? ORDER BY name",
+            "SELECT l.id, l.name, COUNT(c.id) AS card_count \
+             FROM labels l \
+             LEFT JOIN card_labels cl ON cl.label_id = l.id \
+             LEFT JOIN cards c ON c.id = cl.card_id AND c.user_id = l.user_id \
+             WHERE l.user_id = ? \
+             GROUP BY l.id, l.name \
+             ORDER BY l.name",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
         .await?;
         Ok(labels)
+    }
+
+    /// Returns one of the user's labels with its current card count.
+    async fn label_with_count(&self, user_id: i64, id: i64) -> Result<Option<Label>, Error> {
+        let label = sqlx::query_as::<_, Label>(
+            "SELECT l.id, l.name, COUNT(c.id) AS card_count \
+             FROM labels l \
+             LEFT JOIN card_labels cl ON cl.label_id = l.id \
+             LEFT JOIN cards c ON c.id = cl.card_id AND c.user_id = l.user_id \
+             WHERE l.user_id = ? AND l.id = ? \
+             GROUP BY l.id, l.name",
+        )
+        .bind(user_id)
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(label)
     }
 
     /// Returns the id of the user's label `name`, creating it if needed.
@@ -377,14 +400,16 @@ impl Store {
     /// Returns an error on database failure, including a uniqueness
     /// violation when the user already has the exact name.
     pub async fn create_label(&self, user_id: i64, name: &str) -> Result<Label, Error> {
-        let label = sqlx::query_as::<_, Label>(
-            "INSERT INTO labels (user_id, name) VALUES (?, ?) RETURNING id, name",
+        let id = sqlx::query_scalar::<_, i64>(
+            "INSERT INTO labels (user_id, name) VALUES (?, ?) RETURNING id",
         )
         .bind(user_id)
         .bind(name)
         .fetch_one(&self.pool)
         .await?;
-        Ok(label)
+        self.label_with_count(user_id, id)
+            .await?
+            .ok_or(Error::Sqlx(sqlx::Error::RowNotFound))
     }
 
     /// Renames a label owned by this user. Returns `None` for an unknown
@@ -399,16 +424,19 @@ impl Store {
         id: i64,
         name: &str,
     ) -> Result<Option<Label>, Error> {
-        let label = sqlx::query_as::<_, Label>(
+        let id = sqlx::query_scalar::<_, i64>(
             "UPDATE labels SET name = ? WHERE user_id = ? AND id = ? \
-             RETURNING id, name",
+             RETURNING id",
         )
         .bind(name)
         .bind(user_id)
         .bind(id)
         .fetch_optional(&self.pool)
         .await?;
-        Ok(label)
+        match id {
+            Some(id) => self.label_with_count(user_id, id).await,
+            None => Ok(None),
+        }
     }
 
     /// Checks a label's card usage and deletes it only when `confirm` is

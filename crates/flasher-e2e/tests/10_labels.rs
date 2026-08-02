@@ -152,6 +152,69 @@ async fn label_crud_and_used_label_delete_confirmation() -> Result<()> {
     Ok(())
 }
 
+/// Counts include unused labels and are refreshed after the card's label set
+/// changes through the user-facing Groom editor.
+#[tokio::test]
+#[ignore = "browser"]
+async fn label_card_counts_refresh_after_relabeling() -> Result<()> {
+    let h = TestHarness::start().await?;
+
+    h.goto("/labels").await?;
+    h.wait_for_selector("#labels-page", TIMEOUT).await?;
+    h.type_into("#new-label-name", "Used").await?;
+    h.click("#create-label").await?;
+    h.wait_for_text("#labels-list", "Used", TIMEOUT).await?;
+    h.type_into("#new-label-name", "Unused").await?;
+    h.click("#create-label").await?;
+    h.wait_for_text("#labels-list", "Unused", TIMEOUT).await?;
+
+    let (store, user_id) = seed_user(&h).await?;
+    store
+        .insert_card(&NewCard {
+            user_id,
+            id: "card-counts".to_owned(),
+            prompt: "Count me".to_owned(),
+            solution: "card counts".to_owned(),
+            state: CardState::New,
+            change_time: 1_000,
+            next_time: 2_000,
+            labels: vec!["Used".to_owned()],
+        })
+        .await
+        .map_err(store_err)?;
+
+    // The page fetch is fresh on mount, so the labels created above now show
+    // one used label and one deliberately unused label.
+    h.goto("/labels").await?;
+    h.wait_for_selector("#labels-page", TIMEOUT).await?;
+    h.wait_for_text("#label-card-count-1", "1 card", TIMEOUT)
+        .await?;
+    h.wait_for_text("#label-card-count-2", "0 cards", TIMEOUT)
+        .await?;
+
+    // Change the association through the browser, not the internal API.
+    h.goto("/groom").await?;
+    h.wait_for_selector("#groom-row-card-counts", TIMEOUT)
+        .await?;
+    h.click("#labels-card-counts").await?;
+    h.wait_for_selector("#groom-labels-modal", TIMEOUT).await?;
+    h.wait_for_selector("#label-modal-label-Used", TIMEOUT)
+        .await?;
+    h.click("#label-modal-label-Used").await?;
+    h.click("#label-modal-label-Unused").await?;
+    h.click("#label-modal-save").await?;
+    h.wait_for_text("#groom-row-card-counts", "Unused", TIMEOUT)
+        .await?;
+
+    h.goto("/labels").await?;
+    h.wait_for_selector("#labels-page", TIMEOUT).await?;
+    h.wait_for_text("#label-card-count-1", "0 cards", TIMEOUT)
+        .await?;
+    h.wait_for_text("#label-card-count-2", "1 card", TIMEOUT)
+        .await?;
+    Ok(())
+}
+
 /// Renaming a selected label keeps both page filters selected by the stable
 /// database ID and updates their visible badge to the new name.
 #[tokio::test]

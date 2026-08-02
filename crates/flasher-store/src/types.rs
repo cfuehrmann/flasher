@@ -56,6 +56,8 @@ pub struct NewCard {
 pub struct Label {
     pub id: i64,
     pub name: String,
+    /// Number of cards owned by the label's user that carry this label.
+    pub card_count: i64,
 }
 
 /// The in-progress edit a client autosaves during a card edit session.

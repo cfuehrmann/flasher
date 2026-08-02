@@ -1146,6 +1146,7 @@ async fn list_labels(
         .map(|label| LabelResponse {
             id: label.id,
             name: label.name,
+            card_count: label.card_count,
         })
         .collect();
     Ok(Json(labels))
@@ -1170,6 +1171,7 @@ async fn create_label(
         Json(LabelResponse {
             id: label.id,
             name: label.name,
+            card_count: label.card_count,
         }),
     ))
 }
@@ -1193,6 +1195,7 @@ async fn rename_label(
     Ok(Json(LabelResponse {
         id: label.id,
         name: label.name,
+        card_count: label.card_count,
     }))
 }
 

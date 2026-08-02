@@ -141,6 +141,7 @@ async fn labels_are_minted_by_card_creation() -> TestResult {
         .await?;
     let names: Vec<&str> = labels.iter().map(|label| label.name.as_str()).collect();
     assert_eq!(names, ["grammar"]);
+    assert_eq!(labels[0].card_count, 1);
     server.abort();
     Ok(())
 }
