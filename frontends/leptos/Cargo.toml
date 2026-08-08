@@ -33,9 +33,9 @@ panic = "warn"
 # Exact pin: leptos tracks a fast-moving ecosystem; pin precisely and bump
 # deliberately, mirroring the omega project convention.
 leptos = { version = "=0.8.20" }
-# Exact pin: must match the wasm-bindgen CLI version used by Trunk (0.2.126),
+# Exact pin: must match the wasm-bindgen CLI version used by Trunk (0.2.127),
 # otherwise the wasm ABI between generated glue and lib may diverge.
-wasm-bindgen = { version = "=0.2.126" }
+wasm-bindgen = { version = "=0.2.127" }
 # default-features = false drops unneeded gloo-net modules; `http` is the
 # fetch wrapper and `json` its serde request/response bodies.
 gloo-net = { version = "0.7", default-features = false, features = ["http", "json"] }
@@ -43,7 +43,7 @@ gloo-net = { version = "0.7", default-features = false, features = ["http", "jso
 # move in lockstep with wasm-bindgen). Used only for the browser clock
 # (js_sys::Date::now) behind the groom tab's "due now" label — formatting
 # itself is pure Rust so the ssr build never touches js-sys at runtime.
-js-sys = { version = "=0.3.103" }
+js-sys = { version = "=0.3.104" }
 # WebAuthn passkey ceremonies (Phase 5B): navigator.credentials.create/get
 # plus the PublicKeyCredential response getters. Exact pin: web-sys
 # releases in lockstep with the wasm-bindgen ABI pin above. Only the
@@ -57,7 +57,7 @@ js-sys = { version = "=0.3.103" }
 # Element/DomRect/HtmlElement/CssStyleDeclaration measure the sticky
 # header's height (--top-h) and the groom list's free vertical space
 # (viewport-fit page size, owner 2026-07-31).
-web-sys = { version = "=0.3.103", features = [
+web-sys = { version = "=0.3.104", features = [
     "AuthenticatorAssertionResponse",
     "AuthenticatorAttestationResponse",
     "AuthenticationExtensionsClientOutputs",
@@ -80,7 +80,7 @@ web-sys = { version = "=0.3.103", features = [
 ] }
 # Awaits the Promise returned by navigator.credentials.create/get. Part of
 # the wasm-bindgen project; exact pin to match the ABI pin above.
-wasm-bindgen-futures = { version = "=0.4.76" }
+wasm-bindgen-futures = { version = "=0.4.77" }
 console_error_panic_hook = "0.1"
 # Card-content rendering (Phase 4A): pulldown-cmark parses GFM in wasm.
 # default-features off drops the `getopts` CLI helper; `html` is the

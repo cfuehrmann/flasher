@@ -48,7 +48,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 . "$HOME/.cargo/env"
 rustup target add wasm32-unknown-unknown
 cargo install --locked --version 0.21.14 trunk
-cargo install --locked --version 0.2.126 wasm-bindgen-cli   # must match the frontend's wasm-bindgen pin
+cargo install --locked --version 0.2.127 wasm-bindgen-cli   # must match the frontend's wasm-bindgen pin
 
 cd /opt/flasher/src
 cargo build --release -p flasher-server -p flasher-migrate
