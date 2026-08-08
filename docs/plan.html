@@ -658,6 +658,10 @@ browser e2e (clicking) together — never a backend without its user-facing test
     frontend gloo-net 0.6→0.7. <b>Held back:</b> sha2 0.11 and base64 0.23 would each link a second
     copy into the server binary because sqlx-core 0.9 still pins sha2 0.10 / base64 0.22 — revisit
     when sqlx moves. No behavior change; full gate green (incl. 68 browser e2e).</li>
+    <li class="done"><b><span class="badge b-done">done</span> Lockfile sweep (2026-08-08):</b>
+    full <code>cargo update</code> in both workspaces — semver-compatible transitive patches only
+    (rustls, time, thiserror, http 1.5, regex-automata, zerocopy, … and the bundled SQLite engine
+    libsqlite3-sys 0.30→0.37 on sqlx 0.9's wide requirement). No manifest edits; full gate green.</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>
