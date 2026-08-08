@@ -17,9 +17,12 @@ thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json.workspace = true
 # default-features = false: sqlx pulls in a lot by default (multiple
-# databases, TLS stacks, ...); we only need SQLite on the tokio/rustls
-# runtime plus the macros for FromRow and the embedded `migrate!`.
-# Query checking stays at runtime (no query! macros, no DATABASE_URL).
+# databases, TLS stacks, ...); we only need SQLite on the tokio runtime
+# plus the macros for FromRow and the embedded `migrate!`. SQLite never
+# speaks TLS, so no `tls-*` feature is enabled (sqlx 0.9 split the old
+# `runtime-tokio-rustls` combination feature into `runtime-tokio` +
+# `tls-rustls`). Query checking stays at runtime (no query! macros,
+# no DATABASE_URL).
 # `time` for the UTC timestamp in pre-migration backup file names.
 # default-features = false; `std` for `now_utc`, `macros` for the
 # compile-time-checked format description, `formatting` to render it.
@@ -28,8 +31,8 @@ time = { version = "0.3", default-features = false, features = [
     "macros",
     "formatting",
 ] }
-sqlx = { version = "0.8", default-features = false, features = [
-    "runtime-tokio-rustls",
+sqlx = { version = "0.9", default-features = false, features = [
+    "runtime-tokio",
     "sqlite",
     "macros",
     "migrate",

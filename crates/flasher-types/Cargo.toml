@@ -16,6 +16,6 @@ sqlx = ["dep:sqlx"]
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-sqlx = { version = "0.8", default-features = false, features = [
+sqlx = { version = "0.9", default-features = false, features = [
     "sqlite",
 ], optional = true }

@@ -38,7 +38,7 @@ leptos = { version = "=0.8.20" }
 wasm-bindgen = { version = "=0.2.126" }
 # default-features = false drops unneeded gloo-net modules; `http` is the
 # fetch wrapper and `json` its serde request/response bodies.
-gloo-net = { version = "0.6", default-features = false, features = ["http", "json"] }
+gloo-net = { version = "0.7", default-features = false, features = ["http", "json"] }
 # Exact pin: must match the wasm-bindgen ABI pin above (js-sys releases
 # move in lockstep with wasm-bindgen). Used only for the browser clock
 # (js_sys::Date::now) behind the groom tab's "due now" label — formatting

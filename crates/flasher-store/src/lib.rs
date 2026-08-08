@@ -741,9 +741,10 @@ impl Store {
     /// # Errors
     /// Returns an error on database failure.
     pub async fn get_card(&self, user_id: i64, id: &str) -> Result<Option<Card>, Error> {
-        let card = sqlx::query_as::<_, Card>(&format!(
+        // `AssertSqlSafe`: the only interpolation is the const column list.
+        let card = sqlx::query_as::<_, Card>(sqlx::AssertSqlSafe(format!(
             "SELECT {CARD_COLUMNS} FROM cards WHERE user_id = ? AND id = ?"
-        ))
+        )))
         .bind(user_id)
         .bind(id)
         .fetch_optional(&self.pool)
@@ -771,14 +772,15 @@ impl Store {
         prompt: Option<&str>,
         solution: Option<&str>,
     ) -> Result<Option<Card>, Error> {
-        let card = sqlx::query_as::<_, Card>(&format!(
+        // `AssertSqlSafe`: the only interpolation is the const column list.
+        let card = sqlx::query_as::<_, Card>(sqlx::AssertSqlSafe(format!(
             "UPDATE cards SET \
              prompt = COALESCE(?, prompt), \
              solution = COALESCE(?, solution), \
              revision = revision + 1 \
              WHERE user_id = ? AND id = ? \
              RETURNING {CARD_COLUMNS}"
-        ))
+        )))
         .bind(prompt)
         .bind(solution)
         .bind(user_id)
@@ -878,11 +880,12 @@ impl Store {
         change_time: i64,
         next_time: i64,
     ) -> Result<Option<Card>, Error> {
-        let card = sqlx::query_as::<_, Card>(&format!(
+        // `AssertSqlSafe`: the only interpolation is the const column list.
+        let card = sqlx::query_as::<_, Card>(sqlx::AssertSqlSafe(format!(
             "UPDATE cards SET state = ?, change_time = ?, next_time = ?, revision = revision + 1 \
              WHERE user_id = ? AND id = ? \
              RETURNING {CARD_COLUMNS}"
-        ))
+        )))
         .bind(state)
         .bind(change_time)
         .bind(next_time)
@@ -918,11 +921,12 @@ impl Store {
         next_time: i64,
         expected_change_time: i64,
     ) -> Result<SetCardState, Error> {
-        let updated = sqlx::query_as::<_, Card>(&format!(
+        // `AssertSqlSafe`: the only interpolation is the const column list.
+        let updated = sqlx::query_as::<_, Card>(sqlx::AssertSqlSafe(format!(
             "UPDATE cards SET state = ?, change_time = ?, next_time = ?, revision = revision + 1 \
              WHERE user_id = ? AND id = ? AND change_time = ? \
              RETURNING {CARD_COLUMNS}"
-        ))
+        )))
         .bind(state)
         .bind(change_time)
         .bind(next_time)
@@ -988,9 +992,10 @@ impl Store {
         skip: u32,
         limit: u32,
     ) -> Result<(Vec<Card>, i64), Error> {
-        let cards = sqlx::query_as::<_, Card>(&format!(
+        // `AssertSqlSafe`: the only interpolation is the const column list.
+        let cards = sqlx::query_as::<_, Card>(sqlx::AssertSqlSafe(format!(
             "SELECT {CARD_COLUMNS} FROM cards WHERE user_id = ?"
-        ))
+        )))
         .bind(user_id)
         .fetch_all(&self.pool)
         .await?;
@@ -1058,7 +1063,10 @@ impl Store {
              ORDER BY next_time ASC, id \
              LIMIT 1"
         );
-        let mut query = sqlx::query_as::<_, Card>(&statement)
+        // `AssertSqlSafe`: the interpolations are the const column list
+        // and a fixed-shape `IN (?, …)` clause built above; label names
+        // are bound parameters, never part of the statement text.
+        let mut query = sqlx::query_as::<_, Card>(sqlx::AssertSqlSafe(statement))
             .bind(user_id)
             .bind(now);
         if let Some(set) = labels {
@@ -1262,9 +1270,10 @@ impl Store {
         labels: &[String],
     ) -> Result<SaveCardEdit, Error> {
         let mut tx = self.pool.begin().await?;
-        let current = sqlx::query_as::<_, Card>(&format!(
+        // `AssertSqlSafe`: the only interpolation is the const column list.
+        let current = sqlx::query_as::<_, Card>(sqlx::AssertSqlSafe(format!(
             "SELECT {CARD_COLUMNS} FROM cards WHERE user_id = ? AND id = ?"
-        ))
+        )))
         .bind(user_id)
         .bind(card_id)
         .fetch_optional(&mut *tx)
@@ -1326,9 +1335,10 @@ impl Store {
             .bind(card_id)
             .execute(&mut *tx)
             .await?;
-        let mut saved = sqlx::query_as::<_, Card>(&format!(
+        // `AssertSqlSafe`: the only interpolation is the const column list.
+        let mut saved = sqlx::query_as::<_, Card>(sqlx::AssertSqlSafe(format!(
             "SELECT {CARD_COLUMNS} FROM cards WHERE user_id = ? AND id = ?"
-        ))
+        )))
         .bind(user_id)
         .bind(card_id)
         .fetch_one(&mut *tx)
@@ -1372,9 +1382,10 @@ impl Store {
     /// # Errors
     /// Returns an error on database failure.
     pub async fn get_passkeys_for_user(&self, user_id: i64) -> Result<Vec<PasskeyRow>, Error> {
-        let rows = sqlx::query_as::<_, PasskeyRow>(&format!(
+        // `AssertSqlSafe`: the only interpolation is the const column list.
+        let rows = sqlx::query_as::<_, PasskeyRow>(sqlx::AssertSqlSafe(format!(
             "SELECT {PASSKEY_COLUMNS} FROM passkeys WHERE user_id = ? ORDER BY id"
-        ))
+        )))
         .bind(user_id)
         .fetch_all(&self.pool)
         .await?;
@@ -1391,9 +1402,10 @@ impl Store {
         &self,
         credential_id: &str,
     ) -> Result<Option<PasskeyRow>, Error> {
-        let row = sqlx::query_as::<_, PasskeyRow>(&format!(
+        // `AssertSqlSafe`: the only interpolation is the const column list.
+        let row = sqlx::query_as::<_, PasskeyRow>(sqlx::AssertSqlSafe(format!(
             "SELECT {PASSKEY_COLUMNS} FROM passkeys WHERE credential_id = ?"
-        ))
+        )))
         .bind(credential_id)
         .fetch_optional(&self.pool)
         .await?;

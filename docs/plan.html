@@ -651,6 +651,13 @@ browser e2e (clicking) together — never a backend without its user-facing test
     Quiz/Groom use persisted cards, Groom’s label popup is removed, and drafts have a distinct badge.
     The shared editor disables Create/Save until the prompt and at least one label are present; migration
     coverage includes fresh databases, legacy conversion, invalid ownership, and reopen/idempotence checks.</li>
+    <li class="done"><b><span class="badge b-done">done</span> Dependency majors (2026-08-08):</b>
+    sqlx 0.8→0.9 (runtime feature split, no TLS feature for SQLite; runtime-built statements wrapped
+    in <code>AssertSqlSafe</code> — they interpolate only const column lists and a fixed-shape
+    placeholder clause), tower-http 0.6→0.7, reqwest 0.12→0.13 (<code>rustls-tls</code>→<code>rustls</code>),
+    frontend gloo-net 0.6→0.7. <b>Held back:</b> sha2 0.11 and base64 0.23 would each link a second
+    copy into the server binary because sqlx-core 0.9 still pins sha2 0.10 / base64 0.22 — revisit
+    when sqlx moves. No behavior change; full gate green (incl. 68 browser e2e).</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>

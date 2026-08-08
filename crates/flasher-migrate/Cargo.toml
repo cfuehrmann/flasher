@@ -42,8 +42,8 @@ insta = { version = "1", features = ["json"] }
 tempfile = "3"
 # For the full-database dump in the golden test; same feature rationale
 # as flasher-store, minus `migrate` (the store runs the migrations).
-sqlx = { version = "0.8", default-features = false, features = [
-    "runtime-tokio-rustls",
+sqlx = { version = "0.9", default-features = false, features = [
+    "runtime-tokio",
     "sqlite",
     "macros",
 ] }

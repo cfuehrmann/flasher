@@ -29,21 +29,25 @@ tracing-subscriber.workspace = true
 uuid = { version = "1", features = ["v4"] }
 # CSP inline-script hashes (Trunk injects an inline bootstrap <script>
 # into index.html; the CSP allows exactly those snippets by sha-256).
+# Held at the versions sqlx-core already pulls in (base64 0.22 via
+# sqlx-core/hyper-util, sha2 0.10 via sqlx-core): bumping ahead would
+# link a second copy of each into the server binary for no benefit.
+# Revisit when sqlx moves.
 base64 = "0.22"
 sha2 = "0.10"
 
 [dev-dependencies]
 # Dev-only HTTP client for the integration test; rustls avoids a system
 # OpenSSL dependency, `json` deserializes responses into flasher-types.
-reqwest = { version = "0.12", default-features = false, features = [
-    "rustls-tls",
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls",
     "json",
 ] }
 serde_json.workspace = true
 # Fault injection for the store-error mapping tests (e.g. a trigger
 # aborting the passkey INSERT with a non-UNIQUE error), via Store::pool.
-sqlx = { version = "0.8", default-features = false, features = [
-    "runtime-tokio-rustls",
+sqlx = { version = "0.9", default-features = false, features = [
+    "runtime-tokio",
     "sqlite",
     "macros",
 ] }
