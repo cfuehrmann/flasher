@@ -157,10 +157,12 @@ exclude_re = [
     # shell behavior is pinned by the Chromium suite: 02_screenshots drives
     # drawer open/close, Escape, inert/aria-hidden state, focus restoration,
     # and all responsive screenshots; 08_routing/09_state_restore exercise
-    # tab navigation, deep links, and editor restoration. The two small
-    # helpers are called only by that browser-visible shell.
+    # tab navigation, deep links, and editor restoration. The small helpers
+    # are called only by that browser-visible shell.
     'lib\.rs:\d+:\d+: .* in App$',
     'lib\.rs:\d+:\d+: replace (focus_nav_toggle|close_navigation) with ',
+    'lib\.rs:\d+:\d+: replace (focus_nav_toggle_if_sidebar_has_focus|focus_element_by_id|cycle_modal_focus) with ',
+    'lib\.rs:\d+:\d+: replace == with != in cycle_modal_focus',
     # groom_edit_restore is reached by CSR route/popstate handling; its
     # behavior is pinned by the browser state-restore tests, while SSR has no
     # browser location or async card lookup to drive it.

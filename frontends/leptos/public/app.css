@@ -197,6 +197,7 @@ body {
 .health,
 .passkey-dates,
 #groom-page-info,
+.editor-label-title,
 .editor label {
   color: var(--text-muted);
 }
@@ -821,6 +822,12 @@ textarea:focus-visible {
 }
 
 .editor label {
+  display: block;
+  font-size: 0.85rem;
+  margin: 0.75rem 0 0.375rem;
+}
+
+.editor-label-title {
   display: block;
   font-size: 0.85rem;
   margin: 0.75rem 0 0.375rem;

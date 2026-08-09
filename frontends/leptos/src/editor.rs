@@ -540,9 +540,14 @@ pub fn Editor(
                         on:input=on_text_input
                         disabled=move || !draft_loaded.get()
                     ></textarea>
-                    <div class="editor-labels" id="editor-labels">
+                    <div
+                        class="editor-labels"
+                        id="editor-labels"
+                        role="group"
+                        aria-labelledby="editor-label-title"
+                    >
                         <div class="editor-label-heading">
-                            <label>"Labels"</label>
+                            <span class="editor-label-title" id="editor-label-title">"Labels"</span>
                             <span class="editor-label-requirement" id="editor-label-requirement">
                                 "(choose at least one)"
                             </span>

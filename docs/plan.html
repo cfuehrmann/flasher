@@ -695,6 +695,12 @@ browser e2e (clicking) together — never a backend without its user-facing test
     lossless JSON query encoding (legacy comma encoding remains readable), all destructive dialogs have
     accessible names plus initial focus, Escape dismissal, and a two-button focus loop, and the async Groom
     draft-badge update re-fits the viewport.</li>
+    <li class="done"><b>DevTools console regressions fixed (2026-08-09):</b> browser coverage now catches
+    deferred Groom search and resize callbacks after tab disposal, unsupported SRI on the WASM preload,
+    responsive navigation hiding focused content, and unassociated editor labels; deferred callbacks use
+    non-reactive generation/liveness guards, the Rust-generated script/WASM preload pair opts out of SRI while
+    the stylesheet retains it, the navigation restores focus before hiding, and the label picker exposes an
+    accessible group name.</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>

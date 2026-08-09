@@ -128,6 +128,21 @@ fn focus_nav_toggle() {
     }
 }
 
+#[cfg(feature = "csr")]
+fn focus_nav_toggle_if_sidebar_has_focus() {
+    use wasm_bindgen::JsCast;
+
+    let Some(nav) = document().get_element_by_id("primary-nav") else {
+        return;
+    };
+    let Some(active) = document().active_element() else {
+        return;
+    };
+    if nav.contains(Some(active.unchecked_ref::<web_sys::Node>())) {
+        focus_nav_toggle();
+    }
+}
+
 /// Focuses a browser element by id. Modal components use this after their
 /// conditional view has mounted, so keyboard users start inside the modal.
 #[cfg(feature = "csr")]
@@ -273,6 +288,11 @@ pub fn App() -> impl IntoView {
                 .ok()
                 .and_then(|width| width.as_f64())
                 .is_some_and(|width| width <= 1_024.0);
+            if narrow && !nav_narrow.get_untracked() && !nav_open.get_untracked() {
+                // Move focus out before the closed desktop sidebar becomes
+                // aria-hidden/inert during a fast desktop-to-mobile resize.
+                focus_nav_toggle_if_sidebar_has_focus();
+            }
             nav_narrow.set(narrow);
         };
         update_nav_narrow();

@@ -2,9 +2,9 @@
 //! collection.
 //!
 //! Search-as-you-type with a ~300 ms debounce (a generation counter makes
-//! stale timers no-ops, so no cancel handle is needed); changing the query
-//! resets to the first card and refetches. The clear button inside the box
-//! empties the query immediately (no debounce — one click, one fetch)
+//! stale timers no-ops, and a liveness flag makes timers safe across tab
+//! unmounts); changing the query resets to the first card and refetches.
+//! The clear button inside the box empties the query immediately (no debounce — one click, one fetch)
 //! and is disabled while the box is empty. Next to it, the label filter
 //! (labels dissolved the old status dropdown, owner decision 2026-08-01):
 //! a multi-select of the user's labels with union semantics — a card
@@ -54,6 +54,8 @@
 //! Loading, error (with retry) and empty states mirror the quiz tab.
 
 use std::collections::HashSet;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
 use flasher_types::{CardResponse, CardState, LabelResponse, MAX_TAKE};
@@ -397,6 +399,12 @@ pub fn Groom(
     let confirm = RwSignal::new(None::<ConfirmAction>);
     #[cfg(feature = "csr")]
     let needs_fit = RwSignal::new(true);
+    // Browser timers can outlive this component when a tab switch or route
+    // change disposes Groom. Keep their liveness state outside the reactive
+    // graph so callbacks can check it without touching disposed signals.
+    let alive = Arc::new(AtomicBool::new(true));
+    let alive_on_cleanup = Arc::clone(&alive);
+    on_cleanup(move || alive_on_cleanup.store(false, Ordering::Relaxed));
     // The requested page size (owner wish 2026-07-31: the list fills
     // exactly the viewport): the persisted calibrated value or the
     // fallback, corrected by the calibration pass and on resize.
@@ -512,6 +520,7 @@ pub fn Groom(
         // (inner_width, available) of the last applied fit — the URL-bar
         // churn guard's baseline.
         let last_viewport = RwSignal::new(None::<(f64, f64)>);
+        let alive_for_fit = Arc::clone(&alive);
         Effect::new(move |_| {
             if !needs_fit.get() {
                 return;
@@ -523,9 +532,10 @@ pub fn Groom(
             // created before the view, so on `state.set(Loaded)` it runs
             // BEFORE the new rows are patched into the DOM — measuring
             // here would see the stale Loading state.
+            let alive = Arc::clone(&alive_for_fit);
             set_timeout(
                 move || {
-                    if !needs_fit.get_untracked() {
+                    if !alive.load(Ordering::Relaxed) || !needs_fit.get_untracked() {
                         return;
                     }
                     let Some(fit) = measure_viewport_fit() else {
@@ -555,13 +565,18 @@ pub fn Groom(
         // churns the list (adversarial review 2026-07-31) — the fit can
         // then lag the viewport by less than a row, which the sticky
         // chrome absorbs.
-        let resize_generation = RwSignal::new(0_u64);
+        let resize_generation = Arc::new(AtomicU32::new(0));
+        let alive_for_resize = Arc::clone(&alive);
         let resize = window_event_listener_untyped("resize", move |_| {
-            resize_generation.update(|count| *count += 1);
-            let armed = resize_generation.get_untracked();
+            resize_generation.fetch_add(1, Ordering::Relaxed);
+            let armed = resize_generation.load(Ordering::Relaxed);
+            let resize_generation = Arc::clone(&resize_generation);
+            let alive = Arc::clone(&alive_for_resize);
             set_timeout(
                 move || {
-                    if resize_generation.get_untracked() != armed {
+                    if !alive.load(Ordering::Relaxed)
+                        || resize_generation.load(Ordering::Relaxed) != armed
+                    {
                         return;
                     }
                     let Some(fit) = measure_viewport_fit() else {
@@ -595,16 +610,27 @@ pub fn Groom(
     // Search-as-you-type: every keystroke bumps the generation and arms a
     // timer; when it fires and is still the latest, the query goes live.
     // `batch` makes the offset reset and the query change a single trigger,
-    // so the effect fires one fetch, not two.
-    let generation = RwSignal::new(0_u64);
-    let on_search_input = move |ev: leptos::ev::Event| {
-        let value = event_target_value(&ev);
-        input.set(value.clone());
-        generation.update(|count| *count += 1);
-        let armed = generation.get_untracked();
-        set_timeout(
-            move || {
-                if generation.get_untracked() == armed {
+    // so the effect fires one fetch, not two. The generation and liveness
+    // flags are deliberately non-reactive: browser timers can outlive this
+    // component, and reading an RwSignal after navigation would panic.
+    let generation = Arc::new(AtomicU32::new(0));
+
+    let on_search_input = {
+        let generation = Arc::clone(&generation);
+        let alive = Arc::clone(&alive);
+        move |ev: leptos::ev::Event| {
+            let value = event_target_value(&ev);
+            input.set(value.clone());
+            generation.fetch_add(1, Ordering::Relaxed);
+            let armed = generation.load(Ordering::Relaxed);
+            let generation = Arc::clone(&generation);
+            let alive = Arc::clone(&alive);
+            set_timeout(
+                move || {
+                    if !alive.load(Ordering::Relaxed) || generation.load(Ordering::Relaxed) != armed
+                    {
+                        return;
+                    }
                     // Persist the LIVE query (not every keystroke), so a
                     // refresh resumes with exactly what the list showed.
                     #[cfg(feature = "csr")]
@@ -613,25 +639,28 @@ pub fn Groom(
                         skip.set(0);
                         query.set(value);
                     });
-                }
-            },
-            DEBOUNCE,
-        );
+                },
+                DEBOUNCE,
+            );
+        }
     };
 
     // Clear button: empties the box immediately — one click, one fetch,
     // like the filter, no debounce. Bumping the generation first makes
     // any pending debounce timer a no-op, so a keystroke armed just
     // before the click cannot resurrect the old query afterwards.
-    let on_clear_search = move |_| {
-        generation.update(|count| *count += 1);
-        input.set(String::new());
-        #[cfg(feature = "csr")]
-        storage_set(STORAGE_SEARCH_KEY, "");
-        batch(|| {
-            skip.set(0);
-            query.set(String::new());
-        });
+    let on_clear_search = {
+        let generation = Arc::clone(&generation);
+        move |_| {
+            generation.fetch_add(1, Ordering::Relaxed);
+            input.set(String::new());
+            #[cfg(feature = "csr")]
+            storage_set(STORAGE_SEARCH_KEY, "");
+            batch(|| {
+                skip.set(0);
+                query.set(String::new());
+            });
+        }
     };
 
     // Label selection change: like a search change — reset to the first
