@@ -132,21 +132,21 @@ pub fn Editor(
     let retry_requested = RwSignal::new(false);
     let close_requested = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
-    let busy_change = on_busy_change.clone();
+    let busy_change = on_busy_change;
     let set_busy = Callback::new(move |value: bool| {
         if let Some(callback) = &busy_change {
             callback.run(value);
         }
         busy.set(value);
     });
-    let dirty_change = on_dirty_change.clone();
+    let dirty_change = on_dirty_change;
     let set_dirty = Callback::new(move |value: bool| {
         if let Some(callback) = &dirty_change {
             callback.run(value);
         }
     });
-    let busy_change = on_busy_change.clone();
-    let dirty_change = on_dirty_change.clone();
+    let busy_change = on_busy_change;
+    let dirty_change = on_dirty_change;
     on_cleanup(move || {
         if let Some(callback) = &busy_change {
             callback.run(false);
@@ -217,9 +217,6 @@ pub fn Editor(
     // labels are committed only by Create.
     let autosave = Callback::new({
         let card_id = card_id.clone();
-        let set_busy = set_busy.clone();
-        let set_dirty = set_dirty.clone();
-        let on_close = on_close.clone();
         move |(): ()| {
             if !draft_loaded.get_untracked() {
                 return;
@@ -250,7 +247,7 @@ pub fn Editor(
             status.set(DraftStatus::Saving);
             let card_id = card_id.clone();
             let base_revision = revision.get_untracked();
-            let set_busy_for_request = set_busy.clone();
+            let set_busy_for_request = set_busy;
             leptos::task::spawn_local(async move {
                 let result = match card_id.as_deref() {
                     Some(id) => api::put_card_edit_draft(
@@ -268,7 +265,7 @@ pub fn Editor(
                 };
                 match result {
                     Ok((saved_at, saved_fields)) => {
-                        if !autosave_fields_differ(
+                        if autosave_fields_differ(
                             &DraftFields {
                                 prompt: prompt.get_untracked(),
                                 solution: solution.get_untracked(),
@@ -277,6 +274,15 @@ pub fn Editor(
                             &saved_fields,
                             is_new,
                         ) {
+                            // The user changed the editor while this
+                            // request was in flight. Keep the older
+                            // snapshot as the baseline and immediately
+                            // send the newer one after `busy` becomes
+                            // false.
+                            retry_requested.set(true);
+                            status.set(DraftStatus::Dirty);
+                            set_dirty.run(true);
+                        } else {
                             baseline.set(saved_fields);
                             retry_requested.set(false);
                             status.set(DraftStatus::Saved(format_hms(saved_at)));
@@ -288,14 +294,6 @@ pub fn Editor(
                                 on_close.run(CloseOutcome::Closed);
                             }
                             return;
-                        } else {
-                            // The user changed the editor while this
-                            // request was in flight. Keep the older snapshot
-                            // as the baseline and immediately send the
-                            // newer one after `busy` becomes false.
-                            retry_requested.set(true);
-                            status.set(DraftStatus::Dirty);
-                            set_dirty.run(true);
                         }
                     }
                     Err(err) => {
@@ -314,7 +312,6 @@ pub fn Editor(
     // overlapping writes to the same target draft.
     #[cfg(feature = "csr")]
     {
-        let autosave = autosave.clone();
         Effect::new(move |_| {
             if retry_requested.get() && !busy.get() {
                 retry_requested.set(false);
@@ -331,7 +328,6 @@ pub fn Editor(
     }
 
     let schedule_autosave = {
-        let autosave = autosave.clone();
         Callback::new(move |(): ()| {
             change_generation.update(|generation| *generation += 1);
             let armed = change_generation.get_untracked();
@@ -367,7 +363,6 @@ pub fn Editor(
 
     let save = {
         let card_id = card_id.clone();
-        let set_busy = set_busy.clone();
         move |_| {
             if busy.get_untracked() || !draft_loaded.get_untracked() {
                 return;
@@ -389,7 +384,7 @@ pub fn Editor(
             let expected_revision = revision.get_untracked();
             set_busy.run(true);
             status.set(DraftStatus::Saving);
-            let set_busy_for_request = set_busy.clone();
+            let set_busy_for_request = set_busy;
             leptos::task::spawn_local(async move {
                 let result = match card_id.as_deref() {
                     Some(id) => api::save_card_edit(
@@ -440,7 +435,6 @@ pub fn Editor(
     // Closing retains the draft. Only the explicit Discard button deletes
     // it, which keeps ordinary navigation warning-free and reversible.
     let close = {
-        let autosave = autosave.clone();
         move |_| {
             if !draft_loaded.get_untracked() || busy.get_untracked() {
                 return;
@@ -450,25 +444,24 @@ pub fn Editor(
                 solution: solution.get_untracked(),
                 labels: working_labels.get_untracked(),
             };
-            if !autosave_fields_differ(&fields, &baseline.get_untracked(), is_new) {
-                set_dirty.run(false);
-                on_close.run(CloseOutcome::Closed);
-            } else {
+            if autosave_fields_differ(&fields, &baseline.get_untracked(), is_new) {
                 close_requested.set(true);
                 autosave.run(());
+            } else {
+                set_dirty.run(false);
+                on_close.run(CloseOutcome::Closed);
             }
         }
     };
     let discard = {
         let card_id = card_id.clone();
-        let set_busy = set_busy.clone();
         move |_| {
             if busy.get_untracked() {
                 return;
             }
             set_busy.run(true);
             let card_id = card_id.clone();
-            let set_busy_for_request = set_busy.clone();
+            let set_busy_for_request = set_busy;
             leptos::task::spawn_local(async move {
                 let result = match card_id.as_deref() {
                     Some(id) => api::delete_card_edit_draft(id).await,
@@ -514,7 +507,7 @@ pub fn Editor(
 
     let indicator = move || match status.get() {
         DraftStatus::Loading => "Loading draft…".to_owned(),
-        DraftStatus::Clean => "".to_owned(),
+        DraftStatus::Clean => String::new(),
         DraftStatus::Dirty => "unsaved changes".to_owned(),
         DraftStatus::Saving => "saving draft…".to_owned(),
         DraftStatus::Saved(at) => format!("draft saved {at}"),

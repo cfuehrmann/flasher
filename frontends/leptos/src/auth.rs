@@ -559,11 +559,19 @@ fn PasskeyRow(
     );
     let name = passkey.name;
     // The rename input only exists while this row is in rename mode;
-    // focus it as soon as it mounts so the new name can be typed
-    // without an extra click (owner wish 2026-08-09).
+    // focus it and select the current name as soon as it mounts, so the
+    // new name can be typed over without an extra click or keystroke
+    // (owner wish 2026-08-09).
     let rename_input = NodeRef::<leptos::html::Input>::new();
-    rename_input.on_load(|input| {
+    rename_input.on_load(move |input| {
         let _ = input.focus();
+        // `prop:value` settles after the node mounts and would move the
+        // caret to the end of the name; re-apply the value and select it
+        // on the next microtask so the whole name is covered.
+        queue_microtask(move || {
+            input.set_value(&rename_value.get_untracked());
+            input.select();
+        });
     });
     view! {
         <li class="passkey-row" id=row_id>

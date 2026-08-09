@@ -679,6 +679,15 @@ browser e2e (clicking) together — never a backend without its user-facing test
     07_auth.rs). <b>Deferred:</b> entering rename swaps the row content, so the row is ~2 px
     shorter (64.4→62 measured) — pre-existing inline-edit layout, cosmetic, not part of this
     change.</li>
+    <li class="done"><b><span class="badge b-done">done</span> Rename selects the name + clippy in the
+    gate (owner, 2026-08-09):</b> the focused passkey rename input now selects the whole name, so
+    typing replaces it outright (e2e asserts <code>selectionStart/selectionEnd</code> cover the
+    value). Clippy joined <code>just gate</code> for the frontend — host-target ssr and wasm csr
+    builds both linted with <code>-D warnings</code>. That surfaced ~20 pre-existing
+    <code>clone_on_copy</code> / <code>if_not_else</code> / <code>redundant_else</code> /
+    <code>manual_string_new</code> lints in editor.rs/lib.rs (new in rust 1.97), now fixed; the
+    gate would have caught them before they shipped. Full gate green; focused-rename screenshot
+    regenerated (shows the selected name).</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>

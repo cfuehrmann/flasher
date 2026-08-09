@@ -323,7 +323,6 @@ pub fn App() -> impl IntoView {
         route::push_tab(next);
     });
     let navigate = Callback::new({
-        let complete_navigation = complete_navigation.clone();
         move |next: Tab| {
             if editor_busy.get_untracked() || editor_dirty.get_untracked() {
                 // Remember the click and carry it out after the current
@@ -379,7 +378,6 @@ pub fn App() -> impl IntoView {
     });
 
     let on_editor_busy = {
-        let navigate = navigate.clone();
         Callback::new(move |busy: bool| {
             editor_busy.set(busy);
             if !busy && !editor_dirty.get_untracked() {

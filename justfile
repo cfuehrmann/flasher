@@ -47,11 +47,14 @@ _rust-checks:
 rust-gate: _rust-checks
     cargo test --manifest-path frontends/leptos/Cargo.toml --no-default-features --features ssr
 
-# Leptos bundle build plus its host-target ssr test and the wasm size budget.
+# Leptos bundle build plus its host-target ssr test, clippy on both
+# frontend build targets (ssr host + csr wasm) and the wasm size budget.
 web-gate:
     cd frontends/leptos && env -u NO_COLOR trunk build
     just wasm-size-check
     cargo test --manifest-path frontends/leptos/Cargo.toml --no-default-features --features ssr
+    cargo clippy --manifest-path frontends/leptos/Cargo.toml --no-default-features --features ssr --all-targets -- -D warnings
+    cargo clippy --manifest-path frontends/leptos/Cargo.toml --all-targets --target wasm32-unknown-unknown -- -D warnings
 
 # Fail if the largest wasm bundle exceeds the size budget.
 wasm-size-check:
