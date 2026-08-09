@@ -234,6 +234,18 @@ exclude_re = [
     'labels\\.rs:\\d+:\\d+: .* in LabelManager$',
     'replace LabelManager -> ',
 
+    # --- Browser-only passkey ceremony glue in auth.rs ------------------------
+    # register_ceremony / login_ceremony / step_up_ceremony / with_step_up are
+    # #[cfg(feature = "csr")] wrappers around WebAuthn ceremonies and gloo-net
+    # calls; under the host-target ssr build they compile out, so host tests
+    # structurally cannot observe them. Their behavior IS pinned by the browser
+    # e2e suite (crates/flasher-e2e/tests/07_auth.rs), which drives real
+    # registration, login, step-up and passkey management via a CDP virtual
+    # authenticator. The matching #[cfg(not(feature = "csr"))] stubs exist only
+    # to keep the ssr view linkable and are never called (mutating their error
+    # body to Ok(_) is unobservable by construction).
+    'auth\.rs:\d+:\d+: replace (register_ceremony|login_ceremony|step_up_ceremony|with_step_up) -> ',
+
     # --- Browser-only rename migration and management callback ---------------
     # preserve_selection_after_rename upgrades selections written by the
     # pre-ID UI in window.localStorage. The browser regression in

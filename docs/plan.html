@@ -667,6 +667,18 @@ browser e2e (clicking) together — never a backend without its user-facing test
     js-sys/web-sys 0.3.104, plus the pin comment and <code>deploy/DEPLOY.md</code>'s wasm-bindgen-cli
     version. Trunk downloads the matching CLI itself (observed), so a stale installed CLI no longer
     breaks the build; bundle 5269 KiB, budget 5700. Full gate green.</li>
+    <li class="done"><b><span class="badge b-done">done</span> Passkey rename input auto-focus (owner,
+    2026-08-09):</b> clicking Rename on a passkey row focuses the name input immediately
+    (<code>NodeRef</code> + <code>on_load</code>), so the new name can be typed or replaced without
+    an extra click; new e2e asserts <code>document.activeElement</code> is the rename input.
+    Browser-verified beyond the suite: <code>:focus-visible</code> matches with the 2px accent
+    outline, and re-entering rename after Cancel re-focuses. Account desktop/mobile screenshots
+    regenerated; Lighthouse 84/100/100/100/100 uniform across ALL pages (same band as the last
+    runs — wasm-boot LCP jitter on this machine, not a regression). Mutation run: auth.rs ceremony
+    wrappers documented as browser-only glue in the leptos mutants.toml (e2e-pinned by
+    07_auth.rs). <b>Deferred:</b> entering rename swaps the row content, so the row is ~2 px
+    shorter (64.4→62 measured) — pre-existing inline-edit layout, cosmetic, not part of this
+    change.</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>

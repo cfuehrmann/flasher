@@ -173,6 +173,16 @@ async fn passkey_management() -> Result<()> {
 
     // Inline rename of the first passkey.
     h.click("#rename-passkey-1").await?;
+    // The rename input is focused immediately (owner wish 2026-08-09):
+    // the new name can be typed without an extra click.
+    let focused: bool = h
+        .eval("document.activeElement?.id === 'rename-input'")
+        .await?;
+    if !focused {
+        return Err(Error::message("rename input not focused after Rename"));
+    }
+    // CV checkpoint: the inline editor with the focused input.
+    h.screenshot("07_auth/03b_passkey_rename_focused").await?;
     replace_input_text(&h, "#rename-input", "Laptop").await?;
     h.click("#rename-save").await?;
     h.wait_for_text("#passkeys-list", "Laptop", TIMEOUT).await?;

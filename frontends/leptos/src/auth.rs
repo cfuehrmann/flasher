@@ -558,6 +558,13 @@ fn PasskeyRow(
             .map_or_else(|| "never".to_owned(), flasher_core::format_utc_date),
     );
     let name = passkey.name;
+    // The rename input only exists while this row is in rename mode;
+    // focus it as soon as it mounts so the new name can be typed
+    // without an extra click (owner wish 2026-08-09).
+    let rename_input = NodeRef::<leptos::html::Input>::new();
+    rename_input.on_load(|input| {
+        let _ = input.focus();
+    });
     view! {
         <li class="passkey-row" id=row_id>
             {move || {
@@ -567,6 +574,7 @@ fn PasskeyRow(
                             <input
                                 type="text"
                                 id="rename-input"
+                                node_ref=rename_input
                                 prop:value=move || rename_value.get()
                                 on:input=move |ev| {
                                     rename_value.set(event_target_value(&ev));
