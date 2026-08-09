@@ -91,13 +91,21 @@ it literally; the conventions below are battle-tested and non-optional.
 
 ## Adversarial review (standing, unprimed)
 
-After each feature/phase, launch a fresh review agent with a **clean
-context**: give it ONLY `docs/spec.md` + `docs/plan.html` and pointers to
-the code — no implementation narrative, no list of known deviations, no
-hints. The review must include a **behavioral test**: actually drive the
-app in a browser (scratch tests via the e2e harness allowed; tree left
-unchanged) and judge UX and latency, not just code. Triage findings:
-fix real ones, record deferrals in `docs/plan.html`.
+After each feature/phase, launch a fresh review agent with **zero inherited
+conversation context**. Use the active coding harness's equivalent of a
+fresh, non-inheriting session; do not pass the current thread or the top
+agent's conversation to it. (For Codex's subagent tool this means
+`fork_context: false`; other tools may use different names or mechanisms.)
+Give the reviewer ONLY `docs/spec.md` + `docs/plan.html` and pointers to the
+code — no implementation narrative, no list of known deviations, no hints,
+and no description of the top agent's reasoning or expectations. The
+reviewer must form its judgment independently from those materials and the
+code.
+
+The review must include a **behavioral test**: actually drive the app in a
+browser (scratch tests via the e2e harness allowed; tree left unchanged) and
+judge UX and latency, not just code. Triage findings: fix real ones, record
+deferrals in `docs/plan.html`.
 
 ## Workflow for a feature prompt
 
