@@ -335,6 +335,55 @@ async fn wait_until_gone(h: &TestHarness, sel: &str, timeout: Duration) -> Resul
     }
 }
 
+/// Checks the shared destructive-dialog keyboard contract and dismisses it
+/// with Escape so the caller can reopen it for the action assertion.
+async fn exercise_confirmation_keyboard(
+    h: &TestHarness,
+    modal: &str,
+    confirm: &str,
+    cancel: &str,
+    title_id: &str,
+) -> Result<()> {
+    let dialog = format!("{modal} [role=dialog]");
+    let labelled_by: String = h
+        .eval(&format!(
+            "document.querySelector({dialog:?}).getAttribute('aria-labelledby')"
+        ))
+        .await?;
+    if labelled_by != title_id {
+        return Err(Error::message(format!(
+            "Groom confirmation should have an accessible name, got {labelled_by:?}"
+        )));
+    }
+    let focused: String = h.eval("document.activeElement?.id ?? ''").await?;
+    if focused != cancel.trim_start_matches('#') {
+        return Err(Error::message(format!(
+            "Groom confirmation should initially focus Cancel, got {focused:?}"
+        )));
+    }
+    h.page
+        .find_element(cancel)
+        .await
+        .map_err(Error::Cdp)?
+        .press_key("Tab")
+        .await
+        .map_err(Error::Cdp)?;
+    let focused: String = h.eval("document.activeElement?.id ?? ''").await?;
+    if focused != confirm.trim_start_matches('#') {
+        return Err(Error::message(format!(
+            "Groom confirmation Tab should reach Delete, got {focused:?}"
+        )));
+    }
+    h.page
+        .find_element(confirm)
+        .await
+        .map_err(Error::Cdp)?
+        .press_key("Escape")
+        .await
+        .map_err(Error::Cdp)?;
+    wait_until_gone(h, modal, TIMEOUT).await
+}
+
 /// Opens the row's "⋯" overflow menu and clicks the given item
 /// (`#reset-<card>` / `#delete-<card>`), waiting for the menu to render.
 async fn click_row_menu_item(h: &TestHarness, card_id: &str, item_sel: &str) -> Result<()> {
@@ -923,11 +972,14 @@ async fn delete_with_confirm_modal() -> Result<()> {
         )));
     }
     h.screenshot("04_groom/delete-modal").await?;
-
-    h.click("#modal-cancel").await?;
-    wait_until_gone(&h, "#groom-modal", TIMEOUT).await?;
-    h.wait_for_selector("#groom-row-card-delete", TIMEOUT)
-        .await?;
+    exercise_confirmation_keyboard(
+        &h,
+        "#groom-modal",
+        "#modal-confirm",
+        "#modal-cancel",
+        "groom-modal-title",
+    )
+    .await?;
 
     click_row_menu_item(&h, "card-delete", "#delete-card-delete").await?;
     h.wait_for_selector("#groom-modal", TIMEOUT).await?;
@@ -1262,6 +1314,14 @@ async fn row_menu_opens_and_dismisses() -> Result<()> {
     h.click("#menu-card-menu").await?;
     h.wait_for_selector("#reset-card-menu", TIMEOUT).await?;
     h.wait_for_selector("#delete-card-menu", TIMEOUT).await?;
+    let has_trash_icon: bool = h
+        .eval("!!document.querySelector('#delete-card-menu .icon-trash')")
+        .await?;
+    if !has_trash_icon {
+        return Err(Error::message(
+            "card delete menu item should use the shared trash icon",
+        ));
+    }
     if h.eval::<String>(
         "document.querySelector('#menu-card-menu').getAttribute('aria-expanded') ?? '<missing>'",
     )

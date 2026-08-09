@@ -41,6 +41,47 @@ async fn wait_for_path(h: &TestHarness, expected: &str) -> Result<()> {
     }
 }
 
+/// Checks the shared destructive-dialog keyboard contract and dismisses it
+/// with Escape so the caller can reopen it for the action assertion.
+async fn exercise_confirmation_keyboard(h: &TestHarness) -> Result<()> {
+    let focused: String = h.eval("document.activeElement?.id ?? ''").await?;
+    if focused != "cancel-delete-label" {
+        return Err(Error::message(format!(
+            "label confirmation should initially focus Cancel, got {focused:?}"
+        )));
+    }
+    h.page
+        .find_element("#cancel-delete-label")
+        .await
+        .map_err(Error::Cdp)?
+        .press_key("Escape")
+        .await
+        .map_err(Error::Cdp)?;
+    let modal_gone: bool = h
+        .eval("!document.querySelector('#label-delete-modal')")
+        .await?;
+    if !modal_gone {
+        return Err(Error::message(
+            "Escape should dismiss the label confirmation modal",
+        ));
+    }
+    Ok(())
+}
+
+async fn wait_for_label_row_gone(h: &TestHarness) -> Result<()> {
+    let deadline = std::time::Instant::now() + TIMEOUT;
+    loop {
+        let gone: bool = h.eval("!document.querySelector('#label-row-1')").await?;
+        if gone {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(Error::message("deleted label row did not disappear"));
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
 #[tokio::test]
 #[ignore = "browser"]
 async fn label_crud_and_used_label_delete_confirmation() -> Result<()> {
@@ -94,6 +135,17 @@ async fn label_crud_and_used_label_delete_confirmation() -> Result<()> {
     h.click("#save-label-rename").await?;
     h.wait_for_text("#labels-list", "Systems", TIMEOUT).await?;
 
+    let delete_label_aria: String = h
+        .eval("document.querySelector('#delete-label-1').getAttribute('aria-label')")
+        .await?;
+    if delete_label_aria != "Delete label Systems" {
+        return Err(Error::message(format!(
+            "label delete should expose its action name, got {delete_label_aria:?}"
+        )));
+    }
+    h.click("#delete-label-1").await?;
+    h.wait_for_selector("#label-delete-modal", TIMEOUT).await?;
+    exercise_confirmation_keyboard(&h).await?;
     h.click("#delete-label-1").await?;
     h.wait_for_selector("#label-delete-modal", TIMEOUT).await?;
     h.click("#confirm-delete-label").await?;
@@ -110,17 +162,7 @@ async fn label_crud_and_used_label_delete_confirmation() -> Result<()> {
         ));
     }
     h.click("#confirm-delete-label").await?;
-    let deadline = std::time::Instant::now() + TIMEOUT;
-    loop {
-        let gone: bool = h.eval("!document.querySelector('#label-row-1')").await?;
-        if gone {
-            break;
-        }
-        if std::time::Instant::now() >= deadline {
-            return Err(Error::message("deleted label row did not disappear"));
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
+    wait_for_label_row_gone(&h).await?;
 
     let card = store
         .get_card(user_id, "card-rust")
@@ -149,6 +191,40 @@ async fn label_crud_and_used_label_delete_confirmation() -> Result<()> {
     }
     h.click("#tab-labels").await?;
     h.wait_for_selector("#labels-page", TIMEOUT).await?;
+    Ok(())
+}
+
+/// Opaque label names may contain commas. The browser filter must preserve
+/// such a name as one label when it crosses the internal query boundary.
+#[tokio::test]
+#[ignore = "browser"]
+async fn comma_in_label_name_survives_card_filter() -> Result<()> {
+    let h = TestHarness::start().await?;
+
+    h.goto("/labels").await?;
+    h.wait_for_selector("#labels-page", TIMEOUT).await?;
+    h.type_into("#new-label-name", "A,B").await?;
+    h.click("#create-label").await?;
+    h.wait_for_text("#labels-list", "A,B", TIMEOUT).await?;
+
+    let (store, user_id) = seed_user(&h).await?;
+    store
+        .insert_card(&NewCard {
+            user_id,
+            id: "card-comma-label".to_owned(),
+            prompt: "Comma label card".to_owned(),
+            solution: "opaque".to_owned(),
+            state: CardState::New,
+            change_time: 1_000,
+            next_time: 2_000,
+            labels: vec!["A,B".to_owned()],
+        })
+        .await
+        .map_err(store_err)?;
+
+    h.goto("/groom").await?;
+    h.wait_for_selector("#groom-row-card-comma-label", TIMEOUT)
+        .await?;
     Ok(())
 }
 

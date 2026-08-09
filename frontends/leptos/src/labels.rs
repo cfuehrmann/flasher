@@ -9,6 +9,10 @@
 use flasher_types::LabelResponse;
 use leptos::prelude::*;
 
+use crate::TrashIcon;
+#[cfg(feature = "csr")]
+use crate::{cycle_modal_focus, focus_element_by_id};
+
 /// One entry in a persisted filter selection. The `Name` variant is a
 /// one-time compatibility bridge for selections written by the pre-ID UI;
 /// new writes always use `Id` so a rename cannot invalidate the selection.
@@ -18,11 +22,11 @@ pub enum StoredLabelSelection {
     Name(String),
 }
 
-/// Joins a label selection for the wire and `localStorage`. (The seed
-/// names contain no comma; creation with arbitrary names is future work
-/// and will keep the constraint.)
+/// Serializes a label selection for the card-filter query parameter. JSON
+/// keeps arbitrary opaque label names lossless, including names containing
+/// commas, quotes, or whitespace.
 pub fn join_labels(selected: &[String]) -> String {
-    selected.join(",")
+    serde_json::to_string(selected).unwrap_or_else(|_| "[]".to_owned())
 }
 
 /// Serializes a stable-ID selection for localStorage.
@@ -261,7 +265,10 @@ mod tests {
 
     #[test]
     fn filter_selections_have_explicit_wire_encodings() {
-        assert_eq!(join_labels(&names(&["aaa", "Other"])), "aaa,Other");
+        assert_eq!(
+            join_labels(&names(&["aaa", "Other, with quotes"])),
+            r#"["aaa","Other, with quotes"]"#
+        );
         assert_eq!(join_label_ids(&[7, 8]), "id:7,id:8");
         assert_eq!(
             split_stored_labels("id:7,legacy,id:not-a-number"),
@@ -391,6 +398,13 @@ pub fn LabelManager() -> impl IntoView {
     let deleting = RwSignal::new(None::<(i64, String)>);
     let affected_cards = RwSignal::new(None::<i64>);
     let busy = RwSignal::new(false);
+
+    #[cfg(feature = "csr")]
+    Effect::new(move |_| {
+        if deleting.get().is_some() {
+            queue_microtask(|| focus_element_by_id("cancel-delete-label"));
+        }
+    });
 
     let reload = Callback::new(move |(): ()| {
         leptos::task::spawn_local(async move {
@@ -580,7 +594,7 @@ pub fn LabelManager() -> impl IntoView {
                                                                         edit_error.set(None);
                                                                     }
                                                                 />
-                                                                <button type="button" id="save-label-rename" on:click=move |_| save_edit(()) disabled=move || busy.get()>
+                                                                <button type="button" id="save-label-rename" class="primary" on:click=move |_| save_edit(()) disabled=move || busy.get()>
                                                                     "Save"
                                                                 </button>
                                                                 <button type="button" id="cancel-label-rename" on:click=move |_| editing.set(None)>
@@ -594,6 +608,7 @@ pub fn LabelManager() -> impl IntoView {
                                                     } else {
                                                         let edit_name = name.clone();
                                                         let delete_name = name.clone();
+                                                        let delete_label_name = delete_name.clone();
                                                         view! {
                                                             <span class="label-row-info">
                                                                 <span class="badge label">{name.clone()}</span>
@@ -605,8 +620,15 @@ pub fn LabelManager() -> impl IntoView {
                                                                 <button type="button" id=format!("rename-label-{id}") on:click=move |_| start_edit((id, edit_name.clone()))>
                                                                     "Rename"
                                                                 </button>
-                                                                <button type="button" id=format!("delete-label-{id}") on:click=move |_| ask_delete((id, delete_name.clone()))>
-                                                                    "Delete"
+                                                                <button
+                                                                    type="button"
+                                                                    id=format!("delete-label-{id}")
+                                                                    class="icon-button delete-action"
+                                                                    aria-label=format!("Delete label {delete_label_name}")
+                                                                    title="Delete label"
+                                                                    on:click=move |_| ask_delete((id, delete_name.clone()))
+                                                                >
+                                                                    <TrashIcon />
                                                                 </button>
                                                             </span>
                                                         }.into_any()
@@ -625,7 +647,27 @@ pub fn LabelManager() -> impl IntoView {
                 let warning = affected_cards.get();
                 view! {
                     <div class="modal-backdrop" id="label-delete-modal">
-                        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="label-delete-title">
+                        <div
+                            class="modal"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="label-delete-title"
+                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                if ev.key() == "Escape" {
+                                    ev.prevent_default();
+                                    deleting.set(None);
+                                    affected_cards.set(None);
+                                } else if ev.key() == "Tab" {
+                                    ev.prevent_default();
+                                    #[cfg(feature = "csr")]
+                                    cycle_modal_focus(
+                                        "confirm-delete-label",
+                                        "cancel-delete-label",
+                                        ev.shift_key(),
+                                    );
+                                }
+                            }
+                        >
                             <h2 id="label-delete-title">"Delete label?"</h2>
                             <p class="modal-text">
                                 "Delete “" {name} "”?"

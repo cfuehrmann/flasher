@@ -69,6 +69,31 @@ pub use groom::Groom as GroomTab;
 pub use labels::LabelManager as LabelManagerTab;
 pub use quiz::Quiz as QuizTab;
 
+/// The shared delete affordance for row-level destructive actions. The
+/// accessible name belongs to the button that owns the icon, so the SVG is
+/// deliberately hidden from assistive technology.
+#[component]
+pub fn TrashIcon() -> impl IntoView {
+    view! {
+        <svg
+            class="icon-trash"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            focusable="false"
+        >
+            <path d="M4 7h16" />
+            <path d="M10 4h4l1 3H9l1-3Z" />
+            <path d="m6 7 1 13h10l1-13" />
+            <path d="M10 11v5 M14 11v5" />
+        </svg>
+    }
+}
+
 /// Where the startup session check stands. The app starts in `Checking`
 /// (a neutral splash); the session probe then decides between the auth
 /// screen and the app. Any mid-session API 401 flips an `Authed` state
@@ -101,6 +126,39 @@ fn focus_nav_toggle() {
     if let Ok(button) = element.dyn_into::<web_sys::HtmlElement>() {
         let _ = button.focus();
     }
+}
+
+/// Focuses a browser element by id. Modal components use this after their
+/// conditional view has mounted, so keyboard users start inside the modal.
+#[cfg(feature = "csr")]
+pub(crate) fn focus_element_by_id(id: &str) {
+    use wasm_bindgen::JsCast;
+
+    let Some(element) = document().get_element_by_id(id) else {
+        return;
+    };
+    if let Ok(element) = element.dyn_into::<web_sys::HtmlElement>() {
+        let _ = element.focus();
+    }
+}
+
+/// Keeps Tab and Shift+Tab inside a two-button confirmation modal.
+#[cfg(feature = "csr")]
+pub(crate) fn cycle_modal_focus(first_id: &str, second_id: &str, backwards: bool) {
+    let active_id = document()
+        .active_element()
+        .map(|element| element.id())
+        .unwrap_or_default();
+    let target = if active_id == first_id {
+        second_id
+    } else if active_id == second_id {
+        first_id
+    } else if backwards {
+        second_id
+    } else {
+        first_id
+    };
+    focus_element_by_id(target);
 }
 
 fn close_navigation(nav_open: RwSignal<bool>, nav_narrow: RwSignal<bool>) {

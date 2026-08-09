@@ -83,6 +83,93 @@ async fn wait_until_gone(h: &TestHarness, sel: &str) -> Result<()> {
     }
 }
 
+/// Waits for the responsive drawer's slide-out transition to finish after a
+/// viewport change or backdrop click, so screenshots and geometry probes see
+/// the settled page rather than an intermediate frame.
+async fn wait_for_nav_closed(h: &TestHarness) -> Result<()> {
+    let deadline = Instant::now() + TIMEOUT;
+    loop {
+        let right: f64 = h
+            .eval("document.querySelector('#primary-nav')?.getBoundingClientRect().right ?? -1")
+            .await?;
+        if right <= 0.5 {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(Error::message("responsive navigation did not close"));
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
+/// Checks the immediate focus and whole-value selection promised by the
+/// inline rename editor.
+async fn assert_rename_input_ready(h: &TestHarness, label: &str) -> Result<()> {
+    let (focused, all_selected): (bool, bool) = h
+        .eval(
+            "(() => { const el = document.querySelector('#rename-input'); \
+             return [document.activeElement === el, \
+                     el.selectionStart === 0 && el.selectionEnd === el.value.length]; })()",
+        )
+        .await?;
+    if focused && all_selected {
+        return Ok(());
+    }
+    Err(Error::message(format!(
+        "{label} rename input should be focused with its text selected (focused: {focused}, selected: {all_selected})"
+    )))
+}
+
+/// Checks the shared destructive-dialog keyboard contract and dismisses it
+/// with Escape so the caller can reopen it for the action assertion.
+async fn exercise_confirmation_keyboard(
+    h: &TestHarness,
+    modal: &str,
+    confirm: &str,
+    cancel: &str,
+    title_id: &str,
+    description: &str,
+) -> Result<()> {
+    let dialog = format!("{modal} [role=dialog]");
+    let labelled_by: String = h
+        .eval(&format!(
+            "document.querySelector({dialog:?}).getAttribute('aria-labelledby')"
+        ))
+        .await?;
+    if labelled_by != title_id {
+        return Err(Error::message(format!(
+            "{description} confirmation should have an accessible name, got {labelled_by:?}"
+        )));
+    }
+    let focused: String = h.eval("document.activeElement?.id ?? ''").await?;
+    if focused != cancel.trim_start_matches('#') {
+        return Err(Error::message(format!(
+            "{description} confirmation should initially focus Cancel, got {focused:?}"
+        )));
+    }
+    h.page
+        .find_element(cancel)
+        .await
+        .map_err(Error::Cdp)?
+        .press_key("Tab")
+        .await
+        .map_err(Error::Cdp)?;
+    let focused: String = h.eval("document.activeElement?.id ?? ''").await?;
+    if focused != confirm.trim_start_matches('#') {
+        return Err(Error::message(format!(
+            "{description} confirmation Tab should reach Delete, got {focused:?}"
+        )));
+    }
+    h.page
+        .find_element(confirm)
+        .await
+        .map_err(Error::Cdp)?
+        .press_key("Escape")
+        .await
+        .map_err(Error::Cdp)?;
+    wait_until_gone(h, modal).await
+}
+
 /// Full roundtrip: open bootstrap → register → login → app.
 #[ignore = "browser"]
 #[tokio::test]
@@ -176,18 +263,7 @@ async fn passkey_management() -> Result<()> {
     // The rename input is focused immediately and the current name is
     // selected, so the new name can be typed over without an extra
     // click or keystroke (owner wish 2026-08-09).
-    let (focused, all_selected): (bool, bool) = h
-        .eval(
-            "(() => { const el = document.querySelector('#rename-input'); \
-             return [document.activeElement === el, \
-                     el.selectionStart === 0 && el.selectionEnd === el.value.length]; })()",
-        )
-        .await?;
-    if !focused || !all_selected {
-        return Err(Error::message(format!(
-            "rename input should be focused with its text selected (focused: {focused}, selected: {all_selected})"
-        )));
-    }
+    assert_rename_input_ready(&h, "first").await?;
     // CV checkpoint: the inline editor with the focused input.
     h.screenshot("07_auth/03b_passkey_rename_focused").await?;
     replace_input_text(&h, "#rename-input", "Laptop").await?;
@@ -195,7 +271,80 @@ async fn passkey_management() -> Result<()> {
     h.wait_for_text("#passkeys-list", "Laptop", TIMEOUT).await?;
     h.screenshot("07_auth/04_passkeys_renamed").await?;
 
+    // Re-entering rename after a completed edit gets a fresh input node;
+    // focus and selection must work on this second edit as well. Check it at
+    // mobile width too: the editor must preserve the row's two-column layout
+    // and keep the action buttons inside the card.
+    h.set_viewport(390, 844).await?;
+    let nav_open: bool = h.eval("!!document.querySelector('#nav-backdrop')").await?;
+    if nav_open {
+        h.click("#nav-backdrop").await?;
+        wait_for_nav_closed(&h).await?;
+    }
+    let (normal_button_font, normal_actions_right, delete_aria): (String, f64, String) = h
+        .eval(
+            "(() => { const rename = document.querySelector('#rename-passkey-1'); \
+             const actions = document.querySelector('#passkey-row-1 .passkey-actions').getBoundingClientRect(); \
+             return [getComputedStyle(rename).fontSize, actions.right, \
+                     document.querySelector('#delete-passkey-1').getAttribute('aria-label')]; })()",
+        )
+        .await?;
+    if delete_aria != "Delete passkey" {
+        return Err(Error::message(format!(
+            "passkey delete should expose its action name, got {delete_aria:?}"
+        )));
+    }
+    h.click("#rename-passkey-1").await?;
+    assert_rename_input_ready(&h, "second").await?;
+    let (
+        row_left,
+        row_right,
+        input_left,
+        input_right,
+        save_left,
+        cancel_right,
+        save_font,
+        cancel_font,
+    ): (f64, f64, f64, f64, f64, f64, String, String) = h
+        .eval(
+            "(() => { const row = document.querySelector('#passkey-row-1').getBoundingClientRect(); \
+             const input = document.querySelector('#rename-input').getBoundingClientRect(); \
+             const save = document.querySelector('#rename-save').getBoundingClientRect(); \
+             const cancel = document.querySelector('#rename-cancel').getBoundingClientRect(); \
+             return [row.left, row.right, input.left, input.right, save.left, cancel.right, \
+                     getComputedStyle(document.querySelector('#rename-save')).fontSize, \
+                     getComputedStyle(document.querySelector('#rename-cancel')).fontSize]; })()",
+        )
+        .await?;
+    if input_left < row_left - 0.5
+        || input_right > save_left
+        || cancel_right > row_right + 0.5
+        || (cancel_right - normal_actions_right).abs() > 0.5
+        || save_font != normal_button_font
+        || cancel_font != normal_button_font
+    {
+        return Err(Error::message(format!(
+            "mobile rename layout should fit the row and match button sizing (row {row_left}..{row_right}, input {input_left}..{input_right}, actions {save_left}..{cancel_right}, fonts normal={normal_button_font}, save={save_font}, cancel={cancel_font})"
+        )));
+    }
+    h.screenshot("07_auth/03c_passkey_rename_mobile").await?;
+    h.click("#rename-cancel").await?;
+    h.wait_for_selector("#rename-passkey-1", TIMEOUT).await?;
+
     // Delete it behind the confirm modal: the row goes.
+    h.click("#delete-passkey-1").await?;
+    h.wait_for_selector("#confirm-delete-modal", TIMEOUT)
+        .await?;
+    exercise_confirmation_keyboard(
+        &h,
+        "#confirm-delete-modal",
+        "#confirm-delete",
+        "#cancel-delete",
+        "confirm-delete-title",
+        "passkey",
+    )
+    .await?;
+
     h.click("#delete-passkey-1").await?;
     h.wait_for_selector("#confirm-delete-modal", TIMEOUT)
         .await?;

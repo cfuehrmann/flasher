@@ -90,6 +90,7 @@ pulldown-cmark = { version = "0.13", default-features = false, features = ["html
 # Sanitizes the pulldown-cmark output before it reaches inner_html:
 # raw HTML in card content (scripts, onerror handlers, ...) is stripped.
 ammonia = "4"
+serde_json = "1"
 flasher-types = { path = "../../crates/flasher-types" }
 # Pure Rust (no deps, no I/O), so it is wasm-safe: shared UTC date
 # formatting for the groom tab's due labels.

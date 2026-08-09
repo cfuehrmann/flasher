@@ -402,6 +402,7 @@ dependencies = [
  "js-sys",
  "leptos",
  "pulldown-cmark",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

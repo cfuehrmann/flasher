@@ -561,9 +561,8 @@ browser e2e (clicking) together — never a backend without its user-facing test
     fixed mobile URL-bar scroll churn (sub-row height-only resizes ignored), mixed-height
     off-by-one (prefix-sum fit, new e2e), a re-fit lost in a Loading window (re-armed
     pass), and a doctrine-banned sleep in e2e (state-based now); MAX_TAKE moved to
-    flasher-types. <b>Deferred:</b> a draft-banner appearing/disappearing shifts the
-    layout without a resize event, so the fit is stale (≤ ~one row under/overflow) until
-    the next resize or remount — self-healing, sticky chrome covers the overflow direction.</li>
+    flasher-types. Draft-badge arrival now re-arms the fit pass, so asynchronous
+    draft loading cannot leave the measured row heights stale.</li>
     <li class="done"><b>Labels on cards, dissolved enabled/disabled (#129 follow-up, owner
     2026-08-01):</b> the <code>disabled</code> flag became a per-user label model
     (<code>labels</code> + <code>card_labels</code>; the original migration 0004 seeded
@@ -688,6 +687,14 @@ browser e2e (clicking) together — never a backend without its user-facing test
     <code>manual_string_new</code> lints in editor.rs/lib.rs (new in rust 1.97), now fixed; the
     gate would have caught them before they shipped. Full gate green; focused-rename screenshot
     regenerated (shows the selected name).</li>
+    <li class="done"><b><span class="badge b-done">done</span> Consistent inline actions and delete affordances
+    (owner, 2026-08-09):</b> passkey rows keep the Rename/Delete action column stable while editing, Save is
+    primary in both inline rename editors, and row-level deletion uses one accessible trash icon across
+    passkeys, labels, and card menus. Final confirmation remains a textual red Delete action.</li>
+    <li class="done"><b>Review round 13 findings fixed (owner, 2026-08-09):</b> card-filter labels use a
+    lossless JSON query encoding (legacy comma encoding remains readable), all destructive dialogs have
+    accessible names plus initial focus, Escape dismissal, and a two-button focus loop, and the async Groom
+    draft-badge update re-fits the viewport.</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>

@@ -20,7 +20,9 @@
 
 use leptos::prelude::*;
 
-use crate::api;
+use crate::{TrashIcon, api};
+#[cfg(feature = "csr")]
+use crate::{cycle_modal_focus, focus_element_by_id};
 
 /// Full registration ceremony: fetch options, run the browser ceremony,
 /// send the credential back. `username` is only used by the open
@@ -313,6 +315,13 @@ pub fn Account(
     let action_error = RwSignal::new(None::<String>);
     let logout_error = RwSignal::new(None::<String>);
 
+    #[cfg(feature = "csr")]
+    Effect::new(move |_| {
+        if deleting.get().is_some() {
+            queue_microtask(|| focus_element_by_id("cancel-delete"));
+        }
+    });
+
     // (Re)loads the passkey list.
     let reload = Callback::new(move |(): ()| {
         leptos::task::spawn_local(async move {
@@ -496,7 +505,27 @@ pub fn Account(
                         .map_or_else(|| "this passkey".to_owned(), |passkey| passkey.name);
                     view! {
                         <div class="modal-backdrop" id="confirm-delete-modal">
-                            <div class="modal" role="dialog" aria-modal="true">
+                            <div
+                                class="modal"
+                                role="dialog"
+                                aria-modal="true"
+                                aria-labelledby="confirm-delete-title"
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    if ev.key() == "Escape" {
+                                        ev.prevent_default();
+                                        deleting.set(None);
+                                    } else if ev.key() == "Tab" {
+                                        ev.prevent_default();
+                                        #[cfg(feature = "csr")]
+                                        cycle_modal_focus(
+                                            "confirm-delete",
+                                            "cancel-delete",
+                                            ev.shift_key(),
+                                        );
+                                    }
+                                }
+                            >
+                                <h2 class="modal-title" id="confirm-delete-title">"Delete passkey?"</h2>
                                 <p class="modal-text">
                                     "Delete passkey “" {name} "”? This cannot be undone. \
                                      You will be signed out on all other devices."
@@ -558,56 +587,21 @@ fn PasskeyRow(
             .map_or_else(|| "never".to_owned(), flasher_core::format_utc_date),
     );
     let name = passkey.name;
-    // The rename input only exists while this row is in rename mode;
-    // focus it and select the current name as soon as it mounts, so the
-    // new name can be typed over without an extra click or keystroke
-    // (owner wish 2026-08-09).
-    let rename_input = NodeRef::<leptos::html::Input>::new();
-    rename_input.on_load(move |input| {
-        let _ = input.focus();
-        // `prop:value` settles after the node mounts and would move the
-        // caret to the end of the name; re-apply the value and select it
-        // on the next microtask so the whole name is covered.
-        queue_microtask(move || {
-            input.set_value(&rename_value.get_untracked());
-            input.select();
-        });
-    });
     view! {
         <li class="passkey-row" id=row_id>
             {move || {
                 if renaming.get() == Some(id) {
                     view! {
-                        <span class="passkey-rename">
-                            <input
-                                type="text"
-                                id="rename-input"
-                                node_ref=rename_input
-                                prop:value=move || rename_value.get()
-                                on:input=move |ev| {
-                                    rename_value.set(event_target_value(&ev));
-                                    rename_error.set(None);
-                                }
-                            />
-                            <button
-                                type="button"
-                                id="rename-save"
-                                on:click=move |_| on_save_rename.run(())
-                            >
-                                "Save"
-                            </button>
-                            <button
-                                type="button"
-                                id="rename-cancel"
-                                on:click=move |_| on_cancel_rename.run(())
-                            >
-                                "Cancel"
-                            </button>
-                        </span>
+                        <PasskeyRenameEditor
+                            rename_value=rename_value
+                            rename_error=rename_error
+                            on_save_rename=on_save_rename
+                            on_cancel_rename=on_cancel_rename
+                        />
                         {move || {
                             rename_error
                                 .get()
-                                .map(|err| view! { <p class="error" id="rename-error">{err}</p> })
+                                .map(|err| view! { <p class="error passkey-row-error" id="rename-error">{err}</p> })
                         }}
                     }
                         .into_any()
@@ -628,18 +622,77 @@ fn PasskeyRow(
                             >
                                 "Rename"
                             </button>
-                            <button
-                                type="button"
-                                id=delete_id.clone()
-                                on:click=move |_| on_delete.run(id)
-                            >
-                                "Delete"
-                            </button>
+            <button
+                type="button"
+                id=delete_id.clone()
+                class="icon-button delete-action"
+                aria-label="Delete passkey"
+                title="Delete passkey"
+                on:click=move |_| on_delete.run(id)
+            >
+                <TrashIcon />
+            </button>
                         </span>
                     }
                         .into_any()
                 }
             }}
         </li>
+    }
+}
+
+/// The inline rename editor is its own component so its `NodeRef` and
+/// one-shot `on_load` callback are recreated whenever rename mode is
+/// entered. That keeps focus and selection working after every cancel/save,
+/// not only the first time this row is edited.
+#[component]
+fn PasskeyRenameEditor(
+    rename_value: RwSignal<String>,
+    rename_error: RwSignal<Option<String>>,
+    on_save_rename: Callback<()>,
+    on_cancel_rename: Callback<()>,
+) -> impl IntoView {
+    let rename_input = NodeRef::<leptos::html::Input>::new();
+    rename_input.on_load(move |input| {
+        let _ = input.focus();
+        // `prop:value` settles after the node mounts and would move the
+        // caret to the end of the name; re-apply the value and select it
+        // on the next microtask so the whole name is covered.
+        queue_microtask(move || {
+            input.set_value(&rename_value.get_untracked());
+            input.select();
+        });
+    });
+
+    view! {
+        <span class="passkey-info passkey-edit-info">
+            <input
+                type="text"
+                id="rename-input"
+                node_ref=rename_input
+                prop:value=move || rename_value.get()
+                on:input=move |ev| {
+                    rename_value.set(event_target_value(&ev));
+                    rename_error.set(None);
+                }
+            />
+        </span>
+        <span class="passkey-actions">
+            <button
+                type="button"
+                id="rename-save"
+                class="primary"
+                on:click=move |_| on_save_rename.run(())
+            >
+                "Save"
+            </button>
+            <button
+                type="button"
+                id="rename-cancel"
+                on:click=move |_| on_cancel_rename.run(())
+            >
+                "Cancel"
+            </button>
+        </span>
     }
 }

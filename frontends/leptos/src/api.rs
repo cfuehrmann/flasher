@@ -160,7 +160,7 @@ pub async fn labels() -> Result<Vec<LabelResponse>, String> {
 }
 
 /// `GET /api/cards/next` — the next due card carrying any of `labels`
-/// (comma-joined union filter), or `None`.
+/// (JSON-encoded union filter), or `None`.
 #[cfg(feature = "csr")]
 pub async fn next_card(labels: &str) -> Result<NextCardResponse, String> {
     let response = gloo_net::http::Request::get("/api/cards/next")
@@ -268,7 +268,7 @@ async fn set_state(id: &str, action: &str, change_time: i64) -> Result<(), Strin
 /// `GET /api/cards` — one page of the groom list plus the total match
 /// count (before paging) and the effective page size. An empty
 /// `search_text` lists all cards; `labels` restricts the list to cards
-/// carrying any of them (comma-joined union filter, empty = nothing);
+/// carrying any of them (JSON-encoded union filter, empty = nothing);
 /// `take` is the requested page size (the groom tab sizes it to its
 /// viewport; the server clamps and echoes it).
 #[cfg(feature = "csr")]

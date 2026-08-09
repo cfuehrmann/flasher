@@ -59,7 +59,6 @@ use std::time::Duration;
 use flasher_types::{CardResponse, CardState, LabelResponse, MAX_TAKE};
 use leptos::prelude::*;
 
-use crate::api;
 use crate::labels::{
     LabelFilter, StoredLabelSelection, join_labels, resolve_stored_labels, selected_label_names,
 };
@@ -67,6 +66,9 @@ use crate::labels::{
 use crate::labels::{
     join_label_ids, split_stored_labels, storage_get, storage_remove, storage_set,
 };
+use crate::{TrashIcon, api};
+#[cfg(feature = "csr")]
+use crate::{cycle_modal_focus, focus_element_by_id};
 
 /// Page size of the very first fetch, before the viewport-fit calibration
 /// has measured the real row heights (or when localStorage is
@@ -393,6 +395,8 @@ pub fn Groom(
     let skip = RwSignal::new(0_usize);
     let state = RwSignal::new(LoadState::Loading);
     let confirm = RwSignal::new(None::<ConfirmAction>);
+    #[cfg(feature = "csr")]
+    let needs_fit = RwSignal::new(true);
     // The requested page size (owner wish 2026-07-31: the list fills
     // exactly the viewport): the persisted calibrated value or the
     // fallback, corrected by the calibration pass and on resize.
@@ -405,6 +409,8 @@ pub fn Groom(
         leptos::task::spawn_local(async move {
             if let Ok(drafts) = api::card_drafts().await {
                 draft_ids.set(drafts.into_iter().map(|draft| draft.card_id).collect());
+                #[cfg(feature = "csr")]
+                needs_fit.set(true);
             }
         });
     });
@@ -503,7 +509,6 @@ pub fn Groom(
         // and whenever a resize measurement finds no rows (mid-refetch —
         // the pass then runs on the next Loaded render, so no re-fit is
         // ever lost in a Loading window; adversarial review 2026-07-31).
-        let needs_fit = RwSignal::new(true);
         // (inner_width, available) of the last applied fit — the URL-bar
         // churn guard's baseline.
         let last_viewport = RwSignal::new(None::<(f64, f64)>);
@@ -538,6 +543,10 @@ pub fn Groom(
                 Duration::ZERO,
             );
         });
+
+        // A draft badge can arrive after the card rows have been measured.
+        // It changes the row height without a resize event, so the draft
+        // loader explicitly re-arms the same fit pass above.
 
         // Re-fit on viewport changes, debounced like the search (a window
         // drag fires a storm of events). Mobile URL-bar show/hide also
@@ -685,6 +694,13 @@ pub fn Groom(
                 Err(err) => state.set(LoadState::Error(err)),
             }
         });
+    });
+
+    #[cfg(feature = "csr")]
+    Effect::new(move |_| {
+        if confirm.get().is_some() {
+            queue_microtask(|| focus_element_by_id("modal-cancel"));
+        }
     });
 
     view! {
@@ -856,10 +872,24 @@ pub fn Groom(
                 let destructive = matches!(action, ConfirmAction::Delete(_));
                 view! {
                     <div class="modal-backdrop" id="groom-modal">
-                        <div class="modal" role="dialog" aria-modal="true">
+                        <div
+                            class="modal"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="groom-modal-title"
+                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                if ev.key() == "Escape" {
+                                    ev.prevent_default();
+                                    confirm.set(None);
+                                } else if ev.key() == "Tab" {
+                                    ev.prevent_default();
+                                    #[cfg(feature = "csr")]
+                                    cycle_modal_focus("modal-confirm", "modal-cancel", ev.shift_key());
+                                }
+                            }
+                        >
+                            <h2 class="modal-title" id="groom-modal-title">{question}</h2>
                             <p class="modal-text" id="groom-modal-text">
-                                {question}
-                                <br />
                                 <span class="modal-prompt">{card.prompt}</span>
                             </p>
                             {progress_warning.map(|warning| view! {
@@ -1010,13 +1040,14 @@ fn GroomRow(
                                     </button>
                                     <button
                                         type="button"
-                                        class="failed"
+                                        class="delete-action"
                                         id=delete_id
                                         on:click=move |_| {
                                             menu_open.set(false);
                                             ask_delete.run(card_delete.clone());
                                         }
                                     >
+                                        <TrashIcon />
                                         "Delete"
                                     </button>
                                 </div>

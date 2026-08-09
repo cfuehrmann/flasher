@@ -1221,8 +1221,9 @@ async fn delete_label(
     }
 }
 
-/// Query parameters of `GET /api/cards/next`: `labels` is a comma-joined
-/// list of label names (union semantics — the quiz's label filter). An
+/// Query parameters of `GET /api/cards/next`: `labels` is a JSON array of
+/// label names (union semantics — the quiz's label filter). A legacy
+/// comma-joined value is still accepted for older clients. An
 /// ABSENT parameter disables filtering (label names carry no semantics,
 /// so there is no name-based default). An explicitly empty parameter
 /// matches nothing.
@@ -1291,10 +1292,13 @@ async fn create_card(
     Ok((StatusCode::CREATED, Json(response)))
 }
 
-/// Splits a comma-joined labels query parameter into names. (`Enabled`
-/// and `Disabled` contain no comma; label creation with arbitrary names
-/// is future work and will keep this constraint.)
+/// Decodes the JSON label query format. The legacy comma-separated form is
+/// retained for older clients, but new clients use JSON so opaque names can
+/// contain commas without changing their meaning.
 fn split_labels(raw: &str) -> Vec<String> {
+    if let Ok(labels) = serde_json::from_str::<Vec<String>>(raw) {
+        return labels.into_iter().filter(|name| !name.is_empty()).collect();
+    }
     raw.split(',')
         .filter(|name| !name.is_empty())
         .map(str::to_owned)
@@ -1316,7 +1320,7 @@ struct FindCardsQuery {
 
 /// `GET /api/cards` — port of `CardsHandler.Find`: full-Unicode
 /// case-insensitive substring match over prompt and solution, filtered to
-/// cards carrying ANY of the `labels` (comma-joined; absent = no
+/// cards carrying ANY of the `labels` (JSON array; absent = no
 /// filtering, empty = nothing), then `next_time` ascending
 /// (`id` tie-break); the page size is the requested `take` (1..=[`MAX_TAKE`],
 /// the groom tab sizes it to its viewport). Returns the page plus the total
@@ -1748,6 +1752,18 @@ mod tests {
     #[test]
     fn step_up_ttl_is_ten_minutes() {
         assert_eq!(STEP_UP_TTL_MS, 600_000);
+    }
+
+    #[test]
+    fn split_labels_preserves_opaque_names() {
+        assert_eq!(
+            split_labels(r#"["A,B","quoted \"name\""]"#),
+            vec!["A,B", "quoted \"name\""]
+        );
+        // Older clients remain supported during the internal wire-format
+        // transition.
+        assert_eq!(split_labels("A,B"), vec!["A", "B"]);
+        assert!(split_labels("[]").is_empty());
     }
 
     #[test]

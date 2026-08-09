@@ -391,6 +391,29 @@ button:disabled {
   cursor: default;
 }
 
+/* Compact icon actions keep the row controls small without sacrificing a
+   full keyboard target. The button owns the accessible name; the SVG is
+   only the visual affordance. */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.icon-trash {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+}
+
+.icon-button.delete-action:not(:disabled):hover {
+  color: var(--danger-border);
+}
+
 /* Keyboard users always see where they are (a11y). */
 button:focus-visible,
 input:focus-visible,
@@ -747,6 +770,12 @@ textarea:focus-visible {
 
 .label-row-actions {
   flex-shrink: 0;
+}
+
+.label-row-actions button,
+.label-edit button {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
 }
 
 .label-edit {
@@ -1192,6 +1221,12 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
+.groom-menu .delete-action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 /* Narrow screens: the meta line (badges + due + actions) must stay on
    ONE line for the realistic combinations — including new + disabled
    (every freshly created card starts disabled). Tighter badges, gaps
@@ -1286,6 +1321,12 @@ textarea:focus-visible {
 
 .modal-text {
   margin: 0 0 1rem;
+}
+
+.modal-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 650;
 }
 
 .modal-prompt {
@@ -1423,11 +1464,11 @@ textarea:focus-visible {
 }
 
 .passkey-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  column-gap: 1rem;
+  row-gap: 0.5rem;
   padding: 0.625rem 0;
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -1437,9 +1478,20 @@ textarea:focus-visible {
 }
 
 .passkey-info {
+  grid-column: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+.passkey-edit-info {
+  width: 100%;
+}
+
+.passkey-edit-info input {
+  width: 100%;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .passkey-dates {
@@ -1447,11 +1499,14 @@ textarea:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-.passkey-actions,
-.passkey-rename {
+.passkey-actions {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  flex-shrink: 0;
+  justify-self: end;
 }
 
 .passkey-actions button {
@@ -1459,7 +1514,12 @@ textarea:focus-visible {
   font-size: 0.85rem;
 }
 
-.passkey-rename input {
+.passkey-row-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.passkey-edit-info input {
   font: inherit;
   color: var(--text);
   background: var(--bg);
