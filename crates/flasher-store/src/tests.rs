@@ -2,8 +2,8 @@
 //! (in-memory, plus one tempfile-backed test for `connect`).
 
 use super::{
-    AppliedMigration, Card, CardState, DeleteLabel, Error, LEGACY_MIGRATION_METADATA, NewCard,
-    SetCardState, Store,
+    AppliedMigration, Card, CardState, DeleteLabel, Error, LEGACY_MIGRATION_METADATA, Label,
+    NewCard, SetCardState, Store,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -237,7 +237,7 @@ async fn fresh_user_has_no_labels() -> TestResult {
     let user = store.create_user("alice").await?;
     let other = store.upsert_user("bob").await?;
     for id in [user.id, other.id] {
-        assert!(store.labels(id).await?.is_empty());
+        assert_eq!(store.labels(id).await?, Vec::<Label>::new());
     }
     Ok(())
 }
@@ -290,7 +290,7 @@ async fn label_crud_is_scoped_and_delete_requires_confirmation_when_used() -> Te
         store.delete_label(user.id, created.id, true).await?,
         DeleteLabel::Deleted(1)
     );
-    assert!(store.labels(user.id).await?.is_empty());
+    assert_eq!(store.labels(user.id).await?, Vec::<Label>::new());
     assert_eq!(
         store.get_card(user.id, "c-label").await?.map(|c| c.labels),
         Some(Vec::new())
@@ -632,7 +632,7 @@ async fn search_cards_filters_orders_and_pages() -> TestResult {
         .search_cards(user.id, Some("100%"), None, 0, 10)
         .await?;
     assert_eq!(count, 0);
-    assert!(hits.is_empty());
+    assert_eq!(hits, Vec::<Card>::new());
 
     // Other users see nothing.
     let other = store.create_user("bob").await?;

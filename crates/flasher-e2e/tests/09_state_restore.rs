@@ -719,14 +719,10 @@ async fn relogin_on_add_restores_draft_prefill() -> Result<()> {
     // (the "!" was never saved), and the banner must stay away — the
     // draft is recovered inline, not prompted and not invisible.
     h.click("#sign-in").await?;
-    h.wait_for_selector("#new-prompt", TIMEOUT).await?;
-    let prompt = field_value(&h, "#new-prompt").await?;
-    if prompt != "Relogin draft prompt" {
-        return Err(Error::message(format!(
-            "after re-login the Add editor should be prefilled with the draft, \
-             shows: {prompt:?}"
-        )));
-    }
+    // The draft arrives with an async fetch after the editor renders, so
+    // wait for the value itself rather than just the field.
+    h.wait_for_value("#new-prompt", "Relogin draft prompt", TIMEOUT)
+        .await?;
     assert_absent(&h, "#recovery-banner").await?;
     h.screenshot("09_state_restore/relogin-add-prefilled")
         .await?;

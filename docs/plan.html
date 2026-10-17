@@ -701,6 +701,18 @@ browser e2e (clicking) together — never a backend without its user-facing test
     non-reactive generation/liveness guards, the Rust-generated script/WASM preload pair opts out of SRI while
     the stylesheet retains it, the navigation restores focus before hiding, and the label picker exposes an
     accessible group name.</li>
+    <li class="done"><b><span class="badge b-done">done</span> Package refresh (2026-10-17):</b>
+    full <code>cargo update</code> in both workspaces plus the deliberate frontend pin bump —
+    leptos 0.8.20→0.8.22, wasm-bindgen 0.2.127→0.2.129, wasm-bindgen-futures 0.4.79,
+    js-sys/web-sys 0.3.106 (plus the <code>deploy/DEPLOY.md</code> wasm-bindgen-cli pin).
+    Transitive patches picked up (reqwest 0.13.5, insta 1.49, ammonia 4.2.4, time 0.3.55, …).
+    <b>Held back:</b> sqlx-core 0.9 still pins sha2 0.10 / base64 0.22, so the server's direct
+    deps stay there; axum pins matchit =0.8.4 and brotli 9 pins brotli-decompressor =6.0.1.
+    The rust 1.99 <code>assert_is_empty</code> lint surfaced in existing tests and was fixed.
+    The parallel e2e run also exposed a pre-existing race in
+    <code>relogin_on_add_restores_draft_prefill</code> (it read the field right after the editor
+    rendered, before the draft fetch landed); it now waits on the field value via the new harness
+    <code>wait_for_value</code>. Bundle 5389 KiB (budget 5700). Full gate green (165 rust + 74 browser e2e).</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>

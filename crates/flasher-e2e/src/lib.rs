@@ -152,6 +152,19 @@ pub enum Error {
         /// Last observed text content, if the element existed.
         last: Option<String>,
     },
+    /// A `wait_for_value` deadline elapsed.
+    #[error(
+        "timed out waiting for value {expected:?} in selector {selector:?}; \
+         last value: {last:?}"
+    )]
+    WaitForValue {
+        /// CSS selector that was polled.
+        selector: String,
+        /// Value that never appeared.
+        expected: String,
+        /// Last observed value, if the element existed.
+        last: Option<String>,
+    },
     /// `querySelector` found no element.
     #[error("element not found: {0}")]
     ElementNotFound(String),
@@ -444,6 +457,36 @@ impl TestHarness {
                     selector: sel.to_owned(),
                     needle: needle.to_owned(),
                     last,
+                });
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    /// Poll `sel`'s `value` property until it equals `expected`.
+    /// Use this before asserting a prefilled/prefetched field: the DOM
+    /// node can exist while the async load that fills it is still in
+    /// flight.
+    pub async fn wait_for_value(&self, sel: &str, expected: &str, timeout: Duration) -> Result<()> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            let value = self
+                .eval::<Option<String>>(&format!(
+                    "(() => {{ const el = document.querySelector({}); \
+                      return el ? el.value : null; }})()",
+                    json_str(sel)
+                ))
+                .await
+                .ok()
+                .flatten();
+            if value.as_deref() == Some(expected) {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err(Error::WaitForValue {
+                    selector: sel.to_owned(),
+                    expected: expected.to_owned(),
+                    last: value,
                 });
             }
             tokio::time::sleep(Duration::from_millis(50)).await;

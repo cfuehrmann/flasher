@@ -108,13 +108,13 @@ async fn find_returns_seeded_card_and_count() -> TestResult {
             .json()
             .await?;
     assert_eq!(miss.count, 0);
-    assert!(miss.cards.is_empty());
+    assert_eq!(miss.cards, Vec::<flasher_types::CardResponse>::new());
     let paged_out: FindCardsResponse = reqwest::get(format!("{base}/api/cards?skip=1&take=10"))
         .await?
         .json()
         .await?;
     assert_eq!(paged_out.count, 1);
-    assert!(paged_out.cards.is_empty());
+    assert_eq!(paged_out.cards, Vec::<flasher_types::CardResponse>::new());
 
     server.abort();
     Ok(())

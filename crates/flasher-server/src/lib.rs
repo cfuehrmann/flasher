@@ -1763,7 +1763,7 @@ mod tests {
         // Older clients remain supported during the internal wire-format
         // transition.
         assert_eq!(split_labels("A,B"), vec!["A", "B"]);
-        assert!(split_labels("[]").is_empty());
+        assert_eq!(split_labels("[]"), Vec::<String>::new());
     }
 
     #[test]
