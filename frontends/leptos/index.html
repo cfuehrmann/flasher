@@ -6,13 +6,16 @@
     <meta name="description" content="Flasher — a spaced-repetition flashcard app." />
     <meta name="theme-color" content="#0d1117" />
     <title>Flasher</title>
-    <link data-trunk rel="css" href="/public/app.css" />
-    <link data-trunk rel="copy-file" href="/public/robots.txt" />
-    <link data-trunk rel="copy-file" href="/public/llms.txt" />
-    <link data-trunk rel="copy-file" href="/public/favicon.svg" />
-    <link data-trunk rel="copy-file" href="/public/icon-512.png" />
-    <link data-trunk rel="copy-file" href="/public/icon-512-maskable.png" />
-    <link data-trunk rel="copy-file" href="/public/manifest.webmanifest" />
+    <!-- Asset hrefs are project-relative ("public/...", not "/public/..."):
+         trunk 0.22 reads a leading "/" as a filesystem-absolute path (#1045)
+         and fails the build, so keep them relative. -->
+    <link data-trunk rel="css" href="public/app.css" />
+    <link data-trunk rel="copy-file" href="public/robots.txt" />
+    <link data-trunk rel="copy-file" href="public/llms.txt" />
+    <link data-trunk rel="copy-file" href="public/favicon.svg" />
+    <link data-trunk rel="copy-file" href="public/icon-512.png" />
+    <link data-trunk rel="copy-file" href="public/icon-512-maskable.png" />
+    <link data-trunk rel="copy-file" href="public/manifest.webmanifest" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon-512.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -21,7 +24,7 @@
          Deliberately not linked here: the app injects stylesheet and
          scripts lazily on the first card render (keeps them off the
          initial critical path). -->
-    <link data-trunk rel="copy-dir" href="/vendor/katex" />
+    <link data-trunk rel="copy-dir" href="vendor/katex" />
     <link data-trunk rel="rust" data-bin="flasher-leptos" data-wasm-opt="s" data-integrity="none" />
     <style>
       /* Loading skeleton (inlined so it paints before app.css/wasm load).

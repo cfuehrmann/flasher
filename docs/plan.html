@@ -713,6 +713,17 @@ browser e2e (clicking) together — never a backend without its user-facing test
     <code>relogin_on_add_restores_draft_prefill</code> (it read the field right after the editor
     rendered, before the draft fetch landed); it now waits on the field value via the new harness
     <code>wait_for_value</code>. Bundle 5389 KiB (budget 5700). Full gate green (165 rust + 74 browser e2e).</li>
+    <li class="done"><b><span class="badge b-done">done</span> Package refresh (2026-10-24):</b>
+    full <code>cargo update</code> in both workspaces — tokio 1.54.1, uuid 1.29.0,
+    pulldown-cmark 0.13.5, cc 1.10, icu 2.4.0, yoke/zerovec, const_format 0.2.37,
+    smallvec/tinystr, rustls-webpki 0.103.16, webpki-root-certs. Every direct dependency
+    already sat on its newest major (frontend pins unchanged: leptos 0.8.22, wasm-bindgen
+    0.2.129, js-sys/web-sys 0.3.106) and base64 0.22 / sha2 0.10 stay held to sqlx-core 0.9.
+    The system trunk bump to 0.22.0 (2026-10-20, upstream #1045) broke the bundle build: a
+    leading "/" in a <code>data-trunk</code> href is now a filesystem-absolute path, so
+    <code>index.html</code> uses project-relative asset hrefs (dist output unchanged, and the
+    server's pinned trunk 0.21.14 accepts the same form). Bundle 5402 KiB (budget 5700).
+    Full gate green (165 rust + 74 browser e2e).</li>
     <li><b>Review round 12 deferrals:</b> replace the pre-migration plain-file copy with a
     WAL-consistent SQLite backup, and make screenshot capture wait for async KaTeX; both are
     separate hardening tasks.</li>
