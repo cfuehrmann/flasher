@@ -36,26 +36,26 @@ git push origin master
 git clone https://github.com/cfuehrmann/flasher.git /opt/flasher/src
 ```
 
-### A2. Toolchain + build — [server]
+### A2. Toolchain (development machine only) — [dev]
 
-The laptop's glibc is newer than the server's — do NOT copy binaries; build
-on the server. Everything in this step is one-time; `update.sh` relies on it
-later (including the frontend toolchain):
+The server does **not** build. It has no Rust/Trunk toolchain by design: builds
+run on a development machine and only the artifact travels.
+
+On the development machine (versions must match the frontend pins):
 
 ```sh
-apt-get update && apt-get install -y build-essential pkg-config libssl-dev curl git
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-. "$HOME/.cargo/env"
 rustup target add wasm32-unknown-unknown
 cargo install --locked --version 0.21.14 trunk
-cargo install --locked --version 0.2.129 wasm-bindgen-cli   # must match the frontend's wasm-bindgen pin
+cargo install --locked --version 0.2.129 wasm-bindgen-cli
 
-cd /opt/flasher/src
-cargo build --release -p flasher-server -p flasher-migrate
-(cd frontends/leptos && env -u NO_COLOR trunk build --release)
-install -m755 target/release/flasher /opt/flasher/flasher
-install -m755 target/release/flasher-migrate /opt/flasher/flasher-migrate
-mkdir -p /opt/flasher/dist && rsync -a --delete frontends/leptos/dist/ /opt/flasher/dist/
+# build, ship, install, restart, health-check — one command
+deploy/build-artifact.sh --ship
+```
+
+On the server, once: install `deploy/update.sh` as `/opt/flasher/update.sh`, then
+provision the service user and state directory:
+
+```sh
 useradd -r -s /usr/sbin/nologin flasher || true
 mkdir -p /var/lib/flasher && chown -R flasher:flasher /var/lib/flasher
 ```
@@ -116,16 +116,32 @@ Stop/disable the old .NET service, remove its vhost/site config. KEEP the old JS
 
 ## Part B — updating (every deploy after the first)
 
-One command, from anywhere, **no AI and no laptop build involved** —
-the server pulls, rebuilds backend AND frontend, swaps artifacts, restarts,
-and health-checks itself:
+The build happens on a **development machine**, not on the server: the server
+has no Rust/Trunk toolchain (by design — it has 4 cores and a small disk). The
+artifact carries the `flasher` and `flasher-migrate` binaries plus the frontend
+dist, and the server-side updater stages them, keeps the previous release for
+rollback, restarts, and health-checks:
 
 ```sh
-ssh root@116.203.151.104 /opt/flasher/update.sh
+deploy/build-artifact.sh --ship        # build here, scp, install, restart, verify
 ```
 
-Optional later automation (still no AI): a GitHub webhook or a systemd
-timer that calls `update.sh`.
+`deploy/build-artifact.sh` refuses to ship when the binaries need a glibc newer
+than the server's (development machines run 2.44, the server 2.39; flasher needs
+2.34). Without `--ship` it only produces `/tmp/flasher-artifact-<rev>.tar.gz` and
+prints the manual scp/ssh pair. The server-side entry point is
+`sudo /opt/flasher/update.sh --artifact <file>`.
+
+The updater still supports a source build in place (`sudo /opt/flasher/update.sh`
+with no argument: `git pull --ff-only`, `cargo build`, `trunk build`) for a
+reproducible rebuild on a host that does have a toolchain; it is not how
+production is deployed.
+
+**Planned: build in CI.** The end state is that GitHub Actions builds these
+artifacts and the server pulls them, so neither a developer machine nor a
+server compiler is involved. Tracked in
+[issue #143](https://github.com/cfuehrmann/flasher/issues/143); until then the
+machine that builds is a developer machine.
 
 ---
 
