@@ -112,6 +112,31 @@ survives), add a second passkey in Account.
 Stop/disable the old .NET service, remove its vhost/site config. KEEP the old JSON
 `flasher-store` directory untouched as a backup.
 
+## Nightly backup
+
+`backup-flasher.timer` (01:00 UTC) runs `~/bin/backup-flasher.sh`, which rsyncs a
+consistent snapshot of the SQLite database to the home server
+(`carsten@172.30.0.2:web-server-flasher-db/`, key `backup_ed25519`, restricted to
+`rrsync -wo` on the receiving side) and only then pings the Better Stack
+heartbeat.
+
+The snapshot comes from `/usr/local/sbin/sqlite-snapshot flasher` — a root-owned
+helper shared with the prepper deployment, maintained there as
+`deploy/sqlite-snapshot` in the prepper repository. It runs sqlite's online
+`.backup` as the `flasher` service user (carsten cannot create the WAL `-shm`
+file), integrity-checks the result and hands a single clean `flasher.db` to
+carsten. That is what replaced an earlier rsync of the live
+`flasher.db`/`-wal`/`-shm` files, which was not transactional.
+
+The helper is the only command this account may run without a password:
+
+```
+carsten ALL=(root) NOPASSWD: /usr/local/sbin/sqlite-snapshot
+```
+
+Everything else — including the updater — still requires a password, so
+deployments use the artifact path from a development machine (Part B).
+
 ---
 
 ## Part B — updating (every deploy after the first)
