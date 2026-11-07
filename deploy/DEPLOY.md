@@ -120,22 +120,27 @@ consistent snapshot of the SQLite database to the home server
 `rrsync -wo` on the receiving side) and only then pings the Better Stack
 heartbeat.
 
-The snapshot comes from `/usr/local/sbin/sqlite-snapshot flasher` — a root-owned
-helper shared with the prepper deployment, maintained there as
-`deploy/sqlite-snapshot` in the prepper repository. It runs sqlite's online
-`.backup` as the `flasher` service user (carsten cannot create the WAL `-shm`
-file), integrity-checks the result and hands a single clean `flasher.db` to
-carsten. That is what replaced an earlier rsync of the live
+The snapshot comes from `/usr/local/sbin/sqlite-snapshot flasher`: sqlite's
+online `.backup` as the `flasher` service user (carsten cannot create the WAL
+`-shm` file), integrity-checked and handed to carsten as a single clean
+`flasher.db`. That replaced an earlier rsync of the live
 `flasher.db`/`-wal`/`-shm` files, which was not transactional.
 
-The helper is the only command this account may run without a password:
+These pieces are host-level and live in the private
+[`hetzner-infra`](https://github.com/cfuehrmann/hetzner-infra) repository
+(`host/sqlite-snapshot`, `host/backup-flasher.*`, `host/sudoers.d/carsten`), not
+here — they are shared with prepper, and the Better Stack heartbeat URLs must
+never be versioned in this public repository:
 
-```
-carsten ALL=(root) NOPASSWD: /usr/local/sbin/sqlite-snapshot
+```sh
+git clone git@github.com:cfuehrmann/hetzner-infra
+sudo bash hetzner-infra/install.sh
 ```
 
-Everything else — including the updater — still requires a password, so
-deployments use the artifact path from a development machine (Part B).
+`/etc/sudoers.d/carsten` grants exactly one passwordless command,
+`/usr/local/sbin/sqlite-snapshot`; everything else — including this app's
+updater — still requires a password, so deployments use the artifact path from a
+development machine (Part B).
 
 ---
 
