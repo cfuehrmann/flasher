@@ -156,6 +156,9 @@ rollback, restarts, and health-checks:
 deploy/build-artifact.sh --ship        # build here, scp, install, restart, verify
 ```
 
+Deploying needs the server's sudo password once (`--ship` opens an interactive
+session for that step), because the updater installs root-owned binaries.
+
 `deploy/build-artifact.sh` refuses to ship when the binaries need a glibc newer
 than the server's (development machines run 2.44, the server 2.39; flasher needs
 2.34). Without `--ship` it only produces `/tmp/flasher-artifact-<rev>.tar.gz` and

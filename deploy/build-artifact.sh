@@ -85,5 +85,7 @@ fi
 remote=/tmp/$(basename "$artifact")
 scp "${SSH_OPTS[@]}" -q "$artifact" "$host:$remote"
 echo "uploaded to $host:$remote"
-ssh "${SSH_OPTS[@]}" "$host" "sha256sum '$remote' | grep -q '$sha' && sudo /opt/flasher/update.sh --artifact '$remote' && rm -f '$remote'"
+# The updater runs as root, so this step is interactive: after the sudoers
+# narrowing on the server, sudo prompts once for that host's password.
+ssh -t -o BatchMode=no "$host" "sha256sum '$remote' | grep -q '$sha' && sudo /opt/flasher/update.sh --artifact '$remote' && rm -f '$remote'"
 echo "deployed flasher $rev"
